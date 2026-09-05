@@ -35,7 +35,7 @@ The equivalent environment variable is `WK_GATEWAY_TOKEN_AUTH_ON=true`, and it o
 
 ## Manager and product APIs
 
-Enable `manager.auth_on` in production and replace example JWT secrets and users. Manager may be reached directly through public port `5301`, but it must use a strong password. Use an HTTPS reverse proxy when login transport needs protection, and optionally restrict source addresses at the firewall. Grant only required resources and actions; the example's global wildcard is not a production baseline.
+Enable `manager.auth_on` in production and replace example JWT secrets and users. Access Manager through an SSH tunnel to loopback, or an HTTPS proxy on a management network/VPN. Do not expose node port `5301` publicly; restrict sources on the proxy-to-node path too. Grant only required resources and actions; the example global wildcard is not a production baseline. See [Manager](/en/server/operations/manager) for access steps.
 
 WuKongIM product HTTP routes do not provide general business token validation. Manager authentication does not protect the product API. Put business routes on a trusted network or behind an API gateway, reverse proxy, and business identity check.
 

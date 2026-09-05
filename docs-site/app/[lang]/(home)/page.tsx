@@ -1,5 +1,4 @@
 import { domains, parseLocale } from '@/lib/navigation';
-import { getDomainPublicationCounts } from '@/lib/navigation-tree';
 import { canonicalUrl, getRobotsMetadata } from '@/lib/shared';
 import {
   ArrowRight,
@@ -29,14 +28,12 @@ const copy = {
     eyebrow: 'WuKongIM v3 · 公开文档',
     title: '从第一条消息，走向可靠的大规模通信',
     description:
-      '面向应用开发者、服务端部署者和运维人员的统一文档入口。当前维护内容已全部发布，页面会分别说明运行证据和生产边界。',
+      '启动集群、连接两个用户并验证消息收发，再按你的平台和部署环境完成业务接入。',
     quickstart: '开始 JavaScript / Web 接入',
     browseApi: '浏览 API 文档',
     domainsTitle: '按工作内容进入',
-    domainsDescription: '四个文档域共享同一套术语和版本规则；当前维护路由已全部发布。',
+    domainsDescription: '从应用接入、服务端部署、客户端 SDK 或接口查询开始。',
     rolesTitle: '按你的角色开始',
-    published: '已发布',
-    planned: '规划中',
     roles: [
       {
         title: '应用开发者',
@@ -65,15 +62,13 @@ const copy = {
     eyebrow: 'WuKongIM v3 · Public Documentation',
     title: 'From the first message to dependable communication at scale',
     description:
-      'One documentation home for application developers, server deployers, and operators. Every maintained page is published, with runtime evidence and production boundaries stated separately.',
+      'Start a cluster, connect two users, and exchange messages. Then integrate your application for the platforms and deployment environment you use.',
     quickstart: 'Start the JavaScript / Web quickstart',
     browseApi: 'Browse the API docs',
     domainsTitle: 'Choose your area',
     domainsDescription:
-      'Four documentation domains share one vocabulary and version policy; every maintained route is now published.',
+      'Start with application integration, server deployment, client SDKs, or API lookup.',
     rolesTitle: 'Start from your role',
-    published: 'published',
-    planned: 'planned',
     roles: [
       {
         title: 'Application developer',
@@ -171,7 +166,6 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           {domains.map((domain) => {
             const Icon = domainIcons[domain.key];
-            const counts = getDomainPublicationCounts(locale, domain.key);
             return (
               <Link
                 key={domain.key}
@@ -187,16 +181,6 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
                 <h3 className="mt-8 text-xl font-semibold">{domain.label[locale]}</h3>
                 <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">
                   {domain.description[locale]}
-                </p>
-                <p className="mt-5 flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium">
-                  <span className="text-emerald-700 dark:text-emerald-300">
-                    {counts.published} {content.published}
-                  </span>
-                  {counts.planned > 0 ? (
-                    <span className="text-fd-muted-foreground">
-                      {counts.planned} {content.planned}
-                    </span>
-                  ) : null}
                 </p>
               </Link>
             );

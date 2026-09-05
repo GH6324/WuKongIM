@@ -61,10 +61,16 @@ curl --fail http://127.0.0.1:5001/readyz
 
 `/readyz` 成功后再接入流量。启动失败时查看日志：
 
-后台管理默认地址是 [http://127.0.0.1:5301](http://127.0.0.1:5301)，使用 `admin` 和初始化时保存的密码登录。如需公网访问，把配置文件 `[manager]` 中的 `listen_addr` 改为 `"0.0.0.0:5301"`，确认 `auth_on = true`，重启服务并在防火墙放行 TCP `5301`，然后打开 `http://<服务器公网IP>:5301`。更多说明见 [Manager 管理后台](/zh/server/operations/manager)。
-
 ```bash
 sudo journalctl -u wukongim -n 100 --no-pager
 ```
+
+后台管理默认地址是 [http://127.0.0.1:5301](http://127.0.0.1:5301)，使用 `admin` 和初始化时保存的密码登录。保持 `auth_on = true`；远程访问时在自己的电脑执行下面的命令，并保持终端运行，然后打开同一个浏览器地址：
+
+```bash
+ssh -N -L 127.0.0.1:5301:127.0.0.1:5301 <user>@<server-ip>
+```
+
+无需在公网放行 `5301`。多人运维使用管理内网或 VPN，并通过 HTTPS 代理访问；配置见 [Manager 管理后台](/zh/server/operations/manager)。
 
 多节点部署继续阅读[多节点集群](/zh/server/deployment/multi-node)，升级前阅读[升级与迁移](/zh/server/operations/upgrade-and-migration)。

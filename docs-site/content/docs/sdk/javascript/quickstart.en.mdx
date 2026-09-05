@@ -5,13 +5,57 @@ description: Install wukongimjssdk 1.3.5, connect a user, and exchange the first
 
 This page has one goal: exchange a text message between two online browser sessions.
 
-## Prerequisites
+## Run the two-user example first
 
-- Your application server returns a `uid`, `token`, and WebSocket endpoint for both `alice` and `bob`.
-- You have two separate tabs, iframes, or browser contexts. `WKSDK.shared()` is a singleton; do not sign in two users inside one page context.
-- Your frontend tooling supports npm packages and TypeScript.
+Install Git, Node.js 20.11 or newer, and npm. If you do not yet have an application backend, the example includes a loopback-only Node.js service (BFF) that prepares development identities and discovers connection endpoints.
 
-## 1. Install
+### Start WuKongIM
+
+Follow [Docker Deployment](/en/server/deployment/docker) or [Start a Single-node Cluster](/en/guide/quick-start/single-node-cluster).
+
+If WuKongIM runs on a remote Linux server, open another terminal on your computer and keep this SSH tunnel running:
+
+```bash
+ssh -N -L 127.0.0.1:5001:127.0.0.1:5001 -L 127.0.0.1:5200:127.0.0.1:5200 <user>@<server-ip>
+```
+
+This path requires the test server's `/route` to return the browser-reachable `ws://127.0.0.1:5200`. For another endpoint, configure `api.external_ws_addr` using [Networking](/en/server/configuration/networking) and restart. Tunnels forward ports; they do not rewrite route responses.
+
+Check readiness from the computer running Node.js before starting the example:
+
+```bash
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+### Start the example on your computer
+
+```bash
+git clone --depth 1 https://github.com/WuKongIM/WuKongIM.git WuKongIM-web-example
+cd WuKongIM-web-example/docs-site/examples/javascript-web-quickstart
+npm ci
+npm run dev
+```
+
+If you already have the repository, enter the same example directory. Open [http://127.0.0.1:5173](http://127.0.0.1:5173) and:
+
+1. Connect Alice and Bob; confirm both sessions are connected.
+2. Send from Alice, checking Alice's server send result and Bob's incoming event separately.
+3. Disconnect Bob and send another message from Alice.
+4. Reconnect Bob; confirm the missing message is restored and displayed once.
+
+Node.js uses `http://127.0.0.1:5001` by default. Set `WK_DOCS_QUICKSTART_PRODUCT_HTTP_URL` for a different test API endpoint, for example:
+
+```bash
+WK_DOCS_QUICKSTART_PRODUCT_HTTP_URL=http://127.0.0.1:15001 npm run dev
+```
+
+The browser calls only the example's `/api/development/identity` and `/api/messages/sync`; the BFF calls Product HTTP. In production, replace development identity provisioning with your login and authorization system. Clients do not call `/user/token` directly.
+
+## Integrate your own frontend
+
+The following explains installation, identity, listeners, and sending. Use two independent tabs, iframes, or browser contexts: `WKSDK.shared()` is a singleton, so do not sign in two users in one page context. The build tool must support npm and TypeScript.
+
+### 1. Install
 
 ```bash
 npm install --save-exact wukongimjssdk@1.3.5
@@ -19,7 +63,7 @@ npm install --save-exact wukongimjssdk@1.3.5
 
 When using pnpm or Yarn, pin the same exact version and keep only the lockfile already used by the project.
 
-## 2. Configure identity and endpoint
+### 2. Configure identity and endpoint
 
 ```typescript
 import WKSDK, {
@@ -29,6 +73,16 @@ import WKSDK, {
   MessageText,
 } from 'wukongimjssdk'
 
+// Same-origin example BFF; use bob on Bob's page.
+const response = await fetch('/api/development/identity', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ uid: 'alice' }),
+})
+if (!response.ok) throw new Error('identity request failed')
+const bootstrap: { uid: string; token: string; websocketUrl: string } =
+  await response.json()
+
 const sdk = WKSDK.shared()
 sdk.config.uid = bootstrap.uid
 sdk.config.token = bootstrap.token
@@ -37,9 +91,9 @@ sdk.config.deviceFlag = 1 // Web
 sdk.config.debug = false
 ```
 
-`bootstrap` is returned by your application server; it is not an SDK type. Production sites should prefer a `wss://` endpoint with a correctly configured certificate.
+`bootstrap` is a backend response, not an SDK type. The runnable example provides this URL; in your own project, replace it with your authenticated application login endpoint returning these three fields. Use a correctly certified `wss://` endpoint in production.
 
-## 3. Register listeners first
+### 3. Register listeners first
 
 ```typescript
 const onConnect = (status: ConnectStatus, reasonCode?: number) => {
@@ -74,7 +128,7 @@ sdk.chatManager.addMessageStatusListener(onMessageStatus)
 
 Keep the function references so the page can remove the same listeners during cleanup.
 
-## 4. Connect and send
+### 4. Connect and send
 
 ```typescript
 sdk.connect()
@@ -99,11 +153,7 @@ The returned Promise gives you the local message. The server result comes throug
 2. Alice receives a send state with `reasonCode === 1`.
 3. Bob prints “Hello, Bob”.
 
-## Complete runnable example
-
-The repository's [JavaScript / Web quickstart](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/javascript-web-quickstart) includes a two-user page, trusted local BFF, reconnect flow, and offline message recovery. Run `npm ci && npm run dev` in that directory.
-
-Clean up the page with:
+## Clean up the page
 
 ```typescript
 sdk.connectManager.removeConnectStatusListener(onConnect)
@@ -113,3 +163,13 @@ sdk.disconnect()
 ```
 
 If connection fails, verify that the endpoint is a WebSocket address rather than an HTTP API address, then check page CSP, reverse proxy, and certificate configuration. Continue with [Connection](/en/sdk/javascript/connection) and [Messages](/en/sdk/javascript/messages).
+
+## Troubleshoot by symptom
+
+| Symptom | Check and action |
+| --- | --- |
+| `npm ci` or build fails | Check the Node.js version and example directory; keep the repository lockfile |
+| Development identity request fails | Check `/readyz`, the API endpoint, and port `5001` forwarding from the Node.js computer |
+| Identity succeeds but WebSocket fails | Check the browser can reach the `/route` endpoint result, port `5200` forwarding, certificates, and proxy paths |
+| Connected but Bob sees no message | Check the peer UID, server send result, and SDK text payload format |
+| Reconnect does not restore messages | Inspect `/api/messages/sync`, confirm durable messages exist, and keep the same test UID |

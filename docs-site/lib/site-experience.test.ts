@@ -66,7 +66,7 @@ describe('documentation site experience', () => {
 
     for (const domain of ['guide', 'server', 'sdk', 'api'] as const) {
       const counts = getDomainPublicationCounts('en', domain);
-      expect(html).toContain(`${counts.published} published`);
+      expect(html).not.toContain(`${counts.published} published`);
       expect(html).not.toContain(`${counts.planned} planned`);
     }
     expect(html).not.toContain('unfinished pages remain clearly marked');

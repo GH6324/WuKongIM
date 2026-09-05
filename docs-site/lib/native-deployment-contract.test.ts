@@ -160,7 +160,7 @@ describe('native deployment publication contract', () => {
         'systemctl enable --now wukongim',
         'http://127.0.0.1:5001/readyz',
         'http://127.0.0.1:5301',
-        '0.0.0.0:5301',
+        'ssh -N -L 127.0.0.1:5301:127.0.0.1:5301',
         'auth_on = true',
         '/var/lib/wukongim',
         '/var/log/wukongim',
@@ -197,7 +197,8 @@ describe('native deployment publication contract', () => {
         content.match(/^curl -fsSL https:\/\/packages\.githubim\.com\/repo \| sudo sh$/gm),
       ).toHaveLength(2);
       expect(content.match(/^## \d+\./gm)).toHaveLength(3);
-      expect(content.trimEnd().split('\n').length).toBeLessThanOrEqual(70);
+      // Allow the explicit SSH access step alongside the three installation steps.
+      expect(content.trimEnd().split('\n').length).toBeLessThanOrEqual(80);
       expect(content).not.toContain('<details>');
       expect(content).not.toContain('.goreleaser.packages.yaml');
 
@@ -233,7 +234,8 @@ describe('native deployment publication contract', () => {
         'channel_replica_n = 3',
         '/readyz',
         '`503`',
-        'http://manager.example.com:5301',
+        'https://manager.internal.example.com:5301',
+        'listen 10.0.0.10:5301 ssl;',
         'listen_addr = "0.0.0.0:5301"',
         'auth_on = true',
         'replace-with-the-same-random-64-character-secret',

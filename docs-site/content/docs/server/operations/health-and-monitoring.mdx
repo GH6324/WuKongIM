@@ -40,6 +40,61 @@ curl -sS http://127.0.0.1:5001/metrics
 
 Manager 的“实时监控”和 Top 适合快速查看当前节点；Prometheus 适合看一段时间内的趋势。它们互相补充，不能替代 `/readyz`。
 
+## 接入现有 Prometheus
+
+下载 [prometheus.yml](/examples/monitoring/prometheus.yml) 和 [alerts.yml](/examples/monitoring/alerts.yml)，放在同一目录。把三台节点地址换成实际管理内网地址，单节点集群只保留一个目标，并为 `cluster` 填写唯一名称。先按[日志与可观测性](/zh/server/configuration/observability)开启节点指标。
+
+在 Prometheus 主机上校验，再按现有服务管理方式加载配置：
+
+```bash
+promtool check config prometheus.yml
+promtool check rules alerts.yml
+```
+
+在 Prometheus 的 Targets 页面确认每个目标都为 UP。已有采集配置时只合并对应的 `scrape_configs` 和 `rule_files`，不要覆盖其他作业；同一节点只采集一次。告警通知需要在现有 Prometheus/Alertmanager 中配置接收人。
+
+## 四个可直接使用的查询
+
+下面的查询使用样例中的 `job="wukongim"` 与采集时添加的 `cluster` 标签；`node_id` 来自节点本身。自定义作业名时相应替换选择器。先检查 `up{job="wukongim"}`：`0` 表示采集失败，`1` 只表示指标抓取成功，不代表 `/readyz` 成功。空结果也可能是目标未配置、指标未启用或该事件尚未发生，不能自动当作正常的零值。
+
+### 连接数：比较节点分布
+
+```text title="PromQL"
+sum by (cluster, node_id) (wukongim_gateway_connections_active{job="wukongim"})
+```
+
+单位是连接，不是去重用户数。单个节点明显偏高时，先检查路由与连接分配；连接突然下降时，对照同一时间段的网关错误和客户端重连。
+
+### 发送失败：按原因定位
+
+```text title="PromQL"
+sum by (cluster, node_id, reason) (increase(wukongim_gateway_sendacks_total{job="wukongim",reason!="success"}[5m]))
+```
+
+显示最近 5 分钟服务端发出的失败 SENDACK 数，不能代替客户端超时统计。`auth_fail` 先查 UID、设备类别和 Token；其他值结合 [Reason Code](/zh/api/dictionaries/reason-codes) 与精确节点日志检查。指标标签是原因名称，协议返回值是数字。
+
+### 写入变慢：查看节点 P99
+
+```text title="PromQL"
+histogram_quantile(0.99,
+  sum by (cluster, node_id, le) (
+    rate(wukongim_message_append_duration_seconds_bucket{job="wukongim"}[5m])
+  )
+)
+```
+
+单位为秒，覆盖服务端消息追加耗时，不是端到端收件延迟。P99 上升时，同时查看该节点磁盘 IO、复制延迟和消息负载；低流量下样本不足，不能据此判断容量。
+
+### 投递积压：查看等待批次数
+
+```text title="PromQL"
+max by (cluster, node_id) (wukongim_delivery_recipient_worker_queue_depth{job="wukongim"})
+```
+
+单位为等待处理的投递批次，不是未读消息或未送达用户数。持续增长时，检查投递 Worker、下游节点和连接写入；先定位瓶颈，再决定容量调整。
+
+下载的告警规则覆盖采集中断、失败 SENDACK 和持续投递积压。`2m`、`10m` 与 `80%` 是起始示例，需按业务基线调整；它们不覆盖全部就绪、存储和集群故障。
+
 ## 先设置这些告警
 
 - `/readyz` 持续返回 503，或者状态频繁变化；

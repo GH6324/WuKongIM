@@ -40,6 +40,13 @@ backend in production.
   the contracts under `contracts/`. After changing one, run
   `bun run openapi:write` and review the generated MDX.
 
+Downloadable operator examples live under `public/examples/monitoring/` and
+`public/examples/wkbench/`. Keep both language guides aligned with these files.
+Validate monitoring files with `promtool check config` and `promtool check rules`.
+Validate benchmark inputs with the current `wkbench validate` command before
+publishing; validation does not start traffic. Report illustrations must remain
+explicitly separate from measured capacity results.
+
 The static API reference deliberately disables its request playground because
 the documented administrative endpoints require trusted network boundaries.
 WKProto, JSON-RPC, and other non-HTTP protocols remain regular protocol pages,

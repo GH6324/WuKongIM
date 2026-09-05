@@ -7,13 +7,13 @@ Manager is WuKongIM's administrative console. It shows node state, runs tasks, m
 
 ## Check these items before opening Manager
 
-- `manager.auth_on` is enabled in production.
-- The default account password and `manager.jwt_secret` have been replaced.
-- Direct public access to port `5301` uses account-and-password authentication with a strong password.
-- Use an HTTPS reverse proxy when login transport needs protection because WuKongIM does not terminate production TLS for you.
+- Enable `manager.auth_on` in production and replace the default password and `manager.jwt_secret`.
+- Bind Manager to loopback or a management-network address; do not expose node port `5301` publicly.
+- For individual remote access, use the [SSH tunnel in Linux deployment](/en/server/deployment/linux). For shared access, use an HTTPS proxy through a management network or VPN.
+- Keep the proxy-to-node connection inside the controlled network and allow only the management proxy and authorized operator sources through the firewall.
 
-<Callout type="warn" title="Do not disable authentication for convenience">
-  `manager.auth_on=false` is neither read-only mode nor a safe anonymous mode. Public access must enable authentication and use a strong password; the firewall can additionally restrict source addresses.
+<Callout type="warn" title="Keep authentication and transport protection enabled">
+  `manager.auth_on=false` is not read-only mode. SSH, VPN, and HTTPS protect the access path; Manager login and resource permissions must remain enabled separately.
 </Callout>
 
 ## What the main pages mean

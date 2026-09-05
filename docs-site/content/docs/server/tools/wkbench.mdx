@@ -45,35 +45,59 @@ api_enable = true
 
 ## 最小验证流程
 
-启动独立 worker：
+配套下载：[target.yaml](/examples/wkbench/target.yaml)、[workers.yaml](/examples/wkbench/workers.yaml)、[scenario.yaml](/examples/wkbench/scenario.yaml)。这是 20 个在线用户、2 个各 10 人的群、每群 5 条/秒的冒烟验证；测量 60 秒，另有 10 秒预热和 10 秒冷却，不代表生产容量。
+
+以下命令在仓库根目录执行，需要符合 `go.mod` 要求的 Go。已安装 `wkbench` 二进制时，可以把 `go run ./cmd/wkbench` 换为 `wkbench`。先复制配置：
 
 ```bash
-WK_BENCH_WORKER_TOKEN=worker-secret \
-  go run ./cmd/wkbench worker \
+mkdir -p ./tmp/docs-wkbench
+cp docs-site/public/examples/wkbench/*.yaml ./tmp/docs-wkbench/
+```
+
+在 `target.yaml` 中填写隔离测试集群的 API、Gateway 和指标地址。示例默认测试节点、Worker 和协调器都在同一主机；分开部署时，每个地址都必须能从对应进程访问。
+
+在 Worker 和协调器两个终端设置相同的控制 Token；协调器的 API Token 必须与测试节点的 `bench.api_token` 相同。节点还需开启 `bench.api_enable` 和 `observability.metrics_enable`。不要在这些命令中使用生产凭据。
+
+终端 A，启动 Worker：
+
+```bash
+export WK_BENCH_WORKER_TOKEN='replace-with-test-worker-secret'
+go run ./cmd/wkbench worker \
   --listen 127.0.0.1:19090 \
-  --work-dir ./tmp/wkbench-worker-a
+  --work-dir ./tmp/docs-wkbench/worker
 ```
 
-先静态验证，再做网络预检，最后才执行负载：
+终端 B，配置本次运行。每次更换 `WK_BENCH_RUN_ID`，不要复用已有运行标识：
 
 ```bash
+export WK_BENCH_WORKER_TOKEN='replace-with-test-worker-secret'
+export WK_BENCH_API_TOKEN='replace-with-test-api-secret'
+export WK_BENCH_RUN_ID="docs-smoke-$(date -u +%Y%m%dT%H%M%SZ)"
 go run ./cmd/wkbench validate \
-  --target ./target.yaml \
-  --workers ./workers.yaml \
-  --scenario ./scenario.yaml
-
-go run ./cmd/wkbench doctor \
-  --target ./target.yaml \
-  --workers ./workers.yaml \
-  --scenario ./scenario.yaml
-
-go run ./cmd/wkbench run \
-  --target ./target.yaml \
-  --workers ./workers.yaml \
-  --scenario ./scenario.yaml
+  --target ./tmp/docs-wkbench/target.yaml \
+  --workers ./tmp/docs-wkbench/workers.yaml \
+  --scenario ./tmp/docs-wkbench/scenario.yaml
 ```
 
-`validate` 成功只说明静态文件和计划有效；`doctor` 成功只说明当时的网络与能力预检通过。两者都不是容量结论。
+`validate` 不访问网络。成功后执行预检；预检失败就修正目标、Token 或地址，不继续运行负载：
+
+```bash
+go run ./cmd/wkbench doctor \
+  --target ./tmp/docs-wkbench/target.yaml \
+  --workers ./tmp/docs-wkbench/workers.yaml \
+  --scenario ./tmp/docs-wkbench/scenario.yaml
+```
+
+预检通过，再执行有界负载：
+
+```bash
+go run ./cmd/wkbench run \
+  --target ./tmp/docs-wkbench/target.yaml \
+  --workers ./tmp/docs-wkbench/workers.yaml \
+  --scenario ./tmp/docs-wkbench/scenario.yaml
+```
+
+示例将任意连接、发送确认、接收校验或 Worker 错误视为失败，也会把超过 P99 阈值判为失败。结束后检查命令退出码和报告，再用 Ctrl+C 停止终端 A 的 Worker。`cleanup.strategy=keep_data` 会保留生成的用户、群和消息；只在隔离测试环境中按保留计划处理这些数据，不要删除集群数据目录来清理一次运行。
 
 ## 设计代表性负载
 
@@ -116,3 +140,19 @@ wkbench capacity send \
 ## 结束清理
 
 停止 worker 和模拟器，撤销临时凭据，关闭 Benchmark API，归档报告后清理生成数据，并验证集群回到空闲基线。无法确认 worker 已停止或目标恢复时，把测试视为未完成事件，而不是成功的基准结果。
+
+## 如何解读报告
+
+在 `run.report_dir` 指定的报告目录中，先读 `summary.md` 和 `report.json`，再用保存的配置、`plan.json` 与 `metrics/` 解释结果。比较两个结果前，另行记录服务端版本或摘要、SDK/工具版本、每节点 CPU/内存/磁盘类型、节点数、副本数和网络条件；工具报告不会自动代替完整的硬件清单。
+
+下面是**假设数据的阅读示例，不是实测报告**：背景为相同服务端与工具版本、一个 4 vCPU / 8 GiB / SSD 单节点集群、默认 256 Hash Slots，运行上面的冒烟场景。
+
+| 报告项目 | 假设观察值 | 应如何理解 |
+| --- | --- | --- |
+| 计划速率 | 2 群 × 5 条/秒 = 10 条/秒 | 表示目标发送速率，不是实际成功吞吐 |
+| `summary.ingress_qps` | 9.8 | 低于计划速率，需要结合耗时、错误和调度情况解释 |
+| `summary.sendack_max_worker_p99` | 180 ms | 低于示例 200 ms 门槛；这是最大 Worker P99，不是全体消息合并后的 P99 |
+| `summary.recv_verify_error_rate` | 0 | 本例每消息抽样 2 个接收者，不证明所有成员均已收到 |
+| 投递队列 | 测量期持续增长，冷却后未消退 | 即使发送指标通过，也不能据此认定可以长期承载该负载 |
+
+JSON 中 Go `time.Duration` 字段以纳秒表示；例如 180 ms 为 `180000000`。阅读延迟时优先使用 `summary.md` 的格式化值。只有足量测量窗口、期望吞吐、错误与尾延迟、接收范围、队列恢复和资源余量共同满足目标，才进入更高一级负载验证。

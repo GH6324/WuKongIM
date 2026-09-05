@@ -9,7 +9,7 @@ description: 用三步搭建 WuKongIM 多节点集群，并检查每个节点是
 flowchart TB
   Client["客户端"]
   Admin["管理员"]
-  Nginx["Nginx 统一入口<br/>TCP 5100 / WSS 443<br/>Manager 5301"]
+  Nginx["Nginx 统一入口<br/>TCP 5100 / WSS 443<br/>Manager 内网 HTTPS 5301"]
 
   subgraph Cluster["WuKongIM 集群（3 台独立服务器）"]
     Node1["节点 1<br/>10.0.0.11<br/>独立磁盘"]
@@ -23,7 +23,7 @@ flowchart TB
   end
 
   Client --> Nginx
-  Admin -->|账号密码登录| Nginx
+  Admin -->|管理内网或 VPN| Nginx
   Nginx --> Node1
   Nginx --> Node2
   Nginx --> Node3
@@ -98,7 +98,7 @@ jwt_secret = "replace-with-the-same-random-64-character-secret"
 users = [{ username = "admin", password = "replace-with-the-same-strong-password", permissions = [{ resource = "*", actions = ["*"] }] }]
 ```
 
-把 `jwt_secret` 和密码替换为强随机值，并在三台节点上保持完全相同。下方 Nginx 生效后，打开 `http://manager.example.com:5301`，使用 `admin` 和配置的密码登录。更多说明见 [Manager 管理后台](/zh/server/operations/manager)。
+把 `jwt_secret` 和密码替换为强随机值，并在三台节点上保持完全相同。下方 Nginx 生效后，打开 `https://manager.internal.example.com:5301`，使用 `admin` 和配置的密码登录。更多说明见 [Manager 管理后台](/zh/server/operations/manager)。
 
 ### 接入 Nginx
 
@@ -144,7 +144,9 @@ stream {
   }
 
   server {
-    listen 5301;
+    listen 10.0.0.10:5301 ssl;
+    ssl_certificate /etc/nginx/certs/manager.internal.example.com.crt;
+    ssl_certificate_key /etc/nginx/certs/manager.internal.example.com.key;
     proxy_pass wukongim_manager;
     proxy_connect_timeout 5s;
     proxy_timeout 1h;
@@ -160,6 +162,6 @@ external_tcp_addr = "im.example.com:5100"
 external_wss_addr = "wss://im.example.com"
 ```
 
-将 `im.example.com` 和 `manager.example.com` 都解析到 Nginx，并执行 `sudo nginx -t && sudo systemctl reload nginx`。这里的开源 Nginx 只能在连接失败后临时跳过节点，不会主动检查 `/readyz`；上线系统还需要在节点未就绪时自动或手动把它移出 `upstream`。示例假设 `443` 端口专门用于 WuKongIM；一台 Nginx 也会成为单点，生产环境应使用两台 Nginx 加一个统一入口，或使用托管负载均衡。
+将 `im.example.com` 解析到客户端入口；`manager.internal.example.com` 仅通过内部 DNS 解析到 Nginx 管理内网地址 `10.0.0.10`。管理员通过内网或 VPN 访问，节点 `5301` 仅允许该代理和授权管理来源，禁止公网访问。替换管理地址与证书路径后，执行 `sudo nginx -t && sudo systemctl reload nginx`。这里的开源 Nginx 只能在连接失败后临时跳过节点，不会主动检查 `/readyz`；上线系统还需要在节点未就绪时自动或手动把它移出 `upstream`。示例假设 `443` 端口专门用于 WuKongIM；一台 Nginx 也会成为单点，生产环境应使用两台 Nginx 加一个统一入口，或使用托管负载均衡。
 
 已有数据后，不要直接修改集群 ID、节点 ID、`hash_slot_count` 或副本数。增减节点请阅读[扩容与缩容](/zh/server/operations/scaling)。

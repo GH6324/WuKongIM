@@ -25,6 +25,8 @@ go run ./cmd/wkcli top --server http://127.0.0.1:5001 --once --json
 
 把地址换成实际 API 地址。`0.0.0.0` 是监听配置，不是客户端可以访问的服务器地址。
 
+指标名称、可复制的 PromQL 和结果解释见[健康检查与监控](/zh/server/operations/health-and-monitoring)。先检查采集是否正常，再比较同一节点、同一时间段的数据。
+
 ## 根据现象继续检查
 
 ### `/healthz` 成功，但 `/readyz` 返回 503
