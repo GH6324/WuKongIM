@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { t } from '../i18n'
 import APIClient from '../services/APIClient'
 import { useRouter, useRoute } from "vue-router";
 import { WKSDK } from 'wukongimjssdk';
@@ -58,38 +59,38 @@ const login = () => {
   <div class="hello">
     <div>
       <a href="https://githubim.com" target="_blank">
-        <img src="/logo.png" class="logo" alt="Vite logo" />
+        <img src="/logo.png" class="logo" :alt="t('logo')" />
       </a>
     </div>
     <p>
-      悟空IM演示程序，当前SDK版本：[v{{ WKSDK.shared().config.sdkVersion }}]
+      {{ t('sdkVersion', { version: WKSDK.shared().config.sdkVersion }) }}
     </p>
     <div class="form">
       <div class="item">
         <div class="label">
-          <label>API基地址</label>
+          <label>{{ t('apiAddress') }}</label>
         </div>
         <div class="field">
-          <input type="text" placeholder="请输入API基地址" v-model="apiAddr" />
+          <input type="text" :placeholder="t('apiAddressPlaceholder')" v-model="apiAddr" />
         </div>
       </div>
       <div class="item">
         <div class="label">
-          <label>登录账号</label>
+          <label>{{ t('username') }}</label>
         </div>
         <div class="field">
-          <input type="text" placeholder="演示下，随便输，唯一即可" v-model="username" />
+          <input type="text" :placeholder="t('usernamePlaceholder')" v-model="username" />
         </div>
       </div>
       <div class="item">
         <div class="label">
-          <label>登录密码</label>
+          <label>{{ t('password') }}</label>
         </div>
         <div class="field">
-          <input type="text" placeholder="演示下，随便输" v-model="password" />
+          <input type="text" :placeholder="t('passwordPlaceholder')" v-model="password" />
         </div>
       </div>
-      <button class="submit" v-on:click="login">登录</button>
+      <button class="submit" v-on:click="login">{{ t('login') }}</button>
     </div>
   </div>
 </template>
@@ -113,7 +114,7 @@ const login = () => {
 }
 
 .field input {
-  width: 200px;
+  width: min(300px, 55vw);
   height: 30px;
   border: none;
   margin-left: 20px;

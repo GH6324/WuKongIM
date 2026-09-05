@@ -131,7 +131,7 @@ func TestServerServesEmbeddedDemoWithoutMaskingProductRoutes(t *testing.T) {
 	if contentType := demoRec.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "text/html") {
 		t.Fatalf("GET /demo/ content type = %q, want text/html", contentType)
 	}
-	if body := demoRec.Body.String(); !strings.Contains(body, "悟空IM演示程序") {
+	if body := demoRec.Body.String(); !strings.Contains(body, "WuKongIM Demo") {
 		t.Fatalf("GET /demo/ body does not contain demo title: %q", body)
 	}
 

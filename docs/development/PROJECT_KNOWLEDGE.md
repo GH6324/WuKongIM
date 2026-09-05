@@ -582,7 +582,7 @@
 - E2E loopback allocation leases one non-overlapping port block per `go test` process with a process-lifetime sentinel listener; per-address probes still skip unrelated host listeners.
 
 ### Worktree testing
-- The chat Demo is embedded under the product API listener at `/demo/`; it defaults to the page origin for HTTP APIs and discovers WebSocket addresses through `/route`.
+- The chat Demo is embedded under the product API listener at `/demo/`; it defaults to the page origin for HTTP APIs and discovers WebSocket addresses through `/route`. Its UI selects the first supported `zh` or `en` browser language at page load, falling back to English; user content and server error details remain untranslated. Rebuild `demo/chatdemo` to update the committed embedded assets after UI changes.
 - When using project-local `.worktrees/*`, run Go tests with `GOWORK=off`; the parent `go.work` points at the main checkout and otherwise makes packages resolve under `.worktrees` incorrectly.
 - Repository-wide Go gates must use `GOWORK=off` plus explicit roots (`cmd`, `internal`, `pkg`, `scripts`, `docker`, or `test/e2e`); root `./...` ignores `.gitignore` and can include local `tmp` or `web/node_modules` packages.
 - The default `scripts/...` unit tier is limited to static contracts, parsers,

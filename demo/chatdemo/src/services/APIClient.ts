@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import axios, { AxiosResponse } from "axios";
 import { Channel, ChannelTypePerson, Conversation, Message, SyncOptions, WKSDK } from "wukongimjssdk";
 import { Convert } from "./convert";
@@ -51,17 +52,17 @@ export default class APIClient {
             var msg = "";
             switch (error.response && error.response.status) {
                 case 400:
-                    msg = error.response.data.msg;
+                    msg = error.response.data?.msg || t('unknownError');
                     break;
                 case 404:
-                    msg = "请求地址没有找到（404）"
+                    msg = t('requestNotFound')
                     break;
                 case 401:
                     if(self.logoutCallback) {
                         self.logoutCallback()
                     }
                 default:
-                    msg = "未知错误"
+                    msg = t('unknownError')
                     break;
             }
             return Promise.reject({ error: error, msg: msg, status: error?.response?.status });
