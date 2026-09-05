@@ -96,7 +96,7 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		pluginOptions.ReceiveBindings = clusterinfra.NewPluginBindingReader(bindingNode)
 	}
 	if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
-		pluginOptions.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
+		pluginOptions.MessageReader = messageusecase.NewPageReader(clusterinfra.NewCommittedMessageReader(readNode))
 	}
 	if clusterNode, ok := a.cluster.(clusterinfra.PluginClusterNode); ok {
 		pluginOptions.ClusterReader = clusterinfra.NewPluginClusterReader(clusterNode)

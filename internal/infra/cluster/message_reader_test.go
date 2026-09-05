@@ -30,169 +30,65 @@ func TestMessageMembershipStorePreservesExactPullAuthorizationIdentity(t *testin
 	}
 }
 
-func TestChannelMessageReaderMapsPullUpRequestAndTrimsHasMore(t *testing.T) {
-	node := &recordingReadNode{
-		batchResults: []clusterchannels.CommittedReadResult{{Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
-			{MessageID: 10, MessageSeq: 2, ChannelID: "g1", ChannelType: 2, Setting: 2, FromUID: "u1", ClientMsgNo: "c1", Payload: []byte("a")},
-			{MessageID: 11, MessageSeq: 3, ChannelID: "g1", ChannelType: 2, FromUID: "u1", ClientMsgNo: "c2", Payload: []byte("b")},
-			{MessageID: 12, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, FromUID: "u1", ClientMsgNo: "c3", Payload: []byte("c")},
-		}}}},
-	}
-	reader := NewChannelMessageReader(node)
-
-	page, err := reader.SyncMessages(context.Background(), message.ChannelMessageQuery{
-		ChannelID: message.ChannelID{ID: "g1", Type: 2},
-		StartSeq:  2,
-		EndSeq:    5,
-		Limit:     2,
-		PullMode:  message.PullModeUp,
-	})
-
-	if err != nil {
-		t.Fatalf("SyncMessages() error = %v", err)
-	}
-	if node.batchCalls != 1 || len(node.batchReads) != 1 || node.batchReads[0].ChannelID != (channelruntime.ChannelID{ID: "g1", Type: 2}) {
-		t.Fatalf("batch calls=%d reads=%#v, want one g1/2 read", node.batchCalls, node.batchReads)
-	}
-	readReq := node.batchReads[0].Request
-	if readReq.FromSeq != 2 || readReq.MaxSeq != 4 || readReq.Limit != 3 || readReq.Reverse {
-		t.Fatalf("read request = %#v, want forward 2..4 limit+1", readReq)
-	}
-	if !page.HasMore || len(page.Messages) != 2 {
-		t.Fatalf("page = %#v, want two messages with hasMore", page)
-	}
-	if page.Messages[0].MessageID != 10 || page.Messages[1].MessageID != 11 || string(page.Messages[0].Payload) != "a" {
-		t.Fatalf("messages = %#v, want mapped first two messages", page.Messages)
-	}
-	if page.Messages[0].Setting != 2 {
-		t.Fatalf("message setting = %d, want 2", page.Messages[0].Setting)
-	}
-}
-
-func TestChannelMessageReaderMapsUnboundedPullUpRange(t *testing.T) {
-	node := &recordingReadNode{batchResults: []clusterchannels.CommittedReadResult{{}}}
-	reader := NewChannelMessageReader(node)
-
-	_, err := reader.SyncMessages(context.Background(), message.ChannelMessageQuery{
-		ChannelID: message.ChannelID{ID: "g1", Type: 2},
-		StartSeq:  2,
-		Limit:     10,
-		PullMode:  message.PullModeUp,
-	})
-	if err != nil {
-		t.Fatalf("SyncMessages() error = %v", err)
-	}
-	request := node.batchReads[0].Request
-	if request.FromSeq != 2 || request.MaxSeq != maxUint64() || request.Reverse {
-		t.Fatalf("read request = %#v, want forward [2,+inf)", request)
-	}
-}
-
-func TestChannelMessageReaderMapsPullDownAndReturnsAscending(t *testing.T) {
-	node := &recordingReadNode{
-		batchResults: []clusterchannels.CommittedReadResult{{Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
-			{MessageID: 15, MessageSeq: 5, ChannelID: "g1", ChannelType: 2},
-			{MessageID: 14, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
-			{MessageID: 13, MessageSeq: 3, ChannelID: "g1", ChannelType: 2},
-		}}}},
-	}
-	reader := NewChannelMessageReader(node)
-
-	page, err := reader.SyncMessages(context.Background(), message.ChannelMessageQuery{
-		ChannelID: message.ChannelID{ID: "g1", Type: 2},
-		StartSeq:  5,
-		EndSeq:    2,
-		Limit:     2,
-		PullMode:  message.PullModeDown,
-	})
-
-	if err != nil {
-		t.Fatalf("SyncMessages() error = %v", err)
-	}
-	readReq := node.batchReads[0].Request
-	if readReq.FromSeq != 5 || readReq.Limit != 3 || !readReq.Reverse {
-		t.Fatalf("read request = %#v, want reverse from 5 limit+1", readReq)
-	}
-	if !page.HasMore || len(page.Messages) != 2 {
-		t.Fatalf("page = %#v, want two messages with hasMore", page)
-	}
-	if page.Messages[0].MessageSeq != 4 || page.Messages[1].MessageSeq != 5 {
-		t.Fatalf("messages = %#v, want ascending seq 4,5", page.Messages)
-	}
-}
-
-func TestChannelMessageReaderPreservesLegacyMessageTimestamp(t *testing.T) {
-	node := &recordingReadNode{
-		batchResults: []clusterchannels.CommittedReadResult{{
-			Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{
-				MessageID: 1, MessageSeq: 1, ChannelID: "g1", ChannelType: 2,
-				ServerTimestampMS: 1_700_000_000_123,
-			}}},
-		}},
-	}
-	reader := NewChannelMessageReader(node)
-
-	page, err := reader.SyncMessages(context.Background(), message.ChannelMessageQuery{
-		ChannelID: message.ChannelID{ID: "g1", Type: 2}, Limit: 1, PullMode: message.PullModeDown,
-	})
-	if err != nil {
-		t.Fatalf("SyncMessages(): %v", err)
-	}
-	if len(page.Messages) != 1 || page.Messages[0].Timestamp != 1_700_000_000 {
-		t.Fatalf("messages = %#v, want durable server timestamp in legacy seconds", page.Messages)
-	}
-}
-
-func TestChannelMessageReaderSingleUsesRoutedOneItemBatch(t *testing.T) {
+func TestCommittedMessageReaderPreservesScanAndRecordOwnership(t *testing.T) {
 	node := &recordingReadNode{batchResults: []clusterchannels.CommittedReadResult{{
-		Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{
-			MessageID: 10, MessageSeq: 1, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "routed",
+		Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
+			{MessageID: 15, MessageSeq: 5, ChannelID: "g1", ChannelType: 2, SyncOnce: true, ServerTimestampMS: 1700000000123, Payload: []byte("command")},
+			{MessageID: 14, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, Setting: 2, FromUID: "u1", ClientMsgNo: "client-4", Payload: []byte("ordinary")},
 		}},
-		}}}}
-	reader := NewChannelMessageReader(node)
-
-	page, err := reader.SyncMessages(context.Background(), message.ChannelMessageQuery{
-		ChannelID: message.ChannelID{ID: "g1", Type: 2},
-		StartSeq:  1,
-		Limit:     10,
-		PullMode:  message.PullModeDown,
-	})
+	}}}
+	reader := NewCommittedMessageReader(node)
+	results, err := reader.ReadCommittedMessages(context.Background(), []message.CommittedMessageQuery{{
+		ChannelID: message.ChannelID{ID: "g1", Type: 2}, FromSeq: 5, MinSeq: 3, MaxSeq: 9, Limit: 2, MaxBytes: 71, Reverse: true,
+	}})
 	if err != nil {
-		t.Fatalf("SyncMessages() error = %v", err)
+		t.Fatal(err)
 	}
-	if node.batchCalls != 1 || len(node.batchReads) != 1 {
-		t.Fatalf("batch calls=%d reads=%+v, want one routed item", node.batchCalls, node.batchReads)
+	if node.batchCalls != 1 || len(node.batchReads) != 1 || node.lastID != (channelruntime.ChannelID{}) {
+		t.Fatalf("reads=%+v, local read=%v, want one routed read", node.batchReads, node.lastID)
 	}
-	if node.lastID != (channelruntime.ChannelID{}) {
-		t.Fatalf("local ReadChannelCommitted called with %v", node.lastID)
+	want := channelstore.ReadCommittedRequest{FromSeq: 5, MinSeq: 3, MaxSeq: 9, Limit: 2, MaxBytes: 71, Reverse: true}
+	if got := node.batchReads[0]; got.ChannelID != (channelruntime.ChannelID{ID: "g1", Type: 2}) || got.Request != want {
+		t.Fatalf("read=%+v, want unchanged scan %+v", got, want)
 	}
-	if len(page.Messages) != 1 || page.Messages[0].ClientMsgNo != "routed" {
-		t.Fatalf("page=%+v, want routed message", page)
+	messages := results[0].Messages
+	if len(messages) != 2 || messages[0].MessageSeq != 5 || !messages[0].Flags.SyncOnce || messages[0].Timestamp != 1700000000 || messages[1].MessageSeq != 4 || messages[1].ClientMsgNo != "client-4" || messages[1].Setting != 2 {
+		t.Fatalf("messages=%+v, want unchanged scan order, command flag and mapped fields", messages)
+	}
+	messages[1].Payload[0] = 'X'
+	if string(node.batchResults[0].Read.Messages[1].Payload) != "ordinary" {
+		t.Fatal("mapped payload aliases cluster storage")
 	}
 }
 
-func TestChannelMessageReaderBatchUsesOneAlignedClusterRead(t *testing.T) {
-	node := &recordingReadNode{batchResults: []clusterchannels.CommittedReadResult{
-		{Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 2}, {MessageSeq: 3}}}},
-		{Err: channelruntime.ErrNotReady},
-	}}
-	reader := NewChannelMessageReader(node)
+func TestCommittedMessageReaderPreservesAlignedErrorsAndTransportCauses(t *testing.T) {
+	queries := []message.CommittedMessageQuery{{ChannelID: message.ChannelID{ID: "a", Type: 2}}, {ChannelID: message.ChannelID{ID: "b", Type: 2}}}
+	node := &recordingReadNode{batchResults: []clusterchannels.CommittedReadResult{{}, {Err: channelruntime.ErrNotReady}}}
+	reader := NewCommittedMessageReader(node)
+	results, err := reader.ReadCommittedMessages(context.Background(), queries)
+	if err != nil || len(results) != 2 || results[0].Err != nil || !errors.Is(results[1].Err, channelruntime.ErrNotReady) {
+		t.Fatalf("results=%+v err=%v", results, err)
+	}
+	node.batchResults = nil
+	if _, err := reader.ReadCommittedMessages(context.Background(), queries); !errors.Is(err, message.ErrSyncBatchResultMismatch) {
+		t.Fatalf("cardinality error=%v", err)
+	}
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded, metadb.ErrNotFound} {
+		node.err = cause
+		if _, err := reader.ReadCommittedMessages(context.Background(), queries); !errors.Is(err, cause) {
+			t.Fatalf("error=%v, want cause %v", err, cause)
+		}
+	}
+}
 
-	results, err := reader.SyncMessagesBatch(context.Background(), []message.ChannelMessageQuery{
-		{ChannelID: message.ChannelID{ID: "g1", Type: 2}, StartSeq: 1, Limit: 1, PullMode: message.PullModeUp},
-		{ChannelID: message.ChannelID{ID: "g2", Type: 2}, StartSeq: 4, Limit: 2, PullMode: message.PullModeUp},
-	})
-	if err != nil {
-		t.Fatalf("SyncMessagesBatch() error=%v", err)
+func TestCommittedMessageReaderRequiresRoutedCapability(t *testing.T) {
+	var missing *CommittedMessageReader
+	if _, err := missing.ReadCommittedMessages(context.Background(), nil); !errors.Is(err, message.ErrMessageReaderRequired) {
+		t.Fatalf("nil reader error=%v", err)
 	}
-	if node.batchCalls != 1 || len(node.batchReads) != 2 {
-		t.Fatalf("batch calls=%d reads=%+v", node.batchCalls, node.batchReads)
-	}
-	if !results[0].Page.HasMore || len(results[0].Page.Messages) != 1 {
-		t.Fatalf("first result=%+v, want trimmed page", results[0])
-	}
-	if results[1].Err == nil {
-		t.Fatalf("second result=%+v, want item error", results[1])
+	reader := NewCommittedMessageReader(&recordingManagementMessageNode{})
+	if _, err := reader.ReadCommittedMessages(context.Background(), nil); !errors.Is(err, message.ErrSyncBatchReaderRequired) {
+		t.Fatalf("local-only reader error=%v", err)
 	}
 }
 

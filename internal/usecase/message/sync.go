@@ -109,7 +109,7 @@ type SyncChannelMessagesResult struct {
 	More bool
 }
 
-// ChannelMessageQuery is the storage-facing channel message sync request.
+// ChannelMessageQuery carries page intent and an independently computed visibility floor.
 type ChannelMessageQuery struct {
 	// ChannelID identifies the normalized channel to scan.
 	ChannelID ChannelID
@@ -134,7 +134,7 @@ type ChannelMessagePage struct {
 	HasMore bool
 }
 
-// ChannelMessageReadResult is aligned with one storage-facing batch query.
+// ChannelMessageReadResult is aligned with one message-page batch query.
 type ChannelMessageReadResult struct {
 	// Page contains one authoritative committed message page on success.
 	Page ChannelMessagePage
@@ -296,14 +296,9 @@ func (a *App) prepareSyncChannelMessages(ctx context.Context, query SyncChannelM
 			return preparedSyncChannelMessages{}, ErrSyncChannelDisbanded
 		}
 	}
-	startSeq := query.StartMessageSeq
-	latestPage := query.StartMessageSeq == 0 && query.EndMessageSeq == 0
-	if !latestPage && query.PullMode == PullModeUp && visibilityMinSeq > startSeq {
-		startSeq = visibilityMinSeq
-	}
 	return preparedSyncChannelMessages{query: ChannelMessageQuery{
 		ChannelID: ChannelID{ID: channelID, Type: query.ChannelType},
-		StartSeq:  startSeq,
+		StartSeq:  query.StartMessageSeq,
 		EndSeq:    query.EndMessageSeq,
 		MinSeq:    visibilityMinSeq,
 		Limit:     normalizeSyncMessagesLimit(query.Limit),

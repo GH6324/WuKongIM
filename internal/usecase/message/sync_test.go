@@ -64,7 +64,7 @@ func TestSyncChannelMessagesReturnsEmptyForMissingChannelRuntime(t *testing.T) {
 	}
 }
 
-func TestSyncChannelMessagesRequiresLiveMembershipAndClampsVisibilityFloor(t *testing.T) {
+func TestSyncChannelMessagesRequiresLiveMembershipAndSuppliesVisibilityFloor(t *testing.T) {
 	reader := &recordingChannelMessageReader{}
 	memberships := &recordingSyncMembershipStore{row: metadb.UserChannelMembership{
 		UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 8, DeletedToSeq: 10,
@@ -76,8 +76,8 @@ func TestSyncChannelMessagesRequiresLiveMembershipAndClampsVisibilityFloor(t *te
 	if err != nil {
 		t.Fatalf("SyncChannelMessages() error = %v", err)
 	}
-	if len(reader.queries) != 1 || reader.queries[0].StartSeq != 11 || reader.queries[0].MinSeq != 11 {
-		t.Fatalf("queries = %#v, want start/min seq 11", reader.queries)
+	if len(reader.queries) != 1 || reader.queries[0].StartSeq != 1 || reader.queries[0].MinSeq != 11 {
+		t.Fatalf("queries = %#v, want original start 1 and visibility min seq 11", reader.queries)
 	}
 
 	memberships.ok = false
@@ -143,8 +143,8 @@ func TestSyncChannelMessagesBatchValidatesMembershipsBeforeOneGroupedRead(t *tes
 	if memberships.calls != 2 || reader.batchCalls != 1 {
 		t.Fatalf("membership calls=%d batch calls=%d, want 2 then 1", memberships.calls, reader.batchCalls)
 	}
-	if got := reader.batchQueries[0].StartSeq; got != 12 {
-		t.Fatalf("first start seq=%d, want delete floor 12", got)
+	if got := reader.batchQueries[0].MinSeq; got != 12 {
+		t.Fatalf("first visibility min seq=%d, want delete floor 12", got)
 	}
 	if got := reader.batchQueries[1].ChannelID.ID; got != personID {
 		t.Fatalf("person channel=%q, want %q", got, personID)

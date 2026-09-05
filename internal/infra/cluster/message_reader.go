@@ -38,48 +38,22 @@ func (s *MessageMembershipStore) GetUserChannelMembership(ctx context.Context, u
 	return s.node.GetUserChannelMembership(ctx, uid, channelID, channelType)
 }
 
-// ChannelMessageReader adapts cluster committed reads to the message usecase sync port.
-type ChannelMessageReader struct {
+// CommittedMessageReader translates bounded record scans to cluster reads.
+// Page selection, filtering and response ordering belong to message.PageReader.
+type CommittedMessageReader struct {
 	node ChannelMessageReadNode
 }
 
-// NewChannelMessageReader creates a ChannelMessageReader.
-func NewChannelMessageReader(node ChannelMessageReadNode) *ChannelMessageReader {
-	return &ChannelMessageReader{node: node}
+// NewCommittedMessageReader creates the cluster adapter for message pages.
+func NewCommittedMessageReader(node ChannelMessageReadNode) *CommittedMessageReader {
+	return &CommittedMessageReader{node: node}
 }
 
-// SyncMessages returns one compatible channel message page.
-func (r *ChannelMessageReader) SyncMessages(ctx context.Context, query message.ChannelMessageQuery) (message.ChannelMessagePage, error) {
-	if r == nil || r.node == nil {
-		return message.ChannelMessagePage{}, message.ErrMessageReaderRequired
-	}
-	batchNode, ok := r.node.(channelMessageBatchReadNode)
-	if !ok {
-		return message.ChannelMessagePage{}, message.ErrSyncBatchReaderRequired
-	}
-	limit := query.Limit
-	if limit <= 0 {
-		limit = 1
-	}
-	results, err := batchNode.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{
-		ChannelID: channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type},
-		Request:   readCommittedRequest(query, limit),
-	}})
-	if err != nil {
-		return message.ChannelMessagePage{}, mapAppendError(err)
-	}
-	if len(results) != 1 {
-		return message.ChannelMessagePage{}, message.ErrSyncBatchResultMismatch
-	}
-	if results[0].Err != nil {
-		return message.ChannelMessagePage{}, mapAppendError(results[0].Err)
-	}
-	return channelMessagePageFromRead(query, limit, results[0].Read), nil
-}
+var _ message.CommittedMessageReader = (*CommittedMessageReader)(nil)
 
-// SyncMessagesBatch performs one Channel-Leader-grouped cluster read and
-// preserves one item-scoped result for every query.
-func (r *ChannelMessageReader) SyncMessagesBatch(ctx context.Context, queries []message.ChannelMessageQuery) ([]message.ChannelMessageReadResult, error) {
+// ReadCommittedMessages preserves scan parameters, aligned errors and ownership
+// while delegating exact Channel-Leader routing to the existing cluster batch.
+func (r *CommittedMessageReader) ReadCommittedMessages(ctx context.Context, queries []message.CommittedMessageQuery) ([]message.CommittedMessageResult, error) {
 	if r == nil || r.node == nil {
 		return nil, message.ErrMessageReaderRequired
 	}
@@ -88,16 +62,13 @@ func (r *ChannelMessageReader) SyncMessagesBatch(ctx context.Context, queries []
 		return nil, message.ErrSyncBatchReaderRequired
 	}
 	reads := make([]clusterchannels.CommittedRead, len(queries))
-	limits := make([]int, len(queries))
 	for index, query := range queries {
-		limit := query.Limit
-		if limit <= 0 {
-			limit = 1
-		}
-		limits[index] = limit
 		reads[index] = clusterchannels.CommittedRead{
 			ChannelID: channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type},
-			Request:   readCommittedRequest(query, limit),
+			Request: channelstore.ReadCommittedRequest{
+				FromSeq: query.FromSeq, MinSeq: query.MinSeq, MaxSeq: query.MaxSeq,
+				Limit: query.Limit, MaxBytes: query.MaxBytes, Reverse: query.Reverse,
+			},
 		}
 	}
 	readResults, err := batchNode.ReadChannelCommittedBatch(ctx, reads)
@@ -107,111 +78,30 @@ func (r *ChannelMessageReader) SyncMessagesBatch(ctx context.Context, queries []
 	if len(readResults) != len(queries) {
 		return nil, message.ErrSyncBatchResultMismatch
 	}
-	results := make([]message.ChannelMessageReadResult, len(queries))
-	for index, readResult := range readResults {
-		if readResult.Err != nil {
-			results[index].Err = mapAppendError(readResult.Err)
+	results := make([]message.CommittedMessageResult, len(readResults))
+	for index, read := range readResults {
+		if read.Err != nil {
+			results[index].Err = mapAppendError(read.Err)
 			continue
 		}
-		results[index].Page = channelMessagePageFromRead(queries[index], limits[index], readResult.Read)
+		results[index].Messages = committedMessagesFromChannel(read.Read.Messages)
 	}
 	return results, nil
 }
 
-func channelMessagePageFromRead(query message.ChannelMessageQuery, limit int, read channelstore.ReadCommittedResult) message.ChannelMessagePage {
-	messages := syncedMessagesFromChannel(read.Messages)
-	messages = filterSyncedMessages(query, messages)
-	reverse := query.PullMode == message.PullModeDown || (query.StartSeq == 0 && query.EndSeq == 0)
-	hasMore := len(messages) > limit
-	if hasMore {
-		messages = messages[:limit]
-	}
-	if reverse {
-		reverseSyncedMessages(messages)
-	}
-	return message.ChannelMessagePage{Messages: messages, HasMore: hasMore}
-}
-
-func readCommittedRequest(query message.ChannelMessageQuery, limit int) channelstore.ReadCommittedRequest {
-	req := channelstore.ReadCommittedRequest{
-		FromSeq:  query.StartSeq,
-		MaxSeq:   queryMaxSeq(query),
-		MinSeq:   query.MinSeq,
-		Limit:    limit + 1,
-		MaxBytes: maxInt(),
-	}
-	if query.PullMode == message.PullModeDown || (query.StartSeq == 0 && query.EndSeq == 0) {
-		req.Reverse = true
-		if req.FromSeq == 0 {
-			req.FromSeq = maxUint64()
-			req.MaxSeq = maxUint64()
+func committedMessagesFromChannel(in []channelruntime.Message) []message.SyncedMessage {
+	out := make([]message.SyncedMessage, len(in))
+	for index, msg := range in {
+		out[index] = message.SyncedMessage{
+			Flags:     message.MessageFlags{SyncOnce: msg.SyncOnce},
+			MessageID: msg.MessageID, MessageSeq: msg.MessageSeq,
+			ChannelID: msg.ChannelID, ChannelType: msg.ChannelType,
+			Setting: msg.Setting, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo,
+			Timestamp: int32(msg.ServerTimestampMS / 1000),
+			Payload:   append([]byte(nil), msg.Payload...),
 		}
-	}
-	if req.FromSeq == 0 && !req.Reverse {
-		req.FromSeq = 1
-	}
-	return req
-}
-
-func queryMaxSeq(query message.ChannelMessageQuery) uint64 {
-	if query.PullMode == message.PullModeUp && query.EndSeq > 0 {
-		return query.EndSeq - 1
-	}
-	if query.PullMode == message.PullModeDown && query.StartSeq > 0 {
-		return query.StartSeq
-	}
-	return maxUint64()
-}
-
-func syncedMessagesFromChannel(in []channelruntime.Message) []message.SyncedMessage {
-	out := make([]message.SyncedMessage, 0, len(in))
-	for _, msg := range in {
-		if msg.SyncOnce {
-			continue
-		}
-		out = append(out, message.SyncedMessage{
-			MessageID:   msg.MessageID,
-			MessageSeq:  msg.MessageSeq,
-			ChannelID:   msg.ChannelID,
-			ChannelType: msg.ChannelType,
-			Setting:     msg.Setting,
-			FromUID:     msg.FromUID,
-			ClientMsgNo: msg.ClientMsgNo,
-			Timestamp:   int32(msg.ServerTimestampMS / 1000),
-			Payload:     append([]byte(nil), msg.Payload...),
-		})
 	}
 	return out
-}
-
-func filterSyncedMessages(query message.ChannelMessageQuery, messages []message.SyncedMessage) []message.SyncedMessage {
-	if query.PullMode == message.PullModeDown && query.EndSeq > 0 {
-		kept := messages[:0]
-		for _, msg := range messages {
-			if msg.MessageSeq <= query.EndSeq {
-				continue
-			}
-			kept = append(kept, msg)
-		}
-		return kept
-	}
-	if query.PullMode == message.PullModeUp && query.EndSeq > 0 {
-		kept := messages[:0]
-		for _, msg := range messages {
-			if msg.MessageSeq >= query.EndSeq {
-				continue
-			}
-			kept = append(kept, msg)
-		}
-		return kept
-	}
-	return messages
-}
-
-func reverseSyncedMessages(messages []message.SyncedMessage) {
-	for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
-		messages[left], messages[right] = messages[right], messages[left]
-	}
 }
 
 func maxUint64() uint64 {

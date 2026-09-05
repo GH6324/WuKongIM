@@ -33,6 +33,8 @@ and bounded operations observations.
 1. Data-plane adapters map append, metadata, and membership DTOs to their
    resolved Channel or physical-Slot authority, preserve payload ownership and
    aligned results, then translate typed failures back to the calling runtime.
+   Committed-message scans preserve the usecase-resolved bounds, raw scan
+   order, command flags, and owned payloads; `message.PageReader` selects pages.
    Channel append clones payload bytes once and explicitly transfers that
    immutable ownership to the Channel runtime.
    First person SENDs prepare coalesced UID membership/runtime metadata and

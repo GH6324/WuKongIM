@@ -35,8 +35,11 @@ depending on their frames, JSON, or concrete cluster runtimes.
    in original order, and copy aligned `channelappend` results to original
    indexes.
 2. Single and batch sync validate membership and visibility, canonicalize
-   Channel IDs, perform routed committed reads, clone payloads, and optionally
-   batch-enrich stream messages with bounded event metadata.
+   Channel IDs, and pass page intent plus an independent visibility floor to
+   `PageReader`. It owns latest-page selection, scan bounds, bounded lookahead,
+   filtering, ascending order, and `HasMore` for sync and plugin reads. The
+   committed-record adapter executes routed scans; sync then clones payloads
+   and optionally enriches stream messages with bounded event metadata.
 3. Event append validates and canonicalizes its projection key, then delegates
    cache or durable projection behavior to `MessageEventStore`.
 
@@ -54,6 +57,10 @@ depending on their frames, JSON, or concrete cluster runtimes.
   entry adapter's single existing diagnostic record.
 - Terminal source-Channel checks are authoritative and bypass stale permission
   cache state.
+- Page preparation never rewrites a caller start sequence to enforce visibility;
+  `PageReader` interprets latest intent and the floor together. Command filtering
+  remains after the bounded scan and never triggers refill reads. Plugin reads
+  retain their separate authorization and response contracts.
 - Sync reads committed data only, never mutate membership, and treat a missing
   Channel runtime as an empty page only where the compatibility contract says
   so.
@@ -62,11 +69,11 @@ depending on their frames, JSON, or concrete cluster runtimes.
 
 ## Read First
 
-- [App facade](app.go)
 - [Permission policy](permission.go)
 - [Batch permission reads](permission_batch.go)
 - [Send orchestration](send.go)
 - [Committed sync](sync.go)
+- [Message-page policy and read seam](page_reader.go)
 
 ## Update Triggers
 

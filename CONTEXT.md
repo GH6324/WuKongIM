@@ -1,8 +1,20 @@
-# Cloud Simulation
+# WuKongIM
 
-The Cloud Simulation context describes time-bounded WuKongIM workloads that run against temporary cloud infrastructure and produce evidence for later diagnosis.
+Shared domain vocabulary for product messaging and Cloud Simulation.
 
 ## Language
+
+### Messaging
+
+**Committed Message Page**:
+A bounded selection of ordinary messages from one Channel's committed history, selected by the requested sequence range, read direction, and applicable visibility floor. Selecting the latest page chooses the newest eligible messages; response ordering follows the caller's established contract.
+_Avoid_: Conversation page, history dump
+
+**Message Visibility Floor**:
+The lowest message sequence eligible for a Channel read. For an ordinary user pull, eligibility accounts for when membership began, hidden history, and retained history; the badge's `read_seq` is not a pull cursor.
+_Avoid_: Badge floor, read receipt
+
+### Cloud Simulation
 
 **Simulation Run**:
 A time-bounded execution of a black-box workload against one temporary three-node cluster, identified independently from the GitHub workflow that starts it.
