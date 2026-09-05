@@ -45,35 +45,59 @@ api_enable = true
 
 ## Minimum validation flow
 
-Start an independent worker:
+Download [target.yaml](/examples/wkbench/target.yaml), [workers.yaml](/examples/wkbench/workers.yaml), and [scenario.yaml](/examples/wkbench/scenario.yaml). This smoke workload has 20 online users and two 10-member groups sending 5 messages/second each. It measures 60 seconds, plus 10 seconds each for warmup and cooldown; it is not a production capacity claim.
+
+Run these commands from the repository root with the Go version required by `go.mod`. If you have an installed binary, replace `go run ./cmd/wkbench` with `wkbench`. Copy the configurations first:
 
 ```bash
-WK_BENCH_WORKER_TOKEN=worker-secret \
-  go run ./cmd/wkbench worker \
+mkdir -p ./tmp/docs-wkbench
+cp docs-site/public/examples/wkbench/*.yaml ./tmp/docs-wkbench/
+```
+
+Edit `target.yaml` with the isolated test cluster's API, Gateway, and metrics endpoints. Defaults assume the test node, worker, and coordinator share a host; for separate hosts, make every endpoint reachable from the process that uses it.
+
+Use the same worker control token in both terminals. The coordinator's API token must match `bench.api_token` on the test node, which also needs `bench.api_enable` and `observability.metrics_enable`. Do not use production credentials here.
+
+Terminal A, start the worker:
+
+```bash
+export WK_BENCH_WORKER_TOKEN='replace-with-test-worker-secret'
+go run ./cmd/wkbench worker \
   --listen 127.0.0.1:19090 \
-  --work-dir ./tmp/wkbench-worker-a
+  --work-dir ./tmp/docs-wkbench/worker
 ```
 
-Validate static inputs, run network preflight, and only then generate load:
+Terminal B, configure this run. Change `WK_BENCH_RUN_ID` for every run; do not reuse an existing identity:
 
 ```bash
+export WK_BENCH_WORKER_TOKEN='replace-with-test-worker-secret'
+export WK_BENCH_API_TOKEN='replace-with-test-api-secret'
+export WK_BENCH_RUN_ID="docs-smoke-$(date -u +%Y%m%dT%H%M%SZ)"
 go run ./cmd/wkbench validate \
-  --target ./target.yaml \
-  --workers ./workers.yaml \
-  --scenario ./scenario.yaml
-
-go run ./cmd/wkbench doctor \
-  --target ./target.yaml \
-  --workers ./workers.yaml \
-  --scenario ./scenario.yaml
-
-go run ./cmd/wkbench run \
-  --target ./target.yaml \
-  --workers ./workers.yaml \
-  --scenario ./scenario.yaml
+  --target ./tmp/docs-wkbench/target.yaml \
+  --workers ./tmp/docs-wkbench/workers.yaml \
+  --scenario ./tmp/docs-wkbench/scenario.yaml
 ```
 
-`validate` proves only that static inputs and planning are valid. `doctor` proves only that network and capabilities passed preflight at that time. Neither is a capacity result.
+`validate` does not access the network. After it passes, run preflight. If preflight fails, fix the target, tokens, or endpoints before running traffic:
+
+```bash
+go run ./cmd/wkbench doctor \
+  --target ./tmp/docs-wkbench/target.yaml \
+  --workers ./tmp/docs-wkbench/workers.yaml \
+  --scenario ./tmp/docs-wkbench/scenario.yaml
+```
+
+Once preflight passes, execute the bounded workload:
+
+```bash
+go run ./cmd/wkbench run \
+  --target ./tmp/docs-wkbench/target.yaml \
+  --workers ./tmp/docs-wkbench/workers.yaml \
+  --scenario ./tmp/docs-wkbench/scenario.yaml
+```
+
+The example fails on any connection, send-acknowledgement, receive-verification, or worker error, and also fails when P99 exceeds the configured limits. Check the exit code and report, then stop Terminal A's worker with Ctrl+C. `cleanup.strategy=keep_data` retains generated users, groups, and messages. Handle them through your isolated test environment's retention plan; do not delete cluster data directories to clean up one run.
 
 ## Design a representative workload
 
@@ -116,3 +140,19 @@ Stop on any hard gate, readiness, disk-headroom, error-rate, tail-latency, or wo
 ## Cleanup
 
 Stop workers and simulators, revoke temporary credentials, disable the Benchmark API, archive reports, remove generated data, and verify the cluster returns to its idle baseline. If worker stop or target recovery cannot be confirmed, treat the run as an unfinished incident, not a successful benchmark.
+
+## Read the report
+
+In the report directory selected by `run.report_dir`, read `summary.md` and `report.json` first, then use the saved configurations, `plan.json`, and `metrics/` to explain the result. Before comparing runs, separately record server version or digest, SDK/tool version, CPU/memory/disk type per node, node count, replicas, and network conditions. Tool output does not replace a complete hardware inventory.
+
+The following uses **illustrative values, not measured benchmark results**: the same server and tool versions, one 4-vCPU / 8-GiB / SSD single-node cluster with the default 256 hash slots, and the smoke scenario above.
+
+| Report item | Illustrative observation | Interpretation |
+| --- | --- | --- |
+| Planned rate | 2 groups × 5 messages/second = 10/second | Target send rate, not achieved successful throughput |
+| `summary.ingress_qps` | 9.8 | Below the target; inspect latency, errors, and scheduling |
+| `summary.sendack_max_worker_p99` | 180 ms | Below the example 200-ms limit; the maximum worker-local P99, not a merged percentile across all messages |
+| `summary.recv_verify_error_rate` | 0 | This example samples 2 recipients per message, so it does not prove delivery to every member |
+| Delivery queue | Grows during measurement and remains after cooldown | Passing send metrics alone does not prove sustainable capacity |
+
+Go `time.Duration` fields in JSON use nanoseconds; 180 ms is `180000000`. Prefer formatted latency values in `summary.md`. Increase load only after the measurement window, achieved throughput, errors, tail latency, recipient coverage, queue recovery, and resource headroom all satisfy your targets.

@@ -21,7 +21,7 @@ description: WuKongIM 高频配置项及其作用、默认行为和关键限制�
 | [`gateway.listeners`](/zh/server/configuration/networking)<br />`WK_GATEWAY_LISTENERS` | 定义客户端使用的 TCP 或 WebSocket 监听器。 | 省略时开放 `0.0.0.0:5100` WKProto TCP 和 `0.0.0.0:5200` WSMux；显式空列表会关闭 Gateway。环境变量必须使用 JSON。 |
 | [`gateway.token_auth_on`](/zh/server/configuration/security)<br />`WK_GATEWAY_TOKEN_AUTH_ON` | 要求 CONNECT Token 与相同 UID、`device_flag` 的已存设备 Token 完全匹配。 | 默认为 `true`；空 Token、缺少记录或不匹配会返回 `ReasonAuthFail`。仅在受控兼容迁移期间临时关闭。 |
 | [`api.listen_addr`](/zh/server/configuration/networking)<br />`WK_API_LISTEN_ADDR` | 监听 Product HTTP API，并承载健康检查及按开关启用的指标、调试等 HTTP 路由。 | 省略或留空时不启动该 HTTP 服务；它不会创建客户端 Gateway 或 Manager 监听器。 |
-| [`manager.listen_addr`](/zh/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | 监听独立的 Manager 管理服务。 | 省略或留空时不启动 Manager；可监听公网 `5301`，但必须同时启用认证并使用强密码。 |
+| [`manager.listen_addr`](/zh/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | 监听独立的 Manager 管理服务。 | 省略或留空时不启动 Manager；绑定回环或管理内网地址，通过 SSH 转发或内网 HTTPS 代理访问，并启用认证。 |
 | [`manager.auth_on`](/zh/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | 要求 Manager 路由使用 JWT 登录认证。 | 省略时为 `false`；设为 `true` 时必须同时提供 `manager.jwt_secret` 和 `manager.users`。 |
 | [`log.level`](/zh/server/configuration/observability)<br />`WK_LOG_LEVEL` | 设置应用记录的最低日志级别。 | 默认 `info`；可选 `debug`、`info`、`warn`、`error`。生产排障结束后应避免长期使用 `debug`。 |
 

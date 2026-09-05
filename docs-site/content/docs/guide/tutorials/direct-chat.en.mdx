@@ -3,7 +3,7 @@ title: Direct Chat
 description: Implement durable messages, online delivery, offline sync, unread state, and multi-device recovery between two users.
 ---
 
-This tutorial uses `alice` and `bob`. The target outcome is that both endpoints connect with their own product identity, Alice publishes one durable message to Bob's person Channel, Bob can receive it online or recover it after reconnect, and Bob can manage unread state in UID-owned membership.
+This tutorial uses `alice` and `bob`. The target outcome is that both endpoints connect with their own product identity, Alice publishes one durable message to Bob's person Channel, Bob can receive it online or recover it after reconnect, and Bob can manage unread state for their account.
 
 ## Before you start
 
@@ -34,12 +34,12 @@ sequenceDiagram
 
 The product service owns account login, friendship, bans, and content policy. Choose stable UIDs for the two test users; do not substitute a nickname, connection ID, or device ID for the UID.
 
-A local compatibility environment can store device-token metadata:
+If the [Web two-user example](/en/sdk/javascript/quickstart) is running, its BFF has already prepared Alice and Bob; continue at step 2. For your own integration, store development tokens from the trusted backend. This example uses the Web device category `device_flag=1`; the client must use the same category:
 
 ```bash
 curl -sS http://127.0.0.1:5001/user/token \
   -H 'Content-Type: application/json' \
-  -d '{"uid":"alice","token":"alice-local-only","device_flag":0,"device_level":1}'
+  -d '{"uid":"alice","token":"alice-local-only","device_flag":1,"device_level":1}'
 ```
 
 <Callout type="warn" title="The built-in check is not a complete production identity system">
@@ -54,6 +54,14 @@ The client uses the **peer UID** as `channel_id` and sets `channel_type=1`. Do n
 
 A trusted product service can send with the same semantics:
 
+This example uses the built-in SDK text format, matching the Web example. Before encoding, the JSON is:
+
+```json
+{"type":1,"content":"hello Bob"}
+```
+
+The `payload` below is the UTF-8 Base64 encoding of this JSON. Custom types and fields need a matching client decoder; see [Custom Messages](/en/sdk/javascript/advanced/custom-messages).
+
 ```bash
 curl -sS http://127.0.0.1:5001/message/send \
   -H 'Content-Type: application/json' \
@@ -62,11 +70,11 @@ curl -sS http://127.0.0.1:5001/message/send \
     "channel_id":"bob",
     "channel_type":1,
     "client_msg_no":"dm-alice-bob-0001",
-    "payload":"eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoidGV4dCIsInRleHQiOiJoZWxsbyBCb2IifQ=="
+    "payload":"eyJ0eXBlIjoxLCJjb250ZW50IjoiaGVsbG8gQm9iIn0="
   }'
 ```
 
-Retain a stable, unique `client_msg_no`. If the network outcome is unclear, retry the same logical send with the same number instead of creating a duplicate with a new number. HTTP `reason=1` means the durable send reached Channel quorum commit; it does not mean every Bob device received it.
+Retain a stable, unique `client_msg_no`. If the network outcome is unclear, retry the same logical send with the same number instead of creating a duplicate with a new number. HTTP `reason=1` means the durable send reached durable Channel commit; it does not mean every Bob device received it.
 
 ## 3. Verify online and offline results
 
@@ -95,7 +103,7 @@ curl -sS http://127.0.0.1:5001/conversation/list \
   -d '{"uid":"bob","limit":20}'
 ```
 
-Bob's item uses `channel_id=alice`. `unread` is computed from Bob's membership and Channel state, not a global delivery count. After the user confirms the current conversation is read, call through the trusted boundary:
+Bob's item uses `channel_id=alice`. `unread` is computed from Bob's read position and visible messages in the Channel; it is not the total number of deliveries across devices. After the user confirms the current conversation is read, call through the trusted boundary:
 
 ```bash
 curl -sS http://127.0.0.1:5001/conversations/clearUnread \
@@ -103,7 +111,7 @@ curl -sS http://127.0.0.1:5001/conversations/clearUnread \
   -d '{"uid":"bob","channel_id":"alice","channel_type":1}'
 ```
 
-`clearUnread` reads the newest committed ordinary sequence and monotonically advances Bob's membership `read_seq`. It is a badge command, not an exact client-side read receipt, so concurrently arriving messages can also become cleared.
+`clearUnread` advances Bob's read position (`read_seq`) to the newest committed ordinary message. Messages arriving during the operation can also have their unread badge cleared; this does not prove to Alice which messages Bob actually read. Other devices using the same UID see the update after synchronization.
 
 ## 5. Test multi-device recovery
 
@@ -111,6 +119,6 @@ curl -sS http://127.0.0.1:5001/conversations/clearUnread \
 2. Define the product's primary/secondary-device conflict policy; one UID does not imply one connection.
 3. Disconnect one device, then publish another durable message.
 4. Reconnect and recover the missing sequence through SDK sync or `/channel/messagesync`.
-5. Verify that online delivery, offline recovery, and membership-backed unread calculation are not treated as one completion signal.
+5. Verify that online delivery, offline recovery, and account unread state are not treated as one completion signal.
 
 Before launch, also test friendship removal, denylist policy, token revocation, disconnect retries, duplicate sends, direct-Channel distribution, and duplicate webhook consumption. Continue with [Groups & Large Groups](/en/guide/tutorials/large-groups) or [Messaging](/en/guide/integration/messaging).

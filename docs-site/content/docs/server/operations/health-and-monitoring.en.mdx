@@ -40,6 +40,61 @@ Start with these four groups. You do not need a complicated dashboard on day one
 
 Manager Realtime and Top are useful for a quick view of one node. Prometheus shows trends over time. They complement one another, but neither replaces `/readyz`.
 
+## Connect an existing Prometheus
+
+Download [prometheus.yml](/examples/monitoring/prometheus.yml) and [alerts.yml](/examples/monitoring/alerts.yml) into one directory. Replace the three private node endpoints, keep one target for a single-node cluster, and set a unique `cluster` label. Enable node metrics through [Observability](/en/server/configuration/observability).
+
+On the Prometheus host, validate the files before loading them through your existing service management process:
+
+```bash
+promtool check config prometheus.yml
+promtool check rules alerts.yml
+```
+
+Confirm every target is UP in Prometheus Targets. For an existing configuration, merge only the relevant `scrape_configs` and `rule_files`; do not overwrite other jobs or scrape the same node twice. Configure notification receivers through your existing Prometheus/Alertmanager setup.
+
+## Four queries to start with
+
+These queries use the sample's `job="wukongim"` and scrape-added `cluster` label; `node_id` comes from each node. Replace the selector if your job name differs. Check `up{job="wukongim"}` first: `0` means collection failed, while `1` only means a successful scrape, not successful `/readyz`. An empty result can mean an unconfigured target, disabled metrics, or an event that has not occurred; do not automatically interpret it as a healthy zero.
+
+### Connections: compare nodes
+
+```text title="PromQL"
+sum by (cluster, node_id) (wukongim_gateway_connections_active{job="wukongim"})
+```
+
+The unit is connections, not distinct users. A skewed node suggests checking routing and connection distribution. For a sudden drop, compare gateway errors and client reconnects over the same interval.
+
+### Send failures: inspect reasons
+
+```text title="PromQL"
+sum by (cluster, node_id, reason) (increase(wukongim_gateway_sendacks_total{job="wukongim",reason!="success"}[5m]))
+```
+
+Shows unsuccessful SENDACKs emitted in the last 5 minutes; it does not count all client timeouts. For `auth_fail`, check UID, device category, and token. For other reasons, consult [Reason Code](/en/api/dictionaries/reason-codes) and the relevant node logs. Metric labels use names; protocol results use numeric codes.
+
+### Slow appends: inspect per-node P99
+
+```text title="PromQL"
+histogram_quantile(0.99,
+  sum by (cluster, node_id, le) (
+    rate(wukongim_message_append_duration_seconds_bucket{job="wukongim"}[5m])
+  )
+)
+```
+
+Values are seconds for server-side message append latency, not end-to-end receive latency. If P99 rises, compare disk IO, replication latency, and traffic on that node. Sparse traffic does not provide enough samples for a capacity conclusion.
+
+### Delivery backlog: inspect queued batches
+
+```text title="PromQL"
+max by (cluster, node_id) (wukongim_delivery_recipient_worker_queue_depth{job="wukongim"})
+```
+
+The unit is queued delivery batches, not unread messages or undelivered users. For sustained growth, check delivery workers, downstream nodes, and connection writes before changing capacity.
+
+The downloadable rules cover scrape failures, unsuccessful SENDACKs, and sustained delivery backlogs. The `2m`, `10m`, and `80%` thresholds are starter examples to tune against your baseline; they do not cover all readiness, storage, or cluster failures.
+
 ## Create these alerts first
 
 - `/readyz` keeps returning 503 or repeatedly changes state.

@@ -61,10 +61,16 @@ curl --fail http://127.0.0.1:5001/readyz
 
 Add the node to traffic only after `/readyz` succeeds. If startup fails, inspect the logs:
 
-The default Manager address is [http://127.0.0.1:5301](http://127.0.0.1:5301). Sign in as `admin` with the password saved during initialization. For public access, set `listen_addr = "0.0.0.0:5301"` under `[manager]`, confirm `auth_on = true`, restart the service, allow TCP port `5301` through the firewall, and open `http://<server-public-ip>:5301`. See [Manager](/en/server/operations/manager) for details.
-
 ```bash
 sudo journalctl -u wukongim -n 100 --no-pager
 ```
+
+The default Manager address is [http://127.0.0.1:5301](http://127.0.0.1:5301). Sign in as `admin` with the password saved during initialization and keep `auth_on = true`. For remote access, run the following on your computer, keep the terminal open, and open the same browser address:
+
+```bash
+ssh -N -L 127.0.0.1:5301:127.0.0.1:5301 <user>@<server-ip>
+```
+
+Port `5301` does not need a public firewall rule. For shared administration, use a management network or VPN with an HTTPS proxy; see [Manager](/en/server/operations/manager).
 
 For multiple nodes, continue to [Multi-node Cluster](/en/server/deployment/multi-node). Before upgrading, read [Upgrade & Migration](/en/server/operations/upgrade-and-migration).

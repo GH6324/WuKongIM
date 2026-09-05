@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { decodeTextPayload } from '../examples/javascript-web-quickstart/src/client/payload';
 import openapi from '../contracts/javascript-web-quickstart.openapi.json';
 import { MAX_PERSON_MESSAGE_SYNC_LIMIT } from '../examples/javascript-web-quickstart/src/server/bff';
 
@@ -76,5 +77,23 @@ describe('JavaScript Web quickstart example', () => {
 
     const buildScript = await sampleText('scripts/build.mjs');
     expect(buildScript).toMatch(/drop:\s*\["console"\]/);
+  });
+});
+
+
+describe('tutorial text messages', () => {
+  test('can be recovered by the runnable Web example in both languages', async () => {
+    for (const [topic, text] of [['direct-chat', 'hello Bob'], ['large-groups', 'hello team']]) {
+      for (const suffix of ['', '.en']) {
+        const content = await Bun.file(
+          new URL(`../content/docs/guide/tutorials/${topic}${suffix}.mdx`, import.meta.url),
+        ).text();
+        const payloads = [...content.matchAll(/"payload":"([^"\n]+)"/gu)];
+        expect(payloads.length).toBeGreaterThan(0);
+        for (const [, payload] of payloads) {
+          expect(decodeTextPayload(payload)).toEqual({ type: 1, text });
+        }
+      }
+    }
   });
 });

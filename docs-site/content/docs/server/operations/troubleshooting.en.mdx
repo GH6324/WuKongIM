@@ -25,6 +25,8 @@ go run ./cmd/wkcli top --server http://127.0.0.1:5001 --once --json
 
 Replace the address with the real API address. `0.0.0.0` is a listen setting, not a server address that clients can use.
 
+For metric names, copyable PromQL, and result interpretation, see [Health & Monitoring](/en/server/operations/health-and-monitoring). Check collection health before comparing data from the same node and time interval.
+
 ## Continue from the symptom
 
 ### `/healthz` succeeds but `/readyz` returns 503

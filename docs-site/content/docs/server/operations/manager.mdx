@@ -7,13 +7,13 @@ Manager 是 WuKongIM 的管理后台。你可以在这里查看节点状态、�
 
 ## 打开 Manager 前先检查
 
-- 生产环境已开启 `manager.auth_on`；
-- 已修改默认账号密码和 `manager.jwt_secret`；
-- 直接通过公网 `5301` 访问时，已启用账号密码认证并使用强密码；
-- 需要保护登录传输时，通过反向代理配置 HTTPS，因为 WuKongIM 本身不负责生产 TLS 终止。
+- 生产环境已开启 `manager.auth_on`，并替换默认账号密码和 `manager.jwt_secret`；
+- Manager 只监听回环或管理内网地址，节点 `5301` 不向公网开放；
+- 单人远程运维使用 [Linux 部署中的 SSH 转发](/zh/server/deployment/linux)；多人运维通过管理内网或 VPN 访问 HTTPS 代理；
+- 代理到节点的链路位于受控内网，防火墙只允许管理代理与授权运维来源。
 
-<Callout type="warn" title="不要通过关闭认证来省事">
-  `manager.auth_on=false` 不是只读模式，也不是安全的匿名模式。公网访问必须开启认证、使用强密码；还可以通过防火墙限制来源地址。
+<Callout type="warn" title="保持认证与传输保护">
+  `manager.auth_on=false` 不是只读模式。SSH、VPN 和 HTTPS 保护访问链路，Manager 登录和资源权限仍需单独启用。
 </Callout>
 
 ## 页面上的名词是什么意思

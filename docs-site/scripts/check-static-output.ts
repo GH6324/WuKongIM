@@ -6,7 +6,6 @@ import {
   locales,
   type Locale,
 } from '../lib/navigation';
-import { getDomainPublicationCounts } from '../lib/navigation-tree';
 import {
   productHTTPOpenAPIContractFiles,
   productHTTPManagementOpenAPIGroups,
@@ -226,7 +225,6 @@ export async function checkStaticOutput() {
 
   for (const locale of locales) {
     const home = await text(`${locale}/index.html`);
-    const normalizedHome = home.replace(/<!--[\s\S]*?-->/g, '');
     if (!home.includes(`href="/${locale}/sdk/javascript/quickstart/"`)) {
       throw new Error(`${locale} home is missing the JavaScript application-developer entry`);
     }
@@ -238,18 +236,8 @@ export async function checkStaticOutput() {
       throw new Error(`${locale} home still contains obsolete phase-one publication copy`);
     }
     for (const domain of domains) {
-      const counts = getDomainPublicationCounts(locale, domain.key);
-      const publishedLabel = locale === 'zh' ? '已发布' : 'published';
-      const plannedLabel = locale === 'zh' ? '规划中' : 'planned';
-      if (!normalizedHome.includes(`${counts.published} ${publishedLabel}`)) {
-        throw new Error(`${locale} home is missing the ${domain.key} published count`);
-      }
-      const plannedCount = `${counts.planned} ${plannedLabel}`;
-      if (counts.planned > 0 && !normalizedHome.includes(plannedCount)) {
-        throw new Error(`${locale} home is missing the ${domain.key} planned count`);
-      }
-      if (counts.planned === 0 && normalizedHome.includes(plannedCount)) {
-        throw new Error(`${locale} home exposes a zero ${domain.key} planned count`);
+      if (!home.includes(`href="/${locale}/${domain.key}/"`)) {
+        throw new Error(`${locale} home is missing the ${domain.key} documentation entry`);
       }
     }
 
