@@ -30,86 +30,93 @@ WuKongIM is a messaging server for personal chats, groups, and application notif
 - **Tools included.** The embedded Chat Demo, Manager, metrics, diagnostics, and backup tools help you try and operate the service.
 
 > [!NOTE]
-> v3 is in beta. The quick start below pins [v3.0.0-beta.8](https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.8). APIs, configuration, and durable formats may change; review [upgrade guidance](https://docs.githubim.com/en/server/operations/upgrade-and-migration/) before changing versions.
+> v3 is in beta. The Linux quick start uses the Preview package repository; check the installed version with `wukongim version`. APIs, configuration, and durable formats may change, so review [upgrade guidance](https://docs.githubim.com/en/server/operations/upgrade-and-migration/) before changing versions.
 
 ## Quick start
 
-Run a single-node cluster on your computer and exchange messages between two test users. You need a running Docker engine, a POSIX shell, and curl with `--retry-all-errors` support. No repository clone or Go installation is required.
+Install a single-node WuKongIM cluster on a Linux server and exchange messages between two test users. The package repository supports **amd64/x86_64**: Ubuntu 24.04, Debian 13, Rocky Linux 9, AlmaLinux 9, and RHEL 9. You need systemd, sudo, curl, and SSH access from your computer. No Go installation is required.
 
-This example uses public test credentials and binds every published port to `127.0.0.1`. For a remote server, use the [Docker deployment guide](https://docs.githubim.com/en/server/deployment/docker/).
+Run steps 1–3 **on the Linux server**. The generated configuration binds services to loopback; use SSH forwarding to open the Demo and Manager from your computer.
 
-### 1. Create the configuration
+### 1. Install the package
+
+On **Ubuntu / Debian**:
 
 ```bash
-mkdir -p wukongim-quickstart
-cd wukongim-quickstart
-
-cat > wukongim.toml <<'EOF'
-[node]
-id = 1
-data_dir = "/var/lib/wukongim"
-
-[cluster]
-listen_addr = "127.0.0.1:7001"
-
-[api]
-listen_addr = "0.0.0.0:5001"
-external_tcp_addr = "127.0.0.1:5100"
-external_ws_addr = "ws://127.0.0.1:5200"
-
-[gateway]
-token_auth_on = true
-
-[manager]
-listen_addr = "0.0.0.0:5301"
-auth_on = true
-jwt_secret = "readme-demo-only-change-before-production"
-users = [{ username = "admin", password = "readme-demo-admin", permissions = [{ resource = "*", actions = ["*"] }] }]
-
-[log]
-dir = "/var/lib/wukongim/logs"
-EOF
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo apt update
+sudo apt install -y wukongim
 ```
-On **Linux**, grant the image's non-root group (`10001`) read access to this file:
+
+<details>
+<summary>Rocky Linux / AlmaLinux / RHEL 9</summary>
 
 ```bash
-sudo chown "$(id -u):10001" wukongim.toml
-chmod 0640 wukongim.toml
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
+sudo dnf install -y wukongim
 ```
-For rootless Docker or user-namespace mappings, follow the [configuration permission guidance](https://docs.githubim.com/en/server/deployment/docker/#set-the-configuration-file-permissions-on-linux-hosts).
 
-### 2. Start and check readiness
+</details>
+
+Check the installed version:
 
 ```bash
-docker run -d --name wukongim-quickstart \
-  -p 127.0.0.1:5001:5001 -p 127.0.0.1:5100:5100 \
-  -p 127.0.0.1:5200:5200 -p 127.0.0.1:5301:5301 \
-  -v "$PWD/wukongim.toml:/etc/wukongim/wukongim.toml:ro" \
-  -v wukongim-quickstart-data:/var/lib/wukongim \
-  ghcr.io/wukongim/wukongim:3.0.0-beta.8
+wukongim version
+```
 
+### 2. Initialize configuration
+
+```bash
+sudo wukongim init
+sudo wukongim config validate --config /etc/wukongim/wukongim.toml
+```
+
+Save the Manager administrator password printed during initialization; it is shown only once. Configuration is stored at `/etc/wukongim/wukongim.toml`.
+
+### 3. Start and check readiness
+
+```bash
+sudo systemctl enable --now wukongim
 curl --retry 30 --retry-delay 2 --retry-all-errors --max-time 5 --fail \
   http://127.0.0.1:5001/readyz
 ```
-Wait for `{"ready":true}`, then open:
+
+Wait for `{"ready":true}` before continuing.
+
+### 4. Open the Demo and Manager
+
+For a remote server, run this **on your computer**, replacing `user@server-ip` with your SSH login, and keep the terminal open:
+
+```bash
+ssh -N \
+  -L 127.0.0.1:5001:127.0.0.1:5001 \
+  -L 127.0.0.1:5200:127.0.0.1:5200 \
+  -L 127.0.0.1:5301:127.0.0.1:5301 \
+  user@server-ip
+```
+
+If your browser runs on the Linux server itself, skip the tunnel. Open:
 
 | Application | Address | Login |
 | --- | --- | --- |
-| Chat Demo | <http://127.0.0.1:5001/demo/> | Test users below |
-| Manager | <http://127.0.0.1:5301> | `admin` / `readme-demo-admin` |
+| English Chat Demo | <http://127.0.0.1:5001/demo/?lang=en> | Test users below |
+| Manager | <http://127.0.0.1:5301> | `admin` / the password saved during initialization |
 
-### 3. Send and receive the first message
+### 5. Send and receive the first message
 
-1. Open Chat Demo in **two separate browser sessions**, such as a normal window and a private window. Keep the API address at `http://127.0.0.1:5001`.
-2. Sign in with the following credentials. **Fill in both UID and password**; the password is a test connection token, not an existing account password.
+The English UI and `?lang=en` are included in the current development build. Older packages and the hosted demo may still show Chinese until they are updated. The steps and screenshot below use the English UI.
 
-   | Session | UID (登录账号) | Password / test token (登录密码) |
+1. Open Chat Demo in **two separate browser sessions**, such as a normal window and a private window. Keep **API base URL** at `http://127.0.0.1:5001`.
+2. Enter the following credentials. **Fill in both Account and Password**; the password is a test connection token, and no account registration is needed.
+
+   | Session | Account (UID) | Password / test token |
    | --- | --- | --- |
    | Alice | `quickstart-alice` | `alice-local-token` |
    | Bob | `quickstart-bob` | `bob-local-token` |
 
-3. Click **登录** (sign in) and wait for both pages to show **连接成功** (connected). On Alice's page, click **与谁会话？** in the top-right corner, select **单聊** (direct chat), enter `quickstart-bob`, and click **确定** (confirm). On Bob's page, select `quickstart-alice` the same way.
-4. On Alice's page, enter `hello from alice` and click **发送** (send). Confirm it appears on **Bob's page**, then have Bob reply with `hello from bob`.
+3. Click **Log in** and wait for both pages to show **Connected**. On Alice's page, click **Start a chat**, select **Direct chat**, enter `quickstart-bob`, and click **OK**. On Bob's page, select `quickstart-alice` the same way.
+4. On Alice's page, enter `hello from alice` and click **Send**. Confirm it appears on **Bob's page**, then have Bob reply with `hello from bob`.
 5. Confirm Alice receives the reply. You have verified connection, sending, and online delivery in both directions.
 
 The Demo registers test tokens directly through `/user/token`. In your application, a trusted backend must own identity checks and token issuance; clients must not register or reset their own tokens.
@@ -117,19 +124,22 @@ The Demo registers test tokens directly through `/user/token`. In your applicati
 <details>
 <summary>Troubleshooting and stopping the demo</summary>
 
-If readiness fails, inspect the container logs. If a client stays disconnected, check that its token is non-empty, the API address is correct, and port `5200` is available. If messages do not arrive, check both connection states and the recipient UID.
+If readiness fails, inspect the service logs. If a client stays disconnected, check that its token is non-empty, the API address is correct, and the SSH tunnel forwards port `5200`. If messages do not arrive, check both connection states and the recipient UID.
+
+Run these commands on the Linux server:
 
 ```bash
-docker logs --tail 100 wukongim-quickstart
-docker stop wukongim-quickstart
-docker start wukongim-quickstart
+sudo journalctl -u wukongim -n 100 --no-pager
+sudo systemctl stop wukongim
+sudo systemctl start wukongim
 ```
-Stop when finished; start the same container to resume. Messages remain in the `wukongim-quickstart-data` Docker volume. See the [Docker guide](https://docs.githubim.com/en/server/deployment/docker/) for complete removal or recreating the container with a different configuration.
+
+Stop when finished; start the same service to resume. Messages remain in `/var/lib/wukongim`. See the [Linux deployment guide](https://docs.githubim.com/en/server/deployment/linux/) for package and service details.
 
 </details>
 
 <p align="center">
-  <img src="./resources/readme/chat-demo.jpg" alt="Two test users exchanging messages in the embedded Chat Demo" width="100%">
+  <img src="./resources/readme/chat-demo-en.png" alt="Alice and Bob exchanging messages in the English Chat Demo" width="100%">
 </p>
 
 ## Connect your application

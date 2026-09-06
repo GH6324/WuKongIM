@@ -30,75 +30,80 @@ WuKongIM 是面向单聊、群聊和应用通知的消息服务器，负责消�
 - **自带体验与运维工具。** 内嵌聊天 Demo、Manager、指标、诊断和备份工具，便于试用和运维。
 
 > [!NOTE]
-> v3 目前处于 beta 阶段。以下快速开始固定使用 [v3.0.0-beta.8](https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.8)。API、配置和持久化格式仍可能变化，更换版本前请阅读[升级指南](https://docs.githubim.com/zh/server/operations/upgrade-and-migration/)。
+> v3 目前处于 beta 阶段。Linux 快速开始使用 Preview 软件源，请通过 `wukongim version` 确认安装版本。API、配置和持久化格式仍可能变化，更换版本前请阅读[升级指南](https://docs.githubim.com/zh/server/operations/upgrade-and-migration/)。
 
 ## 快速开始
 
-在自己的电脑上启动单节点集群，让两个测试用户互发消息。需要运行中的 Docker 引擎、POSIX Shell，以及支持 `--retry-all-errors` 的 curl。无需克隆仓库或安装 Go。
+在 Linux 服务器上安装 WuKongIM 单节点集群，让两个测试用户互发消息。软件源支持 **amd64/x86_64**：Ubuntu 24.04、Debian 13、Rocky Linux 9、AlmaLinux 9 和 RHEL 9。需要 systemd、sudo、curl，以及从自己电脑连接服务器的 SSH 权限，无需安装 Go。
 
-以下示例使用公开的测试凭据，所有映射端口都只绑定到 `127.0.0.1`。如需部署到远程服务器，请使用 [Docker 部署指南](https://docs.githubim.com/zh/server/deployment/docker/)。
+第 1–3 步均在 **Linux 服务器上**执行。初始化生成的配置只监听回环地址，通过 SSH 转发即可在自己电脑上打开 Demo 和 Manager。
 
-### 1. 创建配置
+### 1. 安装软件包
+
+**Ubuntu / Debian**：
 
 ```bash
-mkdir -p wukongim-quickstart
-cd wukongim-quickstart
-
-cat > wukongim.toml <<'EOF'
-[node]
-id = 1
-data_dir = "/var/lib/wukongim"
-
-[cluster]
-listen_addr = "127.0.0.1:7001"
-
-[api]
-listen_addr = "0.0.0.0:5001"
-external_tcp_addr = "127.0.0.1:5100"
-external_ws_addr = "ws://127.0.0.1:5200"
-
-[gateway]
-token_auth_on = true
-
-[manager]
-listen_addr = "0.0.0.0:5301"
-auth_on = true
-jwt_secret = "readme-demo-only-change-before-production"
-users = [{ username = "admin", password = "readme-demo-admin", permissions = [{ resource = "*", actions = ["*"] }] }]
-
-[log]
-dir = "/var/lib/wukongim/logs"
-EOF
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo apt update
+sudo apt install -y wukongim
 ```
-在 **Linux** 上，为镜像的非 root 用户组（`10001`）授予配置文件读取权限：
+
+<details>
+<summary>Rocky Linux / AlmaLinux / RHEL 9</summary>
 
 ```bash
-sudo chown "$(id -u):10001" wukongim.toml
-chmod 0640 wukongim.toml
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
+sudo dnf install -y wukongim
 ```
-使用 rootless Docker 或用户命名空间映射时，请参照[配置文件权限说明](https://docs.githubim.com/zh/server/deployment/docker/#设置-linux-主机上的配置文件权限)。
 
-### 2. 启动并检查就绪状态
+</details>
+
+检查安装版本：
 
 ```bash
-docker run -d --name wukongim-quickstart \
-  -p 127.0.0.1:5001:5001 -p 127.0.0.1:5100:5100 \
-  -p 127.0.0.1:5200:5200 -p 127.0.0.1:5301:5301 \
-  -v "$PWD/wukongim.toml:/etc/wukongim/wukongim.toml:ro" \
-  -v wukongim-quickstart-data:/var/lib/wukongim \
-  ghcr.io/wukongim/wukongim:3.0.0-beta.8
+wukongim version
+```
 
+### 2. 初始化配置
+
+```bash
+sudo wukongim init
+sudo wukongim config validate --config /etc/wukongim/wukongim.toml
+```
+
+保存初始化时输出的 Manager 管理员密码，它只显示一次。配置文件位于 `/etc/wukongim/wukongim.toml`。
+
+### 3. 启动并检查就绪状态
+
+```bash
+sudo systemctl enable --now wukongim
 curl --retry 30 --retry-delay 2 --retry-all-errors --max-time 5 --fail \
   http://127.0.0.1:5001/readyz
 ```
-等待返回 `{"ready":true}`，然后打开：
+
+等待返回 `{"ready":true}` 后再继续。
+
+### 4. 打开 Demo 和 Manager
+
+如果使用远程服务器，在**自己的电脑上**执行以下命令，将 `user@server-ip` 替换为实际 SSH 登录信息，并保持终端开启：
+
+```bash
+ssh -N \
+  -L 127.0.0.1:5001:127.0.0.1:5001 \
+  -L 127.0.0.1:5200:127.0.0.1:5200 \
+  -L 127.0.0.1:5301:127.0.0.1:5301 \
+  user@server-ip
+```
+
+如果浏览器就在 Linux 服务器上运行，可以跳过隧道。打开：
 
 | 应用 | 地址 | 登录方式 |
 | --- | --- | --- |
 | 聊天 Demo | <http://127.0.0.1:5001/demo/> | 使用下方测试用户 |
-| Manager | <http://127.0.0.1:5301> | `admin` / `readme-demo-admin` |
+| Manager | <http://127.0.0.1:5301> | `admin` / 初始化时保存的密码 |
 
-### 3. 完成第一次双向收发
+### 5. 完成第一次双向收发
 
 1. 使用**两个独立的浏览器会话**打开聊天 Demo，例如普通窗口和无痕窗口。API 地址保持为 `http://127.0.0.1:5001`。
 2. 使用下表中的凭据登录。**UID 和密码都必须填写**；这里的密码是测试连接 Token，无需提前注册账号。
@@ -117,14 +122,17 @@ Demo 会直接通过 `/user/token` 注册测试 Token。接入自己的应用时
 <details>
 <summary>排查问题与停止体验</summary>
 
-就绪检查失败时，先查看容器日志。客户端一直未连接时，检查 Token 是否非空、API 地址是否正确，以及端口 `5200` 是否可用。消息未到达时，检查双方连接状态和接收方 UID。
+就绪检查失败时，先查看服务日志。客户端一直未连接时，检查 Token 是否非空、API 地址是否正确，以及 SSH 隧道是否转发了端口 `5200`。消息未到达时，检查双方连接状态和接收方 UID。
+
+在 Linux 服务器上执行：
 
 ```bash
-docker logs --tail 100 wukongim-quickstart
-docker stop wukongim-quickstart
-docker start wukongim-quickstart
+sudo journalctl -u wukongim -n 100 --no-pager
+sudo systemctl stop wukongim
+sudo systemctl start wukongim
 ```
-体验结束后停止容器，下次启动同一容器即可继续。消息保存在 `wukongim-quickstart-data` Docker 数据卷中。彻底移除环境或更换配置后重建容器的方法见 [Docker 指南](https://docs.githubim.com/zh/server/deployment/docker/)。
+
+体验结束后停止服务，下次启动同一服务即可继续。消息保存在 `/var/lib/wukongim`，软件包与服务的详细说明见 [Linux 部署指南](https://docs.githubim.com/zh/server/deployment/linux/)。
 
 </details>
 

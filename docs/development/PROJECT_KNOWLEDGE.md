@@ -432,6 +432,7 @@
   FLOW guidance instead of silently following it.
 
 ### Public documentation
+- The embedded Chat Demo accepts `?lang=en` and `?lang=zh` before its hash route to select a fixed UI language. Missing or unsupported values use browser language preferences, with English as the fallback. README screenshots and instructions must distinguish the current development UI from older released packages.
 - The public WuKongIM v3 documentation application lives in `docs-site/`; the repository-level `docs/` tree remains the engineering knowledge base.
 - Public documentation uses the canonical bilingual routes `/{zh|en}/{guide|server|sdk|api}`. Both languages share one navigation registry in `docs-site/lib/navigation.ts`.
 - A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs. Navigation tests also fail when an existing MDX file is planned or unknown, so disk content cannot silently remain hidden from public indexes.

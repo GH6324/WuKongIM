@@ -3,6 +3,19 @@ import test from 'node:test'
 
 import { detectLocale, formatConversationTime, messages, translate } from '../src/i18n.ts'
 
+test('explicit supported languages override browser preferences for shared demo links', () => {
+  assert.equal(detectLocale({ languages: ['zh-CN', 'en-US'] }, 'en'), 'en')
+  assert.equal(detectLocale({ languages: ['en-US', 'zh-CN'] }, 'zh'), 'zh')
+  assert.equal(detectLocale(undefined, 'zh'), 'zh')
+})
+
+test('missing or unsupported URL languages preserve browser language selection', () => {
+  for (const value of [undefined, null, '', 'fr', 'en-US', '<script>']) {
+    assert.equal(detectLocale({ languages: ['zh-CN'] }, value), 'zh')
+    assert.equal(detectLocale({ languages: ['en-US'] }, value), 'en')
+  }
+})
+
 test('browser preferences select the first supported language and normalize regional tags', () => {
   for (const tag of ['zh', 'zh-CN', 'zh-TW', 'zh-HK', 'zh-Hant', 'ZH_cn']) {
     assert.equal(detectLocale({ languages: [tag, 'en-US'] }), 'zh')
