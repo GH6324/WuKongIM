@@ -31,7 +31,7 @@ the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 
 ### 📚 Documentation / 文档
 
-- 中英文 README 现以业务开发者的首次接入为主线，提供 Linux 软件包安装、systemd 启动、SSH 转发与双用户收发步骤，更新 SDK 选型入口，明确业务后端和 Product HTTP 认证边界；英文版采用英文 Demo 操作说明与真实截图。
+- 中英文 README 现以业务开发者的首次接入为主线，提供 Linux 软件包安装、systemd 启动、SSH 转发与双用户收发步骤，并提供 Docker 部署指南入口，更新 SDK 选型入口，明确业务后端和 Product HTTP 认证边界；英文版采用英文 Demo 操作说明与真实截图。
 
 - 中英文文档补齐 Web 双用户接入闭环，统一教程文本消息与 Manager 访问方式，并提供可下载的监控告警、压测配置及结果解读。
 

@@ -34,6 +34,8 @@ WuKongIM is a messaging server for personal chats, groups, and application notif
 
 ## Quick start
 
+To deploy with Docker, follow the [Docker deployment guide](https://docs.githubim.com/en/server/deployment/docker/).
+
 Install a single-node WuKongIM cluster on a Linux server and exchange messages between two test users. The package repository supports **amd64/x86_64**: Ubuntu 24.04, Debian 13, Rocky Linux 9, AlmaLinux 9, and RHEL 9. You need systemd, sudo, curl, and SSH access from your computer. No Go installation is required.
 
 Run steps 1–3 **on the Linux server**. The generated configuration binds services to loopback; use SSH forwarding to open the Demo and Manager from your computer.

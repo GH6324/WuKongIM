@@ -34,6 +34,8 @@ WuKongIM 是面向单聊、群聊和应用通知的消息服务器，负责消�
 
 ## 快速开始
 
+使用 Docker 部署请参阅 [Docker 部署指南](https://docs.githubim.com/zh/server/deployment/docker/)。
+
 在 Linux 服务器上安装 WuKongIM 单节点集群，让两个测试用户互发消息。软件源支持 **amd64/x86_64**：Ubuntu 24.04、Debian 13、Rocky Linux 9、AlmaLinux 9 和 RHEL 9。需要 systemd、sudo、curl，以及从自己电脑连接服务器的 SSH 权限，无需安装 Go。
 
 第 1–3 步均在 **Linux 服务器上**执行。初始化生成的配置只监听回环地址，通过 SSH 转发即可在自己电脑上打开 Demo 和 Manager。
