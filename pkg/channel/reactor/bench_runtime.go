@@ -263,6 +263,7 @@ func (r *Reactor) handleRuntimeProbe(event Event) {
 		}
 		result.Channels = append(result.Channels, ch.RuntimeProbeChannel{
 			ChannelID:          rc.state.ID,
+			Recovering:         r.requiresQuorumInstall(rc.state) && !rc.state.CommitReady,
 			LeaderEpoch:        rc.state.LeaderEpoch,
 			ChannelEpoch:       rc.state.Epoch,
 			Role:               rc.state.Role,

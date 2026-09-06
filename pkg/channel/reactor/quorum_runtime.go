@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"time"
 
@@ -124,6 +125,15 @@ func (r *Reactor) handleQuorumInstallResult(result worker.Result) {
 		}
 	}
 	rc.quorumInstall = nil
+	// Installing a task-owned write fence succeeds as a metadata transition.
+	// DurableQuorumLog has fenced the prior authority and rejected activation;
+	// keep admission closed while the migration worker probes the loaded
+	// durable frontier. Clearing the fence still requires normal quorum install.
+	if errors.Is(err, ch.ErrWriteFenced) && pending.authority.WriteFence.Set() {
+		rc.state.CommitReady = false
+		r.completeFutures(pending.futures, Result{})
+		return
+	}
 	if err != nil {
 		rc.state.CommitReady = false
 		r.completeFutures(pending.futures, Result{Err: err})

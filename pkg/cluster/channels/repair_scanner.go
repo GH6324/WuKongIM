@@ -3,6 +3,8 @@ package channels
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sync"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -79,6 +81,11 @@ type RepairScannerResult struct {
 
 // RepairScanner scans Slot-owned channel metadata and creates bounded repair work.
 type RepairScanner struct {
+	// One cursor survives bounded ticks so large/early Slots cannot starve
+	// later channels. A concurrent tick fails instead of racing progress.
+	mu      sync.Mutex
+	slotID  uint32
+	cursor  metadb.ChannelRuntimeMetaCursor
 	cfg     RepairScannerConfig
 	source  RepairScannerSource
 	store   RepairScannerStore
@@ -120,29 +127,57 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 	if err != nil {
 		return result, err
 	}
-	for _, slotID := range slotIDs {
-		cursor := metadb.ChannelRuntimeMetaCursor{}
-		for result.PagesScanned < s.cfg.MaxPagesPerTick {
-			page, next, done, err := s.source.ListRepairScannerRuntimeMetaPage(ctx, slotID, cursor, s.cfg.PageLimit)
-			if err != nil {
+	if !s.mu.TryLock() {
+		return result, ch.ErrBackpressured
+	}
+	defer s.mu.Unlock()
+	if len(slotIDs) == 0 {
+		s.slotID = 0
+		s.cursor = metadb.ChannelRuntimeMetaCursor{}
+		return s.observeRepairScan(result), nil
+	}
+	slices.Sort(slotIDs)
+	index, found := slices.BinarySearch(slotIDs, s.slotID)
+	if !found {
+		if index == len(slotIDs) {
+			index = 0
+		}
+		s.slotID = slotIDs[index]
+		s.cursor = metadb.ChannelRuntimeMetaCursor{}
+	}
+	visited := 0
+	advanceSlot := func() {
+		index = (index + 1) % len(slotIDs)
+		s.slotID = slotIDs[index]
+		s.cursor = metadb.ChannelRuntimeMetaCursor{}
+		visited++
+	}
+	for visited < len(slotIDs) && result.PagesScanned < s.cfg.MaxPagesPerTick && result.TasksCreated < s.cfg.MaxTasksPerTick {
+		page, next, done, err := s.source.ListRepairScannerRuntimeMetaPage(ctx, s.slotID, s.cursor, s.cfg.PageLimit)
+		if err != nil {
+			return result, err
+		}
+		result.PagesScanned++
+		for i, item := range page {
+			if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
 				return result, err
 			}
-			result.PagesScanned++
-			for _, item := range page {
-				if result.TasksCreated >= s.cfg.MaxTasksPerTick {
-					return s.observeRepairScan(result), nil
+			s.cursor = metadb.ChannelRuntimeMetaCursor{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}
+			if result.TasksCreated >= s.cfg.MaxTasksPerTick {
+				if i == len(page)-1 {
+					if done {
+						advanceSlot()
+					} else {
+						s.cursor = next
+					}
 				}
-				if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
-					return result, err
-				}
+				return s.observeRepairScan(result), nil
 			}
-			if done {
-				break
-			}
-			cursor = next
 		}
-		if result.PagesScanned >= s.cfg.MaxPagesPerTick || result.TasksCreated >= s.cfg.MaxTasksPerTick {
-			break
+		if done {
+			advanceSlot()
+		} else {
+			s.cursor = next
 		}
 	}
 	return s.observeRepairScan(result), nil

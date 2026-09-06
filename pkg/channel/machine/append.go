@@ -355,6 +355,7 @@ func appendItemsForRecords(id ch.ChannelID, records []ch.Record, omitPayload boo
 	items := make([]ch.AppendBatchItemResult, len(records))
 	for i, record := range records {
 		msg := ch.Message{
+			Protocol: record.Protocol, Setting: record.Setting,
 			MessageID:         record.ID,
 			MessageSeq:        record.Index,
 			ChannelID:         id.ID,

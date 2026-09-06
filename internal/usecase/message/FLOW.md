@@ -40,7 +40,9 @@ depending on their frames, JSON, or concrete cluster runtimes.
    filtering, ascending order, and `HasMore` for sync and plugin reads. The
    committed-record adapter executes routed scans; sync then clones payloads
    and optionally enriches stream messages with bounded event metadata.
-3. Event append validates and canonicalizes its projection key, then delegates
+3. Legacy event sync reads a bounded durable sequence page through Slot authority,
+   preserves original cursor/filter order, and does not invent event history.
+4. Event append validates and canonicalizes its projection key, then delegates
    cache or durable projection behavior to `MessageEventStore`.
 
 ## Invariants and Failure Semantics

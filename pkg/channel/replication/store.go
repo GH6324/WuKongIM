@@ -24,6 +24,8 @@ type LoadBatch struct {
 // ReplicaState is the exact durable frontier of one local replica. Manifest
 // and TailIdentity are both zero only when LEO is zero.
 type ReplicaState struct {
+	// Prefix is the immutable imported boundary, or zero for normal genesis.
+	Prefix       ch.ProposalManifest
 	LEO          uint64
 	Committed    uint64
 	Manifest     ch.ProposalManifest

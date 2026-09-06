@@ -46,6 +46,7 @@ func (s *Server) registerMessageRoutes() {
 	}
 	s.engine.POST("/message/send", s.handleSendMessage)
 	s.engine.POST("/message/event", s.handleMessageEventAppend)
+	s.engine.POST("/message/eventsync", s.handleMessageEventSync)
 	s.engine.POST("/message/sync", s.handleMessageSync)
 	s.engine.POST("/message/syncack", s.handleMessageSyncAck)
 	s.engine.POST("/message/cmd/bind", s.handleMessageCMDBind)

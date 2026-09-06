@@ -355,7 +355,7 @@ func (l *quorumLog) finishCommit(state *quorumChannel, retained retainedProposal
 		First: proposal.first, Last: proposal.last, HW: proposal.last,
 	}
 	state.frontier = ReplicaState{
-		LEO: proposal.last, Committed: proposal.committed,
+		Prefix: state.frontier.Prefix, LEO: proposal.last, Committed: proposal.committed,
 		Manifest: proposal.manifest, TailIdentity: entries[len(entries)-1],
 	}
 	state.hw = proposal.last
@@ -420,8 +420,15 @@ func sealBusinessProposal(
 		return durableProposal{}, ch.ErrInvalidConfig
 	}
 	frozen := immutableProposalRecords(records, payloadsImmutable)
+	version := ch.ProposalManifestVersion
+	for _, record := range frozen {
+		if record.Protocol != (ch.ProtocolFields{}) {
+			version = ch.FullMessageProposalVersion
+			break
+		}
+	}
 	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
-		Version:      ch.ProposalManifestVersion,
+		Version:      version,
 		ChannelEpoch: authority.ID.ChannelEpoch, LeaderTerm: authority.ID.LeaderTerm, FenceVersion: authority.ID.FenceVersion,
 		CommandID: command, BaseOffset: frontier.LEO, LastOffset: frontier.LEO + uint64(len(frozen)),
 		PreviousTerm: frontier.TailIdentity.LeaderTerm, PreviousIndex: frontier.LEO, PreviousDigest: frontier.TailIdentity.Digest,
@@ -448,10 +455,10 @@ func immutableProposalRecords(records []ch.Record, payloadsImmutable bool) []ch.
 func validProposalRecords(records []ch.Record, maxBytes int) bool {
 	total := 0
 	for _, record := range records {
-		if record.ID == 0 || record.Epoch == 0 || record.ServerTimestampMS <= 0 || record.SizeBytes != len(record.Payload) {
+		if record.ID == 0 || record.Epoch == 0 || record.ServerTimestampMS <= 0 || record.SizeBytes != len(record.Payload)+record.Protocol.SizeBytes() {
 			return false
 		}
-		item := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+		item := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload) + record.Protocol.SizeBytes()
 		if item > maxBytes-total {
 			return false
 		}

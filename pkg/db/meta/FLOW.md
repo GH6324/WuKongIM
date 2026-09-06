@@ -35,6 +35,13 @@ It does not own product business policy or expose engine-specific APIs.
 
 ## Invariants and Failure Semantics
 
+- Event sequence pages scan a pinned native iterator and retain a bounded heap,
+  so event-key order cannot truncate results before the sequence cursor.
+- Offline event import installs one exact historical projection, its last event
+  idempotency result and the full message cursor atomically. It never replays
+  reducers; exact retries succeed and changed or advanced target state fails.
+  Shared preflight validation rejects invalid projection/cursor combinations
+  and projections that cannot fit the bounded native sequence page.
 - Membership writes update obsolete/new activation index keys atomically;
   ordinary SEND never touches membership.
 - Subscriber `source_version` fences stale cross-Slot writes. Rejoin resets

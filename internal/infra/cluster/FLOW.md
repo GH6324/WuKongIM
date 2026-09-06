@@ -49,6 +49,9 @@ and bounded operations observations.
 
 ## Invariants and Failure Semantics
 
+- Committed message and CMD-sync adapters retain historical header, expiration,
+  topic and source timestamp fields after both node-local and routed reads.
+
 - Route, leader, term, epoch, revision, and lease fences must be forwarded
   exactly; preferred or cached ownership must never replace observed authority.
 - Missing leaders, stale routes, unavailable placement, and write fences fail

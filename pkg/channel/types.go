@@ -134,6 +134,8 @@ type Meta struct {
 
 // Message is the v0 client-visible message model.
 type Message struct {
+	// Protocol preserves the original durable header, expiry, stream and topic.
+	Protocol    ProtocolFields
 	MessageID   uint64
 	MessageSeq  uint64
 	ChannelID   string
@@ -167,6 +169,8 @@ type Fence struct {
 
 // Record is the durable log representation replicated between nodes.
 type Record struct {
+	// Protocol travels with the record through reads, replication and recovery.
+	Protocol ProtocolFields
 	// ID is the message id carried by this log entry.
 	ID uint64
 	// Index is the 1-based channel log offset and client message sequence.

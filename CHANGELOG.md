@@ -17,7 +17,16 @@ Every category must contain at least one "- " list entry. Release headings use
 the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 -->
 
+### 🚀 New Features / 新功能
+
+- 新增 `wkmigrate prepare/export/import/verify` 离线迁移命令，读取未经升级的固定 v2 源版本，导入全新 v3 集群，并校验业务字段、消息索引、摘要链、初始化快照与副本记录数量。相同计划支持中断恢复；拒绝不兼容业务插件、关键源索引损坏和超出原生恢复预算的单条消息，不覆盖已有业务目标。大规模性能验收尚未完成。
+
 ### 🐛 Bug Fixes / 问题修复
+
+- 修复频道故障修复扫描不能推进到后续 Slot、冷副本无法提供候选探测及写栅栏转换阻塞的问题；新 Leader 读取等待当前权威恢复，避免返回旧提交位置的历史。
+
+- 恢复原版 `/message/eventsync` 的持久事件投影读取，保留事件序号、分页及可见性过滤行为。
+- 完整历史消息在跨节点读取、CMD 同步和副本修复时保留协议字段；无法保留这些字段的旧节点请求会明确失败。
 
 - `/message/send` 现在会在 `from_uid` 与兼容别名 `sender_uid` 均为空时使用系统账号，并支持通过 `message.system_uid` / `WK_MESSAGE_SYSTEM_UID` 配置该账号（默认 `____system`），恢复 Demo 命令消息的旧版兼容行为。
 

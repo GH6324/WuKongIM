@@ -9,6 +9,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
@@ -329,7 +330,7 @@ func normalizeRuntimeConfig(cfg RuntimeConfig) RuntimeConfig {
 		cfg.BatchBytes = defaultRuntimeBatchBytes
 	}
 	if cfg.RecoveryPageBytes == 0 {
-		cfg.RecoveryPageBytes = 1 << 20
+		cfg.RecoveryPageBytes = quorumlog.DefaultRecoveryPageBytes
 	}
 	if cfg.ExchangeTimeout == 0 {
 		cfg.ExchangeTimeout = 5 * time.Second
@@ -761,9 +762,10 @@ func (o *runtimeRepairOwner) waitForRepairFrontier(ctx context.Context, repair f
 		loaded, err := o.store.Load(ctx, LoadBatch{Items: []LoadRequest{{
 			ChannelKey: repair.channelKey, ChannelID: repair.channelID, ProbeIndexes: indexes,
 		}}})
-		if err == nil && len(loaded.Items) == 1 && loaded.Items[0].Err == nil &&
-			loaded.Items[0].State.LEO >= repair.manifest.LastOffset && loaded.Items[0].State.LEO >= repair.needFrom {
-			return loaded.Items[0], true
+		if err == nil && len(loaded.Items) == 1 && loaded.Items[0].Err == nil {
+			if (loaded.Items[0].State.LEO >= repair.needFrom && loaded.Items[0].State.LEO >= repair.manifest.LastOffset) || o.repairCommandAlreadyStored(ctx, repair, loaded.Items[0].State.LEO) {
+				return loaded.Items[0], true
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -775,15 +777,31 @@ func (o *runtimeRepairOwner) waitForRepairFrontier(ctx context.Context, repair f
 
 func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair followerRepair, loaded LoadResult) bool {
 	state := loaded.State
+	// waitForRepairFrontier permits this only when the command index proves
+	// the newer requested range was a rejected replay, with no durable suffix.
+	if repair.needFrom > state.LEO {
+		return true
+	}
 	previous := ch.EntryIdentity{}
-	if repair.needFrom > 1 {
+	from := repair.needFrom
+	if state.Prefix != (ch.ProposalManifest{}) && from <= state.Prefix.LastOffset {
+		boundary, ok := quorumlog.ImportedPrefixEntry(state.Prefix)
+		if !ok || state.Committed < state.Prefix.LastOffset {
+			return false
+		}
+		if !o.replicateRepairProposal(ctx, ReplicateRequest{ChannelKey: repair.channelKey, ChannelID: repair.channelID,
+			Leader: repair.leader, Follower: repair.follower, Manifest: state.Prefix, Committed: state.Prefix.LastOffset}) {
+			return false
+		}
+		previous = boundary
+		from = boundary.Index + 1
+	} else if repair.needFrom > 1 {
 		if len(loaded.Entries) != 1 || !loaded.Entries[0].Present {
 			return false
 		}
 		previous = loaded.Entries[0].Identity
 	}
-	from := repair.needFrom
-	through := repair.manifest.LastOffset
+	through := minUint64(repair.manifest.LastOffset, state.LEO)
 	for from <= through {
 		pageThrough := through
 		if pageThrough-from >= maxRecoveryProbeIndexes {
@@ -803,26 +821,8 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 				Manifest: proposal.Manifest, Records: proposal.Records,
 				Committed: minUint64(state.Committed, proposal.Manifest.LastOffset),
 			}
-			resultCh := make(chan ReplicateResult, 1)
-			errCh := make(chan error, 1)
-			if err := o.peers.submit(ctx, repair.follower, request, func(result ReplicateResult, err error) {
-				if err != nil {
-					errCh <- err
-					return
-				}
-				resultCh <- result
-			}); err != nil {
+			if !o.replicateRepairProposal(ctx, request) {
 				return false
-			}
-			select {
-			case <-ctx.Done():
-				return false
-			case <-errCh:
-				return false
-			case result := <-resultCh:
-				if !result.Status.Durable() {
-					return false
-				}
 			}
 			_, entries, ok := ch.SealProposalManifest(proposal.Manifest, proposal.Records)
 			if !ok || len(entries) == 0 {
@@ -840,4 +840,47 @@ func minUint64(left, right uint64) uint64 {
 		return left
 	}
 	return right
+}
+
+func (o *runtimeRepairOwner) replicateRepairProposal(ctx context.Context, request ReplicateRequest) bool {
+	resultCh := make(chan ReplicateResult, 1)
+	errCh := make(chan error, 1)
+	if err := o.peers.submit(ctx, request.Follower, request, func(result ReplicateResult, err error) {
+		if err != nil {
+			errCh <- err
+			return
+		}
+		resultCh <- result
+	}); err != nil {
+		return false
+	}
+	select {
+	case <-ctx.Done():
+		return false
+	case <-errCh:
+		return false
+	case result := <-resultCh:
+		if !result.Status.Durable() {
+			return false
+		}
+	}
+	return true
+}
+
+// A retry after cache eviction may propose an already durable command at a
+// newer tentative range. Its conflict must not make trailing repair wait for
+// a range that will never be written. Resolve the command in bounded storage
+// reads off the append path, then repair the actual durable leader frontier.
+func (o *runtimeRepairOwner) repairCommandAlreadyStored(ctx context.Context, repair followerRepair, leo uint64) bool {
+	commands, ok := o.store.(commandStore)
+	if !ok {
+		return false
+	}
+	results := commands.LookupCommands(ctx, []CommandLookup{{ChannelKey: repair.channelKey, ChannelID: repair.channelID, CommandID: repair.manifest.CommandID,
+		MaxRecords: maxRecoveryProbeIndexes, MaxBytes: o.maxPageBytes}})
+	if len(results) != 1 || results[0].Err != nil || !results[0].Found {
+		return false
+	}
+	m := results[0].Manifest
+	return m.StructurallyValid() && m.CommandID == repair.manifest.CommandID && m.LastOffset <= leo
 }

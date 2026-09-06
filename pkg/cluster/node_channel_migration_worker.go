@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"slices"
 	"sort"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -371,7 +372,30 @@ func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, c
 			return probe, nil
 		}
 	}
-	return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
+	// Quorum followers can be durable without a loaded reactor. A migration
+	// proof must resolve current Slot authority and load that local replica
+	// before interpreting absence as an unavailable candidate. The reactor
+	// obtains LEO/HW from storage; metadata never substitutes for log progress.
+	meta, err := n.GetChannelRuntimeMeta(ctx, channelID, int64(channelType))
+	if err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	if meta.Status != uint8(ch.StatusActive) || !slices.Contains(meta.Replicas, n.cfg.NodeID) {
+		return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
+	}
+	if err := n.applyChannelMigrationLocalRuntimeMeta(ctx, meta); err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	result, err = n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
+	if err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	for _, probe := range result.Channels {
+		if probe.ChannelID == id {
+			return probe, nil
+		}
+	}
+	return ch.RuntimeProbeChannel{}, ch.ErrNotReady
 }
 
 func (n *Node) applyChannelMigrationLocalRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) error {

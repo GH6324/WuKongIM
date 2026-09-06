@@ -93,11 +93,12 @@ func committedMessagesFromChannel(in []channelruntime.Message) []message.SyncedM
 	out := make([]message.SyncedMessage, len(in))
 	for index, msg := range in {
 		out[index] = message.SyncedMessage{
-			Flags:     message.MessageFlags{SyncOnce: msg.SyncOnce},
+			Flags:  message.MessageFlags{NoPersist: msg.Protocol.FramerFlags&1 != 0, RedDot: msg.Protocol.FramerFlags&2 != 0, SyncOnce: msg.SyncOnce},
+			Expire: msg.Protocol.Expire, Topic: msg.Protocol.Topic,
 			MessageID: msg.MessageID, MessageSeq: msg.MessageSeq,
 			ChannelID: msg.ChannelID, ChannelType: msg.ChannelType,
 			Setting: msg.Setting, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo,
-			Timestamp: int32(msg.ServerTimestampMS / 1000),
+			Timestamp: persistedMessageTimestamp(msg),
 			Payload:   append([]byte(nil), msg.Payload...),
 		}
 	}
@@ -110,4 +111,13 @@ func maxUint64() uint64 {
 
 func maxInt() int {
 	return int(^uint(0) >> 1)
+}
+
+// Imported v2 timestamps are stored in seconds and also projected to server
+// milliseconds. Existing v3 rows may have only the latter field populated.
+func persistedMessageTimestamp(msg channelruntime.Message) int32 {
+	if msg.Protocol.Timestamp != 0 || msg.ServerTimestampMS == 0 {
+		return msg.Protocol.Timestamp
+	}
+	return int32(msg.ServerTimestampMS / 1000)
 }

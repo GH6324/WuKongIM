@@ -6,6 +6,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 // ExchangeServerConfig configures one bounded follower exchange endpoint.
@@ -50,6 +51,7 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 	loadPositions := make([]int, 0, len(batch.Items))
 	fetches := make([]FetchRange, 0, len(batch.Items))
 	fetchPositions := make([]int, 0, len(batch.Items))
+	prefixPositions := make([]int, 0)
 	totalBytes := 0
 	for index, item := range batch.Items {
 		if item.RequestID == 0 {
@@ -72,6 +74,11 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 			}
 			itemBytes = estimateReplicateRequestBytes(request)
 			operationKey = channelOperationKey{key: request.ChannelKey, id: request.ChannelID}
+			if request.Manifest.Version == quorumlog.ImportedPrefixVersion {
+				// A boundary is installed through empty-target recovery, never Sync.
+				prefixPositions = append(prefixPositions, index)
+				break
+			}
 			class := MutationClassFollowerQuorum
 			if batch.Priority == ExchangePriorityBackground {
 				class = MutationClassTrailing
@@ -142,6 +149,15 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 			}
 			response.Items[loadPositions[index]].Probe = probe
 		}
+	}
+	for _, position := range prefixPositions {
+		request := *batch.Items[position].Replicate
+		result := s.installReplicaPrefix(ctx, request)
+		mapped, ok := mapMutationResult(request, Mutation{Manifest: request.Manifest}, result)
+		if !ok {
+			return ExchangeBatchResult{}, errInvalidExchangeResult
+		}
+		response.Items[position].Replicate = mapped
 	}
 	if len(mutations) > 0 {
 		startedAt := time.Now()
@@ -222,7 +238,7 @@ func validRecoveryProposals(request FetchRequest, proposals []RecoveryProposal) 
 			return false
 		}
 		for _, record := range proposal.Records {
-			recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+			recordBytes := quorumlog.RecoveryRecordBytes(record.FromUID, record.ClientMsgNo, len(record.Payload), record.Protocol)
 			if bytes > request.MaxBytes-recordBytes {
 				return false
 			}
@@ -257,7 +273,7 @@ func mapProbeResult(request ProbeRequest, result LoadResult) (ProbeResult, bool)
 		if entry.Index != request.Indexes[index] || entry.Present != (entry.Identity != (ch.EntryIdentity{})) ||
 			(entry.Present && entry.Identity.Index != entry.Index) ||
 			(entry.Present && !validEntryIdentity(entry.Identity)) ||
-			(entry.Index <= result.State.LEO && !entry.Present) || (entry.Index > result.State.LEO && entry.Present) {
+			entry.Present != replicaHasEntry(result.State.LEO, result.State.Prefix, entry.Index) {
 			return ProbeResult{}, false
 		}
 		entries[index] = entry
@@ -268,7 +284,21 @@ func mapProbeResult(request ProbeRequest, result LoadResult) (ProbeResult, bool)
 	return ProbeResult{Proof: probeProofFor(request), State: result.State, Entries: entries}, true
 }
 
+// replicaHasEntry excludes retired offsets represented by one imported boundary.
+func replicaHasEntry(leo uint64, prefix ch.ProposalManifest, index uint64) bool {
+	return index > 0 && index <= leo && index >= prefix.LastOffset
+}
+
 func validReplicaState(state ReplicaState) bool {
+	if state.Prefix != (ch.ProposalManifest{}) {
+		boundary, ok := quorumlog.ImportedPrefixEntry(state.Prefix)
+		if !ok || state.Prefix.LastOffset > state.Committed ||
+			(state.LEO == state.Prefix.LastOffset && (state.Manifest != state.Prefix || state.TailIdentity != boundary)) {
+			return false
+		}
+	} else if state.Manifest.Version == quorumlog.ImportedPrefixVersion {
+		return false
+	}
 	if state.LEO == 0 {
 		return state.Committed == 0 && state.Manifest == (ch.ProposalManifest{}) && state.TailIdentity == (ch.EntryIdentity{})
 	}
@@ -322,4 +352,35 @@ func mapMutationResult(request ReplicateRequest, mutation Mutation, result Mutat
 	default:
 		return ReplicateResult{}, false
 	}
+}
+
+// installReplicaPrefix is a peer recovery operation with the same transport
+// participant checks as normal replication. It cannot replace existing data.
+func (s *ExchangeServer) installReplicaPrefix(ctx context.Context, request ReplicateRequest) MutationResult {
+	loaded, err := s.cfg.Store.Load(ctx, LoadBatch{Items: []LoadRequest{{ChannelKey: request.ChannelKey, ChannelID: request.ChannelID}}})
+	if err != nil {
+		return MutationResult{Outcome: ch.AppendOutcomeUnknown, Err: err}
+	}
+	if len(loaded.Items) != 1 {
+		return MutationResult{Outcome: ch.AppendOutcomeUnknown, Err: errInvalidExchangeResult}
+	}
+	current := loaded.Items[0]
+	if current.Err != nil {
+		return MutationResult{Outcome: ch.AppendOutcomeConflict, Err: current.Err}
+	}
+	if !validReplicaState(current.State) {
+		return MutationResult{Outcome: ch.AppendOutcomeConflict, Err: ch.ErrLogConflict}
+	}
+	if current.State.Prefix == request.Manifest && current.State.Committed >= request.Manifest.LastOffset {
+		return MutationResult{Outcome: ch.AppendOutcomeAlreadyDurable, LastOffset: request.Manifest.LastOffset}
+	}
+	if current.State != (ReplicaState{}) {
+		return MutationResult{Outcome: ch.AppendOutcomeConflict, Err: ch.ErrLogConflict}
+	}
+	results := s.cfg.Store.Replace(ctx, []RecoveryReplacement{{ChannelKey: request.ChannelKey, ChannelID: request.ChannelID,
+		Proposals: []RecoveryProposal{{Manifest: request.Manifest}}, Committed: request.Manifest.LastOffset}})
+	if len(results) != 1 {
+		return MutationResult{Outcome: ch.AppendOutcomeUnknown, Err: errInvalidExchangeResult}
+	}
+	return MutationResult{Outcome: results[0].Outcome, LastOffset: results[0].LastOffset, Err: results[0].Err}
 }

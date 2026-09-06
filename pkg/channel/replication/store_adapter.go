@@ -6,6 +6,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 const (
@@ -83,7 +84,7 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 		}
 		result.Items[index].State = ReplicaState{
 			LEO: state.LEO, Committed: state.HW,
-			Manifest: state.Manifest, TailIdentity: state.TailIdentity,
+			Prefix: state.Prefix, Manifest: state.Manifest, TailIdentity: state.TailIdentity,
 		}
 		result.Items[index].Entries = entries
 	}
@@ -162,7 +163,7 @@ func loadExactRecoveryState(ctx context.Context, store channelstore.ChannelStore
 		if entry.Index != indexes[position] || entry.Present != (entry.Identity != (ch.EntryIdentity{})) ||
 			(entry.Present && entry.Identity.Index != entry.Index) ||
 			(entry.Present && !validEntryIdentity(entry.Identity)) ||
-			(entry.Index <= recovery.LEO && !entry.Present) || (entry.Index > recovery.LEO && entry.Present) {
+			entry.Present != replicaHasEntry(recovery.LEO, recovery.Prefix, entry.Index) {
 			return channelstore.ExactState{}, nil, ch.ErrLogConflict
 		}
 		entries[position] = EntryProbe{Index: entry.Index, Present: entry.Present, Identity: entry.Identity}
@@ -188,15 +189,7 @@ func validProbeIndexes(indexes []uint64) bool {
 }
 
 func validEntryIdentity(identity ch.EntryIdentity) bool {
-	if identity.Version != ch.ProposalManifestVersion || identity.ChannelEpoch == 0 || identity.LeaderTerm == 0 ||
-		identity.FenceVersion == 0 || identity.Index == 0 || identity.PreviousIndex+1 != identity.Index ||
-		identity.CommandID == (ch.CommandID{}) || identity.Digest == (ch.EntryDigest{}) {
-		return false
-	}
-	if identity.PreviousIndex == 0 {
-		return identity.PreviousTerm == 0 && identity.PreviousDigest == (ch.EntryDigest{})
-	}
-	return identity.PreviousTerm != 0 && identity.PreviousDigest != (ch.EntryDigest{})
+	return quorumlog.ValidEntryIdentity(identity)
 }
 
 func validProbeEntryChain(entries []EntryProbe) bool {
@@ -339,7 +332,7 @@ func (a *storeAdapter) Replace(ctx context.Context, replacements []RecoveryRepla
 					LEO: replacement.Expected.LEO, HW: replacement.Expected.Committed,
 					CheckpointHW: replacement.Expected.Committed,
 				},
-				Manifest: replacement.Expected.Manifest, TailIdentity: replacement.Expected.TailIdentity,
+				Prefix: replacement.Expected.Prefix, Manifest: replacement.Expected.Manifest, TailIdentity: replacement.Expected.TailIdentity,
 			},
 			KeepThrough: replacement.KeepThrough,
 			Proposals:   proposals,
@@ -371,7 +364,7 @@ func (a *storeAdapter) Fetch(ctx context.Context, ranges []FetchRange) []FetchRa
 			InitialState: channelstore.InitialState{
 				LEO: request.Expected.LEO, HW: request.Expected.Committed, CheckpointHW: request.Expected.Committed,
 			},
-			Manifest: request.Expected.Manifest, TailIdentity: request.Expected.TailIdentity,
+			Prefix: request.Expected.Prefix, Manifest: request.Expected.Manifest, TailIdentity: request.Expected.TailIdentity,
 		}
 		if validateExactState(expected) != nil || request.Through > request.Expected.LEO {
 			return rejectFetchRanges(results, ch.ErrInvalidConfig)
@@ -413,7 +406,7 @@ func (a *storeAdapter) Fetch(ctx context.Context, ranges []FetchRange) []FetchRa
 			continue
 		}
 		state := ReplicaState{
-			LEO: page.LEO, Committed: page.HW, Manifest: page.Manifest, TailIdentity: page.TailIdentity,
+			LEO: page.LEO, Committed: page.HW, Prefix: page.Prefix, Manifest: page.Manifest, TailIdentity: page.TailIdentity,
 		}
 		if state != request.Expected {
 			results[index].Err = ch.ErrStaleMeta
@@ -444,7 +437,7 @@ func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecove
 			return nil, ch.ErrLogConflict
 		}
 		page.Records[index].Epoch = entry.Identity.ChannelEpoch
-		recordBytes := 96 + len(page.Records[index].FromUID) + len(page.Records[index].ClientMsgNo) + len(page.Records[index].Payload)
+		recordBytes := quorumlog.RecoveryRecordBytes(page.Records[index].FromUID, page.Records[index].ClientMsgNo, len(page.Records[index].Payload), page.Records[index].Protocol)
 		if used > request.MaxBytes-recordBytes {
 			return nil, ch.ErrBackpressured
 		}
@@ -512,7 +505,7 @@ func validateRecoveryReplacement(replacement RecoveryReplacement, maxBytes int) 
 			LEO: replacement.Expected.LEO, HW: replacement.Expected.Committed,
 			CheckpointHW: replacement.Expected.Committed,
 		},
-		Manifest: replacement.Expected.Manifest, TailIdentity: replacement.Expected.TailIdentity,
+		Prefix: replacement.Expected.Prefix, Manifest: replacement.Expected.Manifest, TailIdentity: replacement.Expected.TailIdentity,
 	}
 	if validateExactState(expected) != nil {
 		return 0, ch.ErrInvalidConfig
@@ -520,6 +513,20 @@ func validateRecoveryReplacement(replacement RecoveryReplacement, maxBytes int) 
 	total, ok := boundedByteSize(maxBytes, 256, len(replacement.ChannelKey), len(replacement.ChannelID.ID))
 	if !ok {
 		return 0, ch.ErrBackpressured
+	}
+	for _, proposal := range replacement.Proposals {
+		if proposal.Manifest.Version != quorumlog.ImportedPrefixVersion {
+			continue
+		}
+		_, valid := quorumlog.ImportedPrefixEntry(proposal.Manifest)
+		if !valid || len(replacement.Proposals) != 1 || len(proposal.Records) != 0 ||
+			replacement.Expected != (ReplicaState{}) || replacement.KeepThrough != 0 || replacement.Committed != proposal.Manifest.LastOffset {
+			return 0, ch.ErrInvalidConfig
+		}
+		if total > maxBytes-192 {
+			return 0, ch.ErrBackpressured
+		}
+		return total + 192, nil
 	}
 	base := replacement.KeepThrough
 	for _, proposal := range replacement.Proposals {
@@ -597,7 +604,7 @@ func estimateMutationBytes(mutation Mutation, maxBytes int) (int, bool) {
 		return 0, false
 	}
 	for _, record := range mutation.Records {
-		itemBytes, ok := boundedByteSize(maxBytes-total, 96, len(record.FromUID), len(record.ClientMsgNo), len(record.Payload))
+		itemBytes, ok := boundedByteSize(maxBytes-total, 96, len(record.FromUID), len(record.ClientMsgNo), len(record.Payload), record.Protocol.SizeBytes())
 		if !ok {
 			return 0, false
 		}
@@ -628,19 +635,9 @@ func boundedProduct(limit, left, right int) (int, bool) {
 }
 
 func validateExactState(state channelstore.ExactState) error {
-	if state.LEO == 0 {
-		if state.HW != 0 || state.CheckpointHW != 0 || state.Manifest != (ch.ProposalManifest{}) ||
-			state.TailIdentity != (ch.EntryIdentity{}) {
-			return ch.ErrLogConflict
-		}
-		return nil
-	}
-	manifest := state.Manifest
-	tail := state.TailIdentity
-	if state.HW > state.LEO || state.CheckpointHW != state.HW || !manifest.StructurallyValid() ||
-		manifest.LastOffset != state.LEO || !validEntryIdentity(tail) || tail.Version != manifest.Version || tail.Index != state.LEO ||
-		tail.ChannelEpoch != manifest.ChannelEpoch || tail.LeaderTerm != manifest.LeaderTerm ||
-		tail.FenceVersion != manifest.FenceVersion || tail.CommandID != manifest.CommandID || tail.Digest != manifest.Digest {
+	if state.CheckpointHW != state.HW || !validReplicaState(ReplicaState{
+		LEO: state.LEO, Committed: state.HW, Prefix: state.Prefix, Manifest: state.Manifest, TailIdentity: state.TailIdentity,
+	}) {
 		return ch.ErrLogConflict
 	}
 	return nil

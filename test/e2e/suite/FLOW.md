@@ -25,10 +25,12 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
    and start each product as an independently owned process group.
    `WithWebSocketGateway` adds a browser-addressable `/ws` wsmux listener and
    published route while retaining the default TCP WKProto listener.
-2. Wait for readiness, stable Slot authority, or active Channel runtime metadata
+2. Migration helpers invoke the real CLI and start caller-configured product
+   nodes on already imported data, without opening storage inside the harness.
+3. Wait for readiness, stable Slot authority, or active Channel runtime metadata
    through public evidence; restart or reconfigure only after previous
    process-group cleanup completes.
-3. Cleanup stops static nodes concurrently, joins repeated stops, escalates
+4. Cleanup stops static nodes concurrently, joins repeated stops, escalates
    TERM to KILL for remaining descendants, and waits for complete group cleanup.
 
 ## Invariants and Failure Semantics

@@ -5,6 +5,12 @@ import "github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 // ProposalManifestVersion is the only exact-append manifest format.
 const ProposalManifestVersion = quorumlog.ProposalManifestVersion
 
+// FullMessageProposalVersion authenticates additional durable protocol fields.
+const FullMessageProposalVersion = quorumlog.FullMessageProposalVersion
+
+// ProtocolFields is storage-neutral immutable protocol content.
+type ProtocolFields = quorumlog.ProtocolFields
+
 // CommandID is the retry-stable identity of one immutable Channel proposal.
 type CommandID = quorumlog.CommandID
 
@@ -33,7 +39,8 @@ func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt 
 	return quorumlog.DeriveProposalEntries(manifest, recordCount, func(index int) quorumlog.Record {
 		record := recordAt(index)
 		return quorumlog.Record{
-			ID: record.ID, Index: record.Index, Epoch: record.Epoch, Setting: record.Setting,
+			Protocol: record.Protocol,
+			ID:       record.ID, Index: record.Index, Epoch: record.Epoch, Setting: record.Setting,
 			FromUID: record.FromUID, ClientMsgNo: record.ClientMsgNo,
 			ServerTimestampMS: record.ServerTimestampMS, SyncOnce: record.SyncOnce, Payload: record.Payload,
 		}

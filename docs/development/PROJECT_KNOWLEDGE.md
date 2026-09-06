@@ -2,6 +2,63 @@
 
 ## Internal
 
+- Migration validates original operational Device/member/conversation/message
+  indexes and shard placement before conversion and on archive reconstruction.
+  Original ID/client indexes may outlive absent message primaries; stale sender
+  indexes are allowed only below the same sender/channel's live maximum, keeping
+  the old unread lookup unchanged. Node-wide message-ID shard shadows fail.
+  Administrative indexes get known-format checks, not a freshness guarantee.
+- Original v2 global plugin Send/PersistAfter hooks need no user binding;
+  persisted Plugin.Status does not prove inactivity. Migration rejects business
+  methods or nonempty effective configuration until a compatibility mapping
+  exists. Only registration descriptions/templates may be archived.
+- Imported indivisible proposals must fit the native default recovery page in
+  both encoded-storage bytes and neutral-wire accounting. The shared 1 MiB
+  budget is checked before import; oversized individual records are rejected.
+
+- Offline migration verification also recomputes full proposal chains and paired
+  indexes, checks Controller WAL/snapshot bootstrap and Slot snapshots against
+  independently verified metadata, and checks the historical global message-ID
+  floor. Run it before first native startup; see the
+  [operator runbook](../superpowers/runbooks/v2-to-v3-migration.md).
+- Original v2 conversation UpdatedAt is not explicit activation proof: an empty
+  subscribed group can have a durable conversation row and still be absent from
+  public conversation sync. Preserve membership without activating that group.
+- Bounded Channel repair scans retain Slot/page progress across ticks. Cold
+  candidate probes load only current authoritative local-replica metadata.
+  Applying an explicit write fence can complete the metadata transition while
+  quorum remains unready; reads wait for current-authority recovery rather than
+  trusting a loaded runtime's previous checkpoint.
+
+- `wkmigrate` builds a fresh native Controller/Slot generation; it does not
+  reinterpret v2 consensus indexes as a v3 backup or committed prefix. Full
+  verification re-decodes selected source records and reads native target rows
+  and indexes independently of converted values. `offline_verified` precedes
+  live API/SDK acceptance and is not automatic cutover authorization.
+- `MIGRATION-IMPORTING` without a matching `MIGRATION-COMPLETE` blocks native
+  startup. A synced `MIGRATION-READY` file fingerprints each closed output;
+  same-plan import retries leave completed data untouched and reject changes.
+  Imported historical message IDs establish the application allocator floor.
+- Original v2 `/message/eventsync` returns current per-lane projections sorted
+  by event sequence, not an append-only event log. It applies its private-row
+  filter after selecting the sequence page. Keep this compatibility behavior
+  distinct from stream-only message-summary enrichment.
+
+- Offline v2 migration reads the unmodified source commit
+  `a888f89533d0e7d1b2030e06504ca97f1ad891d4`; it cannot require a source upgrade.
+  Source Slot authority uses CRC32 of raw UID/channel ID, while message storage
+  and event keys use distinct FNV hashes. Source log progress and logical replica
+  equality are separate checks. The source `AddSubscribers` writer does not
+  maintain the old ChannelInfo counters; count actual member rows.
+- Source conversation shutdown intents follow `AddConversationsIfNotExist` at
+  the UID owner. They cannot overwrite stored read/delete state or supply an
+  invented historical row ID. Message event state and its complete cursor must
+  be imported directly, without replaying reducers or renumbering events.
+- Migration source archive COMPLETE proves portable source integrity only;
+  target installation, replication recovery and public API validation remain
+  separate requirements. See the approved
+  [migration design](../superpowers/specs/2026-09-06-v2-to-v3-migration-design.md).
+
 - `internal` is the promoted send-to-sendack kernel: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.
 - `internal` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass cluster semantics.
 - Review Agent invalidation is generation-bound. Fresh PR facts and signed

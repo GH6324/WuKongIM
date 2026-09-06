@@ -165,6 +165,9 @@ type ChannelStore struct {
 // DurableFrontier is one append/checkpoint-consistent exact log snapshot.
 // Manifest and TailIdentity are zero only when LEO is zero.
 type DurableFrontier struct {
+	// Prefix is the immutable recordless source boundary, or zero for a log
+	// whose history starts at the original genesis.
+	Prefix       DurableProposalManifest
 	LEO          uint64
 	Committed    uint64
 	Manifest     DurableProposalManifest
@@ -1276,51 +1279,20 @@ func (s *ChannelStore) LoadDurableRecovery(ctx context.Context, indexes []uint64
 	s.log.checkpointMu.Lock()
 	defer s.log.checkpointMu.Unlock()
 
-	leo, err := s.log.loadLEOLocked(ctx)
+	frontier, _, err := s.loadDurableFrontierLocked(ctx)
 	if err != nil {
 		return DurableRecoveryState{}, toChannelError(err)
 	}
 	result := DurableRecoveryState{
-		DurableFrontier: DurableFrontier{LEO: leo},
+		DurableFrontier: frontier,
 		Entries:         make([]DurableEntryProbe, len(indexes)),
-	}
-	checkpoint, present, err := s.log.loadCheckpoint(ctx)
-	if err != nil {
-		return DurableRecoveryState{}, toChannelError(err)
-	}
-	if present {
-		if checkpoint.HW > leo {
-			return DurableRecoveryState{}, channel.ErrCorruptState
-		}
-		result.Committed = checkpoint.HW
-	}
-	if leo > 0 {
-		proposal, present, err := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, leo)
-		if err != nil {
-			return DurableRecoveryState{}, toChannelError(err)
-		}
-		if !present {
-			return DurableRecoveryState{}, channel.ErrCorruptState
-		}
-		entry, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, leo)
-		if err != nil {
-			return DurableRecoveryState{}, toChannelError(err)
-		}
-		manifest := proposal.manifest
-		if !present || manifest.LastOffset != leo || manifest.Digest != entry.Digest ||
-			manifest.ChannelEpoch != entry.ChannelEpoch || manifest.LeaderTerm != entry.LeaderTerm ||
-			manifest.FenceVersion != entry.FenceVersion || manifest.CommandID != entry.CommandID {
-			return DurableRecoveryState{}, channel.ErrCorruptState
-		}
-		result.Manifest = manifest
-		result.TailIdentity = entry
 	}
 	for position, index := range indexes {
 		if index == 0 {
 			return DurableRecoveryState{}, channel.ErrInvalidArgument
 		}
 		probe := DurableEntryProbe{Index: index}
-		if index <= leo {
+		if index <= frontier.LEO && index >= frontier.Prefix.LastOffset {
 			identity, present, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, index)
 			if err != nil {
 				return DurableRecoveryState{}, toChannelError(err)

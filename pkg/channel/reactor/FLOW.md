@@ -50,7 +50,9 @@ typed bounded workers and returns as `EventWorkerResult`.
 - Quorum install remains pending work and keeps append admission closed until
   recovery plus the current-authority barrier succeeds. Each accepted append
   completes directly from its exact quorum-commit receipt, without hot-path
-  PullHint or AckOffset signals.
+  PullHint or AckOffset signals. An explicit write-fence install may complete
+  the metadata transition with admission still closed. Runtime probes mark
+  recovering state; clearing the fence still requires normal quorum recovery.
 - One loaded runtime has one lifecycle controller. Hot follower replication
   remains separate but exposes pending-work evidence to lifecycle guards.
 - Cold activation is not loaded state and does not consume `MaxChannels` until

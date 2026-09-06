@@ -94,6 +94,8 @@ type ExactProposalLookup interface {
 // sequencer. Manifest and TailIdentity are zero only for an empty log.
 type ExactState struct {
 	InitialState
+	// Prefix binds the original retained boundary without message rows.
+	Prefix       ProposalManifest
 	Manifest     ProposalManifest
 	TailIdentity ch.EntryIdentity
 }

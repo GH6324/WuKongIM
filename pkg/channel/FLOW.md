@@ -61,6 +61,15 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
   exchange, recovery probes, and follower repair without per-Channel goroutines.
   Install selects a quorum-identical hash-chain prefix, repairs bounded pages,
   and makes writes ready only after the deterministic current-term barrier.
+- Full-message proposals authenticate persisted protocol fields with version 2;
+  existing version 1 hashes remain unchanged. Imported retained histories use
+  a version 3 recordless boundary bound to source evidence and Channel key.
+  Recovery frontiers retain this boundary. Quorum-proven leader recovery and
+  leader-driven trailing repair install it only on an empty replica, then copy
+  bounded ordinary proposal pages. It never represents client-visible messages
+  or evidence of historical source acknowledgements.
+  Offline proposals fit the shared recovery budget in native encoding and
+  neutral protocol bytes, preserving empty-replica repair within live I/O bounds.
 - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
   only positive sequences covered by local HW and the logical retention floor.
   Committed-read results own their payload bytes beyond store-handle closure,

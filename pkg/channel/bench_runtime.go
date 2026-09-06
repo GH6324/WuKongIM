@@ -94,6 +94,8 @@ type RuntimeProbeChannel struct {
 	Role Role
 	// Status is the local runtime status.
 	Status Status
+	// Recovering keeps a newly selected quorum leader from serving a stale checkpoint.
+	Recovering bool
 	// LEO is the local log end offset.
 	LEO uint64
 	// HW is the local committed high watermark.

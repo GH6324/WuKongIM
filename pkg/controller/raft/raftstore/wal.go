@@ -63,7 +63,9 @@ func openWAL(cfg walConfig) (*wal, error) {
 	return w.openTail(files[len(files)-1])
 }
 
-func (w *wal) replay() (replayState, error) {
+func (w *wal) replay() (replayState, error) { return w.replayMode(true) }
+
+func (w *wal) replayMode(allowIncompleteTail bool) (replayState, error) {
 	files, err := walSegmentFiles(w.cfg.Dir)
 	if err != nil {
 		return replayState{}, err
@@ -86,7 +88,7 @@ func (w *wal) replay() (replayState, error) {
 					}
 					break
 				}
-				if errors.Is(err, ErrTruncatedRecord) && fileIdx == len(files)-1 && sawCompleteRecord {
+				if allowIncompleteTail && errors.Is(err, ErrTruncatedRecord) && fileIdx == len(files)-1 && sawCompleteRecord {
 					break
 				}
 				_ = f.Close()

@@ -785,6 +785,7 @@ func (s *MemoryChannelStore) Close() error {
 
 func messageFromRecord(id ch.ChannelID, record ch.Record) ch.Message {
 	return ch.Message{
+		Protocol:          record.Protocol,
 		MessageID:         record.ID,
 		MessageSeq:        record.Index,
 		ChannelID:         id.ID,

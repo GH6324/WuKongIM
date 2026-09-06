@@ -54,7 +54,7 @@ func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered
 		return recoveryBarrierResult{}, errDurableQuorumUnavailable
 	}
 	return recoveryBarrierResult{State: ReplicaState{
-		LEO: manifest.LastOffset, Committed: recovered.LEO, Manifest: manifest, TailIdentity: entries[0],
+		Prefix: recovered.Prefix, LEO: manifest.LastOffset, Committed: recovered.LEO, Manifest: manifest, TailIdentity: entries[0],
 	}}, nil
 }
 

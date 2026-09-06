@@ -6,6 +6,7 @@ import (
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 var (
@@ -62,6 +63,10 @@ type UnbindCommand struct {
 
 // SyncedMessage is a command-channel message returned by CMD sync.
 type SyncedMessage struct {
+	// Protocol preserves durable message fields across CMD discovery and sync.
+	Protocol quorumlog.ProtocolFields
+	// Setting preserves the immutable message setting bitset.
+	Setting uint8
 	// MessageID is the globally unique durable message identifier.
 	MessageID uint64
 	// MessageSeq is the committed command-channel sequence.
