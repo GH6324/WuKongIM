@@ -61,6 +61,7 @@ src/client/   Browser UI, SDK wrapper, and reconnect flow
 src/server/   Local service and Product HTTP client
 public/       HTML and CSS
 test/         Fast unit tests
+e2e/          Real-browser messaging and reconnect assertions
 scripts/      Browser bundle build
 ```
 
@@ -74,6 +75,14 @@ npm run build
 `npm run build` creates `dist/` and runs TypeScript without emitting type-check
 output. The browser bundle removes SDK `console` calls because the published SDK
 can log decoded message data.
+
+## Browser tests
+
+The repository's Go E2E harness starts a single-node cluster with Token
+authentication enabled and runs the pinned Chromium tests through `npm run test:e2e`.
+The tests use BFF-issued credentials and cover online messaging and reconnect
+recovery. Run this scenario from the repository root following
+`test/e2e/message/javascript_web_quickstart/AGENTS.md`.
 
 ## Production work still required
 

@@ -7,6 +7,9 @@ single-node cluster and a real Chromium browser.
 
 - Keep the Go test responsible for the real `cmd/wukongim` lifecycle, the
   256-Hash-Slot topology override, and isolated loopback addresses.
+- Keep Token authentication enabled. Wait for Product HTTP readiness, then let
+  browser sessions prove authenticated Gateway readiness through BFF-issued
+  credentials; do not use the anonymous generic WKProto probe.
 - Keep application-integration assertions in the quickstart sample's
   Playwright spec. The browser must reach Product HTTP only through the
   localhost BFF and must discover its WebSocket URL through `/route`.
