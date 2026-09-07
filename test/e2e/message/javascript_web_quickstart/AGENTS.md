@@ -15,7 +15,8 @@ single-node cluster and a real Chromium browser.
   localhost BFF and must discover its WebSocket URL through `/route`.
 - Cover Alice/Bob bidirectional durable sends, successful SENDACK and receive,
   Bob disconnecting before Alice sends, and Bob reconnecting and recovering
-  the offline message through sync.
+  the offline message in the sync response, displayed once whether reconnect
+  delivery or the history response arrives first.
 - Keep this scenario opt-in with `WK_E2E_DOCS_JAVASCRIPT_WEB=1` so the complete
   Go e2e suite does not require npm or Chromium.
 - Keep command output bounded but never publish its raw tail or the node log

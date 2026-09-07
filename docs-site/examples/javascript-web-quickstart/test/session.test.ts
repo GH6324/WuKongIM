@@ -205,3 +205,34 @@ test("the UI can observe session state and unsubscribe", async () => {
 
   assert.deepEqual(observed, ["idle", "connecting", "connected"]);
 });
+
+for (const realtimeFirst of [true, false]) {
+  test(`reconnect deduplicates live delivery and history with realtimeFirst=${realtimeFirst}`, async () => {
+    const runtime = new FakeChatRuntime();
+    const message: RuntimeMessage = {
+      messageId: "offline-id", messageSeq: 7, clientMsgNo: "offline-client",
+      fromUid: "bob", text: "while offline",
+    };
+    let syncCalls = 0;
+    runtime.syncMessages = async () => {
+      syncCalls++;
+      if (realtimeFirst) runtime.messageListener?.(message);
+      return [message];
+    };
+    const session = new QuickstartSession({
+      uid: "alice", peerUid: "bob", runtime,
+      bff: { async provisionIdentity(uid) {
+        return { uid, token: "dev-token", websocketUrl: "ws://127.0.0.1:5200" };
+      } },
+    });
+    await session.connect();
+    await session.disconnect();
+    await session.reconnectAndSync();
+    if (!realtimeFirst) runtime.messageListener?.(message);
+    const displayed = session.snapshot().events.filter(({ kind }) => kind === "received" || kind === "synced");
+    assert.equal(syncCalls, 1);
+    assert.equal(displayed.length, 1);
+    assert.equal(displayed[0].kind, realtimeFirst ? "received" : "synced");
+    assert.match(displayed[0].text, /while offline/);
+  });
+}
