@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Fix JavaScript/Web quickstart reconnect history occasionally appearing empty while person membership is still being projected after SENDACK; the example backend now retries empty latest pages within its existing finite budget. / 修复 JavaScript/Web 示例重连时偶发空历史：后端在既有有限预算内等待最新空页的单聊成员投影。
+
 - Read device credentials from the current Slot leader so newly written or rotated Tokens authenticate consistently through any ingress, including nodes outside the Slot replica set. This uses promoted internal RPC 87; upgrade all cluster nodes together before relying on cross-node authentication.
 - Fix benchmark Token preparation to persist device credentials through the user use case before chat-lifecycle CONNECT, restoring authenticated three-node workloads without disabling Gateway authentication.
 - Restore Manager browser smoke validation with Gateway Token authentication enabled by using all-node HTTP readiness before authenticated browser navigation.
@@ -20,6 +22,8 @@ move those entries into a version section named for that exact tag.
 - Add `message.cmd_channel_suffix` (`WK_MESSAGE_CMD_CHANNEL_SUFFIX`), defaulting to `____cmd`, consistently across command send, delivery, sync, plugins and Manager filtering. All nodes must agree; changing the suffix does not migrate existing command channels or bindings.
 
 ### 📚 Documentation / 文档
+
+- Add a reproducible local three-node Webhook acceptance guide covering Token authentication, failure policies, overload isolation, recovery, and observable results. / 新增本机三节点 Webhook 验收指南，覆盖 Token 鉴权、失败策略、过载隔离、恢复及观测结果。
 
 - Document synchronous before-send Webhook configuration, request/response contracts, failure policies, business rejection codes, and cluster behavior in Chinese and English. / 补充同步发送前 Webhook 的中英文接入、配置及协议文档。
 

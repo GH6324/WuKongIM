@@ -65,6 +65,23 @@ Content-Type: application/json
 
 监控 `wukongim_webhook_before_send_total{result}` 和 `wukongim_webhook_before_send_duration_seconds{result}`，区分 `allow`、`reject`、`timeout_allow`、`timeout_deny`、`error_allow`、`error_deny`、`overloaded`、`invalid_request`、`canceled`。指标不包含 UID、频道、回调地址或消息内容。当前只发送 Content-Type，无内置签名或鉴权头；应通过受控网络或代理建立业务端对回调来源的信任。
 
+## 在本机验证发送前回调
+
+从包含此功能的源码仓库根目录运行，需要 `go.mod` 指定的 Go 工具链。测试会构建当前源码，自动启动真实三节点集群和回环地址上的可控回调服务；无需 Docker、云服务器或外部 Webhook 地址。
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/message/webhook \
+  -run '^TestBeforeSendWebhookAuthenticatedFaults$' -count=1 -timeout 2m -p=1 -v
+```
+
+此场景启用客户端 Token 鉴权，使用 256 个 Hash Slot、2 个 Slot 副本和每节点 2 个回调并发。回调超时为 3 秒；三节点故意使用不同失败策略，逐项验证 `deny`、超时放行和错误放行。实际部署应保持各节点配置一致。
+
+测试核对客户端鉴权、放行、Payload 替换、业务拒绝、100 ms 慢响应、超时、HTTP 503、无效 JSON、重定向和连接失败。占满一个节点的两个回调名额后，16 次额外发送必须被拒绝且不能进入回调；其他节点仍可发送，释放后原节点也应恢复。成功消息的接收内容与历史记录必须一致，拒绝消息不能进入历史，回调次数与公开指标增量必须符合预期。
+
+`-v` 输出发送延迟、回调并发峰值及测试前后的堆内存和 goroutine 快照。若平台没有进程 CPU 指标，会输出 `unavailable`。这些是有限故障场景的观察值，不是吞吐容量、延迟分位数或长期内存稳定性结论。测试结束会停止进程并清理临时数据。
+
+本机回调使用测试规则，不验证实际业务逻辑，也不验证 Webhook 签名鉴权。接入真实业务服务后，应复用放行、修改、拒绝和失败策略用例验收。
+
 ## 启用异步通知
 
 在 `wukongim.toml` 中配置：

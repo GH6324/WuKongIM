@@ -17,6 +17,9 @@ single-node cluster and a real Chromium browser.
   Bob disconnecting before Alice sends, and Bob reconnecting and recovering
   the offline message in the sync response, displayed once whether reconnect
   delivery or the history response arrives first.
+- The sample BFF retries empty latest pages within the existing finite directory
+  projection budget. Keep the browser assertion on the recovered history content;
+  do not replace it with a delay or accept an empty successful response.
 - Keep this scenario opt-in with `WK_E2E_DOCS_JAVASCRIPT_WEB=1` so the complete
   Go e2e suite does not require npm or Chromium.
 - Failure summaries may expose only capture bounds and at most four numeric
