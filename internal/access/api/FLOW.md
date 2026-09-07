@@ -64,8 +64,10 @@ bench or debug request
   `sender_uid` alias, then the configured system UID when both are empty.
 - Person-channel IDs are normalized only at the entry boundary; durable
   membership, opaque cursors, badge floors, and Channel reads stay below it.
-- Benchmark mutation routes write only through the supplied benchmark data
-  port. Missing mutation capability returns an explicit unsupported result.
+- Benchmark channel mutations use the supplied benchmark data port. Token
+  batches use the user use case and acknowledge only persisted device updates;
+  a failed batch can leave a durable prefix and must be retried as an upsert.
+  Missing mutation capability returns an explicit unsupported result.
 - `/bench/v1/terminal-fence/prepare` exists only with the complete controller
   and a non-empty bearer token; it has no unauthenticated compatibility mode.
   Capability and benchmark identities never enter logs or error responses.

@@ -75,6 +75,11 @@ export WK_CHAT_LIFECYCLE_BENCH_TOKEN_FILE=/secure/wukongim-chat-lifecycle/bench.
 export WK_CHAT_LIFECYCLE_WORKER_TOKEN_FILE=/secure/wukongim-chat-lifecycle/worker.token
 ```
 
+Each lifecycle worker also needs the Bench credential to persist its APP device
+token through `/bench/v1/users/tokens` before every CONNECT. Keep Gateway Token
+authentication enabled. Preparation is bounded to five seconds per login and
+uses no historical UID cache; returning logins repeat the same upsert.
+
 Never place credentials in YAML, process arguments, logs, reports, or worker
 assignments. The service Bench bearer must protect `/bench/v1/*` and the enabled
 debug subtree. Every lifecycle worker endpoint, including health and info,

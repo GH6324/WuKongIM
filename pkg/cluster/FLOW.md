@@ -12,8 +12,7 @@ readiness, public facade delegation, route publication, and bounded snapshots;
 focused subpackages own Controller adaptation, immutable routing, typed node
 RPC, Slot reconciliation/proposal, Channel hosting, and observation loops.
 
-Every deployment follows these cluster semantics, including a single-node
-cluster. There is no standalone data or control path.
+Every deployment follows these semantics, including a single-node cluster; no standalone data or control path exists.
 It does not own Manager or product business policy.
 
 ## Boundaries
@@ -38,7 +37,8 @@ It does not own Manager or product business policy.
    work and invalidating readiness.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    group Channel- or UID-owned work by physical Slot, execute locally or
-   forward, and recheck leadership. Person-directory prepare joins UID
+   forward, and recheck leadership. Device credentials use the authoritative Slot proxy.
+   Person-directory prepare joins UID
    membership/runtime metadata before publishing directory-ready.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to

@@ -848,9 +848,14 @@ type workerCLIConfig struct {
 
 func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 	if cfg.mode == workerModeChatLifecycle {
+		benchToken, err := chatlifecycle.LoadBenchToken()
+		if err != nil {
+			fmt.Fprintln(stderr, "chat lifecycle worker target credential configuration failed")
+			return exitConfig
+		}
 		workerServer, err := chatlifecycle.NewWorkerServer(chatlifecycle.WorkerServerConfig{
 			ControlToken: cfg.server.ControlToken,
-			Factory:      chatlifecycle.NewEngineWorkerGenerationFactory(),
+			Factory:      chatlifecycle.NewEngineWorkerGenerationFactory(benchToken),
 			ReportGrantFailure: func(event chatlifecycle.WorkerGrantFailureEvent) {
 				_ = json.NewEncoder(stderr).Encode(event)
 			},

@@ -182,7 +182,7 @@ describe('cluster transport catalog', () => {
       }
     }
 
-    expect(nodeTransportServices).toHaveLength(56);
+    expect(nodeTransportServices).toHaveLength(57);
     expect(parsed.sort((a, b) => a.id - b.id)).toEqual(
       nodeTransportServices
         .map(({ id, symbol }) => ({ id, symbol }))
@@ -205,7 +205,7 @@ describe('cluster transport catalog', () => {
     expect(nodeTransportServices.find(({ id }) => id === 20)?.stability).toBe('reserved');
   });
 
-  test('keeps private Slot IDs outside default composition visible as catalog debt', async () => {
+  test('promotes Slot identity reads while retaining remaining private catalog debt', async () => {
     const [store, identity, migration, plugin] = await Promise.all([
       source('../../pkg/slot/proxy/store.go'),
       source('../../pkg/slot/proxy/identity_rpc.go'),
@@ -217,10 +217,10 @@ describe('cluster transport catalog', () => {
     )?.[0];
     if (!defaultConstructor) throw new Error('default Slot metadata constructor is missing');
 
-    expect(identity).toContain('identityRPCServiceID uint8 = 4');
+    expect(identity).toContain('identityRPCServiceID uint8 = clusternet.RPCSlotIdentityMetadata');
     expect(migration).toContain('channelMigrationRPCServiceID uint8 = 47');
     expect(plugin).toContain('pluginBindingRPCServiceID uint8 = 53');
-    expect(defaultConstructor).not.toContain('identityRPCServiceID');
+    expect(defaultConstructor).toContain('identityRPCServiceID');
     expect(defaultConstructor).not.toContain('channelMigrationRPCServiceID');
     expect(defaultConstructor).not.toContain('pluginBindingRPCServiceID');
   });
