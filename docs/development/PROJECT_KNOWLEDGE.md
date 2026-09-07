@@ -737,6 +737,8 @@
 
 - After merging a task branch, verify its tip is reachable from the target, remove its clean worktree, and delete the original local branch; preserve uncommitted work and never force-delete unmerged work.
 
+- Documentation browser acceptance keeps Token authentication enabled: HTTP readiness precedes browser CONNECT with BFF-provisioned credentials. The quickstart owns its pinned Playwright runner and exercises online exchange and offline recovery before a clean-HEAD receipt is published.
+
 ## Synchronous before-send Webhook
 
 - `webhook.before_send` independently enables `msg.before_send` after permission and Send plugins, before submission for every send mode. Plugin disable/skip does not bypass it; authority forwarding does not repeat it.

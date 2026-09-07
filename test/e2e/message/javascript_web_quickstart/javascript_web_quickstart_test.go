@@ -33,12 +33,20 @@ func TestJavaScriptWebQuickstartInChromium(t *testing.T) {
 	}
 
 	s := suite.New(t)
-	node := s.StartSingleNodeCluster(
+	cluster := s.StartStaticCluster(1,
 		suite.WithWebSocketGateway(),
 		suite.WithNodeConfigOverrides(1, map[string]string{
 			"WK_CLUSTER_HASH_SLOT_COUNT": "256",
+			"WK_GATEWAY_TOKEN_AUTH_ON":   "true",
 		}),
 	)
+
+	// The browser proves authenticated Gateway readiness after the BFF provisions
+	// each identity. An anonymous WKProto probe would fail with token auth enabled.
+	node := cluster.MustNode(1)
+	readyCtx, cancelReady := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelReady()
+	require.NoError(t, cluster.WaitHTTPReady(readyCtx))
 
 	routeCtx, cancelRoute := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelRoute()

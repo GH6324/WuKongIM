@@ -69,6 +69,8 @@ documents runtime contracts but does not define them.
   TypeScript, Dart, and ArkTS, explaining core terms before relying on them.
 - A trusted backend supplies identity, tokens, routing, history, Channel metadata,
   and media URLs. Untrusted clients never call Product HTTP management directly.
+- The JavaScript browser gate uses BFF-issued credentials with Token auth enabled;
+  its pinned Playwright runner verifies online exchange and offline recovery.
 - The JavaScript example is a tested development aid, not a production backend
   or a substitute for testing on actual devices, networks, and releases.
 - EasySDK evidence names exact client and server revisions. When verified source
