@@ -15,6 +15,7 @@ import (
 
 func TestServerServesHealthReadyAndBenchTargetSurface(t *testing.T) {
 	srv := New(Options{
+		Users: &recordingUserUsecase{},
 		Readyz: func(context.Context) (bool, any) {
 			return true, map[string]any{"ready": true}
 		},

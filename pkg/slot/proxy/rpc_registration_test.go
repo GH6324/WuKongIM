@@ -2,10 +2,12 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sort"
 	"testing"
 
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -46,6 +48,7 @@ func TestNewChannelMetadataStoreRegistersAuthoritativeReadHandlers(t *testing.T)
 	}
 	sort.Ints(got)
 	want := []int{
+		int(identityRPCServiceID),
 		int(runtimeMetaRPCServiceID),
 		int(subscriberRPCServiceID),
 		int(channelRPCServiceID),
@@ -55,6 +58,26 @@ func TestNewChannelMetadataStoreRegistersAuthoritativeReadHandlers(t *testing.T)
 	sort.Ints(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("registered channel metadata RPC service IDs = %v, want %v", got, want)
+	}
+}
+
+// The default runtime only needs device credentials; it must not expose user scans.
+func TestDefaultIdentityRPCRejectsNonDeviceOperations(t *testing.T) {
+	cluster := &promotedRPCRegistrationCluster{}
+	NewChannelMetadataStore(cluster, nil)
+	for _, op := range []string{identityRPCGetUser, identityRPCScanUsersPage} {
+		t.Run(op, func(t *testing.T) {
+			body, err := encodeIdentityRPCRequestBinary(identityRPCRequest{
+				Op: op, SlotID: 1, UID: "user", Limit: 1 << 30,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = cluster.handlers[identityRPCServiceID](context.Background(), body)
+			if !errors.Is(err, metadb.ErrInvalidArgument) {
+				t.Fatalf("non-device operation error = %v, want invalid argument", err)
+			}
+		})
 	}
 }
 

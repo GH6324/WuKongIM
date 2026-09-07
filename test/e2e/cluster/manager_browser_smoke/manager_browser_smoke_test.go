@@ -51,6 +51,7 @@ func TestManagerProductionBundleInChromium(t *testing.T) {
 	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
 		options = append(options, suite.WithNodeConfigOverrides(nodeID, map[string]string{
 			"WK_CLUSTER_HASH_SLOT_COUNT": "256",
+			"WK_GATEWAY_TOKEN_AUTH_ON":   "true",
 			"WK_MANAGER_AUTH_ON":         "true",
 			"WK_MANAGER_JWT_SECRET":      jwtSecret,
 			"WK_MANAGER_JWT_ISSUER":      "wukongim-manager-browser-e2e",
@@ -63,7 +64,9 @@ func TestManagerProductionBundleInChromium(t *testing.T) {
 	cluster := s.StartThreeNodeCluster(options...)
 	readyCtx, cancelReady := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelReady()
-	require.NoError(t, cluster.WaitClusterReady(readyCtx), cluster.DumpDiagnostics())
+	// Manager is an HTTP surface; its authenticated browser flow establishes
+	// readiness without an unrelated anonymous Gateway connection.
+	require.NoError(t, cluster.WaitHTTPReady(readyCtx), cluster.DumpDiagnostics())
 
 	browserCtx, cancelBrowser := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancelBrowser()

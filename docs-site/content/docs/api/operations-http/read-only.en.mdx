@@ -57,3 +57,5 @@ All require `bench.api_enable=true`. A non-empty `bench.api_token` protects ever
 | `POST` | `/bench/v1/channels/subscribers/remove` |
 
 `terminal-fence/prepare` additionally requires a Terminal Fence Controller and a non-empty token. Bench performs data preparation, runtime eviction, and terminal fencing; it is neither read-only nor a public integration contract.
+
+`users/tokens` persists device tokens through the user use case and increments `accepted_users` only after successful writes. Without the user use case, its capability is false and requests return 501. Persistence failure returns 500; a durable prefix is not rolled back and can be upserted again with the same credentials. Lifecycle workers complete this preparation before CONNECT while Gateway Token authentication remains enabled.

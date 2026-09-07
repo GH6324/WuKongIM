@@ -7,6 +7,9 @@ three-node `cmd/wukongim` cluster and a real Chromium browser.
 
 - Keep the Go test responsible for real cluster lifecycle and ephemeral
   Manager credentials.
+- Keep Gateway Token authentication enabled. Wait for all nodes' Product HTTP
+  readiness, then prove Manager readiness through the authenticated browser
+  flow; this HTTP scenario must not require an anonymous WKProto connection.
 - Keep browser assertions in `manager_browser_smoke.spec.ts` and exercise only
   the public Manager URL; do not start a Vite development server or mock APIs.
 - Cover authenticated desktop navigation, localized copy, the not-found route,
