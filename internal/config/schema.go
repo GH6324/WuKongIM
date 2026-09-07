@@ -231,6 +231,13 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "webhook.request_timeout", EnvKey: "WK_WEBHOOK_REQUEST_TIMEOUT", Kind: kindDuration, Group: "webhook", Label: "Webhook request timeout"},
 	{TOMLPath: "webhook.retry_max_attempts", EnvKey: "WK_WEBHOOK_RETRY_MAX_ATTEMPTS", Kind: kindInt, Group: "webhook", Label: "Webhook retry max attempts"},
 
+	{TOMLPath: "webhook.before_send.enabled", EnvKey: "WK_WEBHOOK_BEFORE_SEND_ENABLED", Kind: kindBool, Group: "webhook", Label: "Before-send webhook Enabled"},
+	{TOMLPath: "webhook.before_send.http_addr", EnvKey: "WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR", Kind: kindString, Group: "webhook", Label: "Before-send webhook HTTP address", DiagnosticSensitive: true},
+	{TOMLPath: "webhook.before_send.timeout", EnvKey: "WK_WEBHOOK_BEFORE_SEND_TIMEOUT", Kind: kindDuration, Group: "webhook", Label: "Before-send webhook Timeout"},
+	{TOMLPath: "webhook.before_send.on_timeout", EnvKey: "WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT", Kind: kindString, Group: "webhook", Label: "Before-send webhook Timeout policy"},
+	{TOMLPath: "webhook.before_send.on_error", EnvKey: "WK_WEBHOOK_BEFORE_SEND_ON_ERROR", Kind: kindString, Group: "webhook", Label: "Before-send webhook Error policy"},
+	{TOMLPath: "webhook.before_send.max_in_flight", EnvKey: "WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT", Kind: kindInt, Group: "webhook", Label: "Before-send webhook Maximum in-flight calls"},
+
 	{TOMLPath: "plugin.enable", EnvKey: "WK_PLUGIN_ENABLE", Kind: kindBool, Group: "plugin", Label: "Plugin enabled"},
 	{TOMLPath: "plugin.dir", EnvKey: "WK_PLUGIN_DIR", Kind: kindString, Group: "plugin", Label: "Plugin directory"},
 	{TOMLPath: "plugin.socket_path", EnvKey: "WK_PLUGIN_SOCKET_PATH", Kind: kindString, Group: "plugin", Label: "Plugin socket path"},
@@ -403,6 +410,13 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE",
 		"WK_WEBHOOK_REQUEST_TIMEOUT",
 		"WK_WEBHOOK_RETRY_MAX_ATTEMPTS",
+		"WK_WEBHOOK_BEFORE_SEND_ENABLED",
+		"WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR",
+		"WK_WEBHOOK_BEFORE_SEND_TIMEOUT",
+		"WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT",
+		"WK_WEBHOOK_BEFORE_SEND_ON_ERROR",
+		"WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT",
+
 		"WK_PLUGIN_ENABLE",
 		"WK_PLUGIN_DIR",
 		"WK_PLUGIN_SOCKET_PATH",

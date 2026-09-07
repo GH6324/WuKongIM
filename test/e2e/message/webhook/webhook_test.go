@@ -3,6 +3,8 @@
 package webhook
 
 import (
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,6 +32,7 @@ func TestWukongIMWebhookReceivesNotifyOfflineAndOnlineStatus(t *testing.T) {
 	defer sink.close()
 
 	node := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{
+		"WK_GATEWAY_TOKEN_AUTH_ON":                 "false",
 		"WK_WEBHOOK_HTTP_ADDR":                     sink.URL(),
 		"WK_WEBHOOK_QUEUE_SIZE":                    "64",
 		"WK_WEBHOOK_WORKERS":                       "2",
@@ -308,4 +311,159 @@ func containsString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestBeforeSendWebhookThreeNodeAdmission(t *testing.T) {
+	var mu sync.Mutex
+	counts := map[string]int{}
+	sink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("event") != "msg.before_send" {
+			http.Error(w, "event", 400)
+			return
+		}
+		var req struct {
+			ClientMsgNo string `json:"client_msg_no"`
+			Payload     []byte `json:"payload"`
+			ChannelID   string `json:"channel_id"`
+		}
+		if json.NewDecoder(r.Body).Decode(&req) != nil {
+			http.Error(w, "JSON", 400)
+			return
+		}
+		mu.Lock()
+		counts[req.ClientMsgNo]++
+		mu.Unlock()
+		switch string(req.Payload) {
+		case "deny":
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": false, "reason_code": 200})
+		case "modify":
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": true, "payload": base64.StdEncoding.EncodeToString([]byte("modified"))})
+		case "timeout":
+			<-r.Context().Done()
+		case "http_error":
+			http.Error(w, "unavailable", 503)
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": true})
+		}
+	}))
+	defer sink.Close()
+	options := []suite.Option{suite.WithManagerHTTP()}
+	for id := uint64(1); id <= 3; id++ {
+		timeoutPolicy, errorPolicy := "deny", "deny"
+		if id == 2 {
+			timeoutPolicy = "allow"
+		}
+		if id == 3 {
+			errorPolicy = "allow"
+		}
+		options = append(options, suite.WithNodeConfigOverrides(id, map[string]string{
+			"WK_GATEWAY_TOKEN_AUTH_ON": "false",
+			"WK_PLUGIN_ENABLE":         "false", "WK_WEBHOOK_BEFORE_SEND_ENABLED": "true",
+			"WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR": sink.URL, "WK_WEBHOOK_BEFORE_SEND_TIMEOUT": "100ms",
+			"WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT": timeoutPolicy, "WK_WEBHOOK_BEFORE_SEND_ON_ERROR": errorPolicy,
+		}))
+	}
+	cluster := suite.New(t).StartThreeNodeCluster(options...)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	_, err := cluster.WaitSlotLeadersStable(ctx, time.Second)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	const sender = "before-sender"
+	const receiver = "before-receiver"
+	const group = "before-send-group"
+	require.NoError(t, suite.PostChannel(ctx, cluster.MustNode(1).APIAddr(), map[string]any{
+		"channel_id": group, "channel_type": 2, "reset": 1, "subscribers": []string{sender, receiver},
+	}), cluster.DumpDiagnostics())
+	sendClient, err := suite.NewWKProtoClient()
+	require.NoError(t, err)
+	defer sendClient.Close()
+	recvClient, err := suite.NewWKProtoClient()
+	require.NoError(t, err)
+	defer recvClient.Close()
+	require.NoError(t, sendClient.Connect(cluster.MustNode(1).GatewayAddr(), sender, sender+"-device"))
+	require.NoError(t, recvClient.Connect(cluster.MustNode(3).GatewayAddr(), receiver, receiver+"-device"))
+	body := func(id, payload string) map[string]any {
+		return map[string]any{"from_uid": sender, "channel_id": group, "channel_type": 2, "client_msg_no": id, "payload": base64.StdEncoding.EncodeToString([]byte(payload))}
+	}
+	warm, err := suite.PostMessageSendEventually(ctx, cluster.MustNode(1).APIAddr(), body("before-warm", "warm"))
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	require.EqualValues(t, frame.ReasonSuccess, warm.Reason)
+	_, err = recvClient.ReadRecv()
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	for i, payload := range []string{"deny", "modify"} {
+		id := "before-wk-" + payload
+		require.NoError(t, sendClient.SendFrame(&frame.SendPacket{ClientSeq: uint64(i + 1), ClientMsgNo: id, ChannelID: group, ChannelType: 2, Payload: []byte(payload)}))
+		ack, err := sendClient.ReadSendAck()
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		if payload == "deny" {
+			require.EqualValues(t, 200, ack.ReasonCode)
+			require.Zero(t, ack.MessageID)
+			require.Zero(t, ack.MessageSeq)
+		} else {
+			require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
+			recv, err := recvClient.ReadRecv()
+			require.NoError(t, err, cluster.DumpDiagnostics())
+			require.Equal(t, id, recv.ClientMsgNo)
+			require.Equal(t, "modified", string(recv.Payload))
+		}
+	}
+	for _, tc := range []struct {
+		node        uint64
+		id, payload string
+		reason      uint8
+	}{
+		{1, "before-http-deny", "deny", 200},
+		{1, "before-timeout-deny", "timeout", uint8(frame.ReasonSystemError)},
+		{2, "before-timeout-allow", "timeout", uint8(frame.ReasonSuccess)},
+		{2, "before-error-deny", "http_error", uint8(frame.ReasonSystemError)},
+		{3, "before-error-allow", "http_error", uint8(frame.ReasonSuccess)},
+	} {
+		result, err := suite.PostMessageSend(ctx, cluster.MustNode(tc.node).APIAddr(), body(tc.id, tc.payload))
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		require.Equal(t, tc.reason, result.Reason, tc.id)
+		if tc.reason == uint8(frame.ReasonSuccess) {
+			recv, err := recvClient.ReadRecv()
+			require.NoError(t, err, cluster.DumpDiagnostics())
+			require.Equal(t, tc.id, recv.ClientMsgNo)
+			require.Equal(t, tc.payload, string(recv.Payload))
+		} else {
+			require.Zero(t, result.MessageID)
+			require.Zero(t, result.MessageSeq)
+		}
+	}
+	transient := body("before-transient", "transient")
+	transient["no_persist"] = 1
+	transient["sync_once"] = 1
+	delete(transient, "channel_id")
+	delete(transient, "channel_type")
+	transient["subscribers"] = []string{receiver}
+	result, err := suite.PostMessageSend(ctx, cluster.MustNode(1).APIAddr(), transient)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	require.EqualValues(t, frame.ReasonSuccess, result.Reason)
+	recv, err := recvClient.ReadRecv()
+	require.NoError(t, err)
+	require.Equal(t, "before-transient", recv.ClientMsgNo)
+	var history struct {
+		Messages []struct {
+			ClientMsgNo string `json:"client_msg_no"`
+			Payload     []byte `json:"payload"`
+		} `json:"messages"`
+	}
+	_, err = suite.PostJSON(ctx, "http://"+cluster.MustNode(3).APIAddr()+"/channel/messagesync", map[string]any{
+		"login_uid": receiver, "channel_id": group, "channel_type": 2, "start_message_seq": 1, "limit": 20, "pull_mode": 1,
+	}, &history)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	require.Len(t, history.Messages, 4, "rejected and transient sends must not enter committed history")
+	for _, msg := range history.Messages {
+		require.NotContains(t, msg.ClientMsgNo, "deny")
+		if msg.ClientMsgNo == "before-wk-modify" {
+			require.Equal(t, "modified", string(msg.Payload))
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, id := range []string{"before-wk-deny", "before-wk-modify", "before-http-deny", "before-timeout-deny", "before-timeout-allow", "before-error-deny", "before-error-allow", "before-transient"} {
+		require.Equal(t, 1, counts[id], id+": authority forwarding must not repeat the callback")
+	}
 }

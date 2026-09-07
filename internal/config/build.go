@@ -1202,6 +1202,30 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Webhook.RetryMaxAttempts = attempts
 	}
+	if raw := configValue(values, "WK_WEBHOOK_BEFORE_SEND_ENABLED"); raw != "" {
+		value, err := parseBool("WK_WEBHOOK_BEFORE_SEND_ENABLED", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Webhook.BeforeSend.Enabled = value
+	}
+	if raw := configValue(values, "WK_WEBHOOK_BEFORE_SEND_TIMEOUT"); raw != "" {
+		value, err := parseDuration("WK_WEBHOOK_BEFORE_SEND_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Webhook.BeforeSend.Timeout = value
+	}
+	if raw := configValue(values, "WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT"); raw != "" {
+		value, err := parseInt("WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Webhook.BeforeSend.MaxInFlight = value
+	}
+	cfg.Webhook.BeforeSend.HTTPAddr = configValue(values, "WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR")
+	cfg.Webhook.BeforeSend.OnTimeout = configValue(values, "WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT")
+	cfg.Webhook.BeforeSend.OnError = configValue(values, "WK_WEBHOOK_BEFORE_SEND_ON_ERROR")
 	cfg.Webhook, err = app.NormalizeWebhookConfig(cfg.Webhook)
 	if err != nil {
 		return app.Config{}, err

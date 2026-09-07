@@ -44,6 +44,8 @@ It does not own reusable message, presence, delivery, or storage policy.
 - Unauthenticated SEND becomes a SENDACK result rather than a raw protocol
   error. Malformed/stale RECVACK is ignored without protocol noise.
 - Batched result cardinality and order must match inputs.
+- Business rejection codes 128–255 pass through SENDACK unchanged; system reasons
+  retain explicit mapping.
 - Send hooks run after permission inside the message usecase, uniformly across
   all entries. Payload ownership remains immutable until lower durable/async
   boundaries copy it.

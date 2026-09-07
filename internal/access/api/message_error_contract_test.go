@@ -65,7 +65,9 @@ func TestMessageReasonMappingPreservesWireReasonCodes(t *testing.T) {
 		{name: "invalid request", reason: messageusecase.ReasonInvalidRequest, want: frame.ReasonPayloadDecodeError},
 		{name: "unsupported", reason: messageusecase.ReasonUnsupported, want: frame.ReasonPayloadDecodeError},
 		{name: "system error", reason: messageusecase.ReasonSystemError, want: frame.ReasonSystemError},
-		{name: "future unknown", reason: messageusecase.Reason(255), want: frame.ReasonSystemError},
+		{name: "future system code", reason: messageusecase.Reason(127), want: frame.ReasonSystemError},
+		{name: "business lower", reason: messageusecase.Reason(128), want: frame.ReasonCode(128)},
+		{name: "business upper", reason: messageusecase.Reason(255), want: frame.ReasonCode(255)},
 	}
 
 	for _, tt := range tests {

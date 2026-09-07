@@ -33,6 +33,8 @@ type Options struct {
 	PersonDirectory PersonDirectoryEnsurer
 	// SendHook optionally mutates or rejects permission-accepted sends before append admission.
 	SendHook SendHook
+	// BeforeSendWebhook evaluates final payloads independently of plugin skip controls.
+	BeforeSendWebhook *BeforeSendWebhook
 	// SystemUIDs identifies internal system senders that bypass business permissions.
 	SystemUIDs SystemUIDChecker
 	// PersonWhitelistEnabled enables receiver-side personal allowlist checks.
@@ -64,6 +66,7 @@ type App struct {
 	permissionAuthority    PermissionStore
 	personDirectory        PersonDirectoryEnsurer
 	sendHook               SendHook
+	beforeSendWebhook      *BeforeSendWebhook
 	systemUIDs             SystemUIDChecker
 	personWhitelistEnabled bool
 	systemDeviceID         string
@@ -93,6 +96,7 @@ func New(opts Options) *App {
 		permissionAuthority:    opts.PermissionStore,
 		personDirectory:        opts.PersonDirectory,
 		sendHook:               opts.SendHook,
+		beforeSendWebhook:      opts.BeforeSendWebhook,
 		systemUIDs:             opts.SystemUIDs,
 		personWhitelistEnabled: opts.PersonWhitelistEnabled,
 		systemDeviceID:         opts.SystemDeviceID,

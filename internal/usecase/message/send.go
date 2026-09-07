@@ -945,6 +945,14 @@ func sendNeedsPersonDirectory(cmd SendCommand) bool {
 }
 
 func (a *App) beforeSendHook(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {
+	cmd, reason, err := a.beforePluginSendHook(ctx, cmd)
+	if err != nil || reason != ReasonSuccess || a == nil || a.beforeSendWebhook == nil {
+		return cmd, reason, err
+	}
+	return a.beforeSendWebhook.check(ctx, cmd, a.commandChannels)
+}
+
+func (a *App) beforePluginSendHook(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {
 	if cmd.SkipPluginHooks || a == nil || a.sendHook == nil {
 		return cmd, ReasonSuccess, nil
 	}
