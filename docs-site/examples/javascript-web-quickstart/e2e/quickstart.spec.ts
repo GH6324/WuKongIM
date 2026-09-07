@@ -69,9 +69,22 @@ test("Alice and Bob exchange durable messages and recover an offline message", a
   await expect(bob.getByTestId("connection-status")).toHaveAttribute("data-state", "disconnected");
   await send(alice, "alice-offline", 2);
   await expect(bob.getByTestId("event-received")).toHaveCount(1);
+  const syncResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === "/api/messages/sync" && response.request().method() === "POST",
+  );
   await bob.getByTestId("reconnect-sync-button").click();
   await expect(bob.getByTestId("connection-status")).toHaveAttribute("data-state", "connected");
-  await expect(bob.getByTestId("event-synced").filter({ hasText: "alice-offline" })).toHaveCount(1);
+  const sync = await syncResponse;
+  expect(sync.status()).toBe(200);
+  const history = await sync.json();
+  expect(history.messages).toEqual(expect.arrayContaining([
+    expect.objectContaining({ fromUid: "alice", text: "alice-offline" }),
+  ]));
+  await expect(bob.getByTestId("event-status").last()).toContainText("Sync complete");
+  // Reconnect delivery may beat the history response; the session deduplicates both.
+  const recovered = bob.locator('[data-testid="event-received"], [data-testid="event-synced"]')
+    .filter({ hasText: "alice-offline" });
+  await expect(recovered).toHaveCount(1);
 
   const routes = await Promise.all(discoveredURLs);
   expect(routes).toHaveLength(3);
