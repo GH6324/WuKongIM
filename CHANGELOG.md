@@ -16,6 +16,10 @@ move those entries into a version section named for that exact tag.
 - Add opt-in synchronous `msg.before_send` Webhooks for payload replacement or rejection, independent timeout/error policies, bounded concurrency, and business rejection codes 128–255 through SENDACK and HTTP. / 新增可选同步发送前 Webhook，支持内容修改、拒绝发送、独立超时及错误策略、有界并发和业务拒绝码透传。
 - Add `message.cmd_channel_suffix` (`WK_MESSAGE_CMD_CHANNEL_SUFFIX`), defaulting to `____cmd`, consistently across command send, delivery, sync, plugins and Manager filtering. All nodes must agree; changing the suffix does not migrate existing command channels or bindings.
 
+### 📚 Documentation / 文档
+
+- Document synchronous before-send Webhook configuration, request/response contracts, failure policies, business rejection codes, and cluster behavior in Chinese and English. / 补充同步发送前 Webhook 的中英文接入、配置及协议文档。
+
 <!--
 Use only the non-empty categories that apply: `⚠️ Breaking Changes /
 破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,

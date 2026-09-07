@@ -256,6 +256,12 @@ When the corresponding `api.external_*` is omitted, default external `/route` an
 | `webhook.offline_uid_batch_size` | `WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE` | `int` | Maximum offline UIDs in one `msg.offline` request; `0` uses `512`. |
 | `webhook.request_timeout` | `WK_WEBHOOK_REQUEST_TIMEOUT` | `duration` | Timeout for one outbound webhook request attempt; `0` uses `5s`. |
 | `webhook.retry_max_attempts` | `WK_WEBHOOK_RETRY_MAX_ATTEMPTS` | `int` | Maximum attempts for an admitted webhook batch before it is dropped; `0` uses `3`. |
+| `webhook.before_send.enabled` | `WK_WEBHOOK_BEFORE_SEND_ENABLED` | `bool` | Independently enable synchronous admission; defaults to false. |
+| `webhook.before_send.http_addr` | `WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR` | `string` | HTTP(S) callback endpoint, required when enabled and redacted in diagnostics. |
+| `webhook.before_send.timeout` | `WK_WEBHOOK_BEFORE_SEND_TIMEOUT` | `duration` | Callback deadline; zero uses 500ms, capped by the original send deadline. |
+| `webhook.before_send.on_timeout` | `WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT` | `string` | Callback timeout policy: allow or deny; defaults to deny. |
+| `webhook.before_send.on_error` | `WK_WEBHOOK_BEFORE_SEND_ON_ERROR` | `string` | Callback error policy: allow or deny; defaults to deny and never overrides explicit rejection. |
+| `webhook.before_send.max_in_flight` | `WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT` | `int` | Per-node concurrency limit; zero uses 256, saturation rejects immediately. |
 
 ## Plugin
 

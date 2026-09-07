@@ -9,6 +9,10 @@ _openapi:
 
 The event name travels in `?event=...`; request bodies have no common envelope.
 
+## `msg.before_send`
+
+The synchronous callback receives one uncommitted message and returns an allow, Payload replacement, or rejection decision. See [Before-send business callback](/en/guide/integration/webhooks#before-send-business-callback) for configuration and failure policies, and the OpenAPI reference below for all fields.
+
 ## Message object
 
 The `msg.notify` body is an array of these objects. `msg.offline` flattens the same object into its top level.
@@ -71,4 +75,4 @@ The body is an array of strings in this format:
 
 Counts come from the UID owner's local active-session projection. A UID can contain hyphens. Treat the whole record as opaque for compatibility, or parse the final five numeric fields from the right; do not use a fixed naïve `-` split.
 
-<OpenAPIPage document="wukongim-webhooks-beta-en" webhooks={[{"name":"msg.notify","method":"post"},{"name":"msg.offline","method":"post"},{"name":"user.onlinestatus","method":"post"}]} showDescription />
+<OpenAPIPage document="wukongim-webhooks-beta-en" webhooks={[{"name":"msg.before_send","method":"post"},{"name":"msg.notify","method":"post"},{"name":"msg.offline","method":"post"},{"name":"user.onlinestatus","method":"post"}]} showDescription />
