@@ -10,9 +10,8 @@ summary: Composes product and Agent runtimes and owns their dependency-safe life
 This package is the only composition root under `internal`. It converts
 validated configuration into product access adapters, use cases, node-local
 runtimes, infrastructure adapters, cluster/gateway services, observability,
-and lifecycle ownership. It also contains standalone Issue Agent, Review Agent,
-Cloud Analysis, and Cloud View composition roots that do not start the product
-cluster.
+and lifecycle ownership. Issue Agent, Review Agent, Cloud Analysis, and Cloud
+View composition roots do not start the product cluster.
 
 ## Boundaries
 
@@ -54,6 +53,8 @@ Stop or startup rollback
 
 - Every product deployment, including one node, uses cluster semantics. Wiring
   must not introduce a local business bypass.
+- Synchronous before-send Webhook admission is wired independently of asynchronous
+  Webhook workers and plugin enablement; configuration errors fail startup.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
 - The normalized message system UID is injected consistently into user
@@ -96,5 +97,4 @@ Stop or startup rollback
 
 - Dependency ownership or the sole-composition-root boundary changes.
 - Product startup, readiness, rollback, drain, or shutdown ordering changes.
-- Restore maintenance or side-effect lifecycle fencing changes.
-- Optional capability wiring or Agent credential/authority separation changes.
+- Restore maintenance, side-effect fencing, optional wiring, or Agent authority changes.

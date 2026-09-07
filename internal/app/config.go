@@ -376,8 +376,10 @@ type DeliveryConfig struct {
 	RecipientWorkerConcurrency int
 }
 
-// WebhookConfig controls node-local best-effort webhook delivery.
+// WebhookConfig controls synchronous admission and asynchronous webhook delivery.
 type WebhookConfig struct {
+	// BeforeSend is independently enabled synchronous business admission.
+	BeforeSend BeforeSendWebhookConfig
 	// Enabled starts the webhook runtime when at least one endpoint is configured.
 	Enabled bool
 	// HTTPAddr receives JSON webhook POST requests as {HTTPAddr}?event=<event>.
@@ -413,6 +415,7 @@ func NormalizeWebhookConfig(cfg WebhookConfig) (WebhookConfig, error) {
 }
 
 func defaultWebhookConfig(cfg WebhookConfig) WebhookConfig {
+	cfg.BeforeSend = defaultBeforeSendWebhookConfig(cfg.BeforeSend)
 	if cfg.HTTPAddr != "" {
 		cfg.Enabled = true
 	}
@@ -447,6 +450,9 @@ func defaultWebhookConfig(cfg WebhookConfig) WebhookConfig {
 }
 
 func validateWebhookConfig(cfg WebhookConfig) error {
+	if err := validateBeforeSendWebhookConfig(cfg.BeforeSend); err != nil {
+		return err
+	}
 	if cfg.Enabled && cfg.HTTPAddr == "" {
 		return fmt.Errorf("%w: webhook HTTPAddr is required when webhook is enabled", ErrInvalidConfig)
 	}

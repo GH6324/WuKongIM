@@ -62,6 +62,7 @@ bench or debug request
   node selectors stay unchanged; proxy headers never infer hosts, ports or TLS.
 - `/message/send` resolves its sender as `from_uid`, then the legacy
   `sender_uid` alias, then the configured system UID when both are empty.
+- Business rejection codes 128–255 pass through /message/send reason unchanged.
 - Person-channel IDs are normalized only at the entry boundary; durable
   membership, opaque cursors, badge floors, and Channel reads stay below it.
 - Benchmark mutation routes write only through the supplied benchmark data

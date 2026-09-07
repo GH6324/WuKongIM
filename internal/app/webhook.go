@@ -45,6 +45,9 @@ type singleOfflineRecipientsObserver struct {
 }
 
 func (a *App) wireWebhook() error {
+	if err := a.wireBeforeSendWebhook(); err != nil {
+		return err
+	}
 	if !a.cfg.Webhook.Enabled || a.webhook != nil {
 		return nil
 	}

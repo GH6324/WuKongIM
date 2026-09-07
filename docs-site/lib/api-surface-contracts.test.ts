@@ -268,14 +268,15 @@ describe('MCP and agent-only contracts', () => {
 
 describe('other private protocol inventories', () => {
   test('matches plugin-host RPC paths and outbound webhook event names', async () => {
-    const [plugin, webhook] = await Promise.all([
+    const [plugin, notifications, beforeSend] = await Promise.all([
       source('../../internal/access/plugin/server.go'),
       source('../../internal/runtime/webhook/types.go'),
+      source('../../internal/infra/webhook/before_send.go'),
     ]);
     const routeBlock = plugin.match(/var routePaths = \[\]string\{([^\n]+)\}/u)?.[1];
     if (!routeBlock) throw new Error('plugin host route catalog is missing');
     const pluginPaths = [...routeBlock.matchAll(/"([^"]+)"/gu)].map((match) => match[1]);
-    const events = [...webhook.matchAll(/Event[A-Za-z]+\s*=\s*"([^"]+)"/gu)].map(
+    const events = [...(notifications + beforeSend).matchAll(/Event[A-Za-z]+\s*=\s*"([^"]+)"/gu)].map(
       (match) => match[1],
     );
 

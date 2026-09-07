@@ -3,9 +3,11 @@ title: Webhook Reliability & Security
 description: Delivery success, bounded retry, loss and duplication boundaries, and production network controls.
 ---
 
+`msg.before_send` is independently enabled synchronous admission; its response allows, replaces, or rejects the send. Queue and retry semantics below apply only to the three asynchronous notifications. See [Before-send business callback](/en/guide/integration/webhooks#before-send-business-callback) for configuration, requests, and failure policies.
+
 ## Delivery semantics
 
-Only HTTP `200` is success. Every other status, connection error, or timeout fails the attempt. The response body is drained and discarded; it has no protocol meaning.
+For asynchronous notifications, only HTTP `200` is success. Every other status, connection error, or timeout fails the attempt. The response body is drained and discarded; it has no protocol meaning.
 
 | Setting | Default | Scope |
 | --- | ---: | --- |

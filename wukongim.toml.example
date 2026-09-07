@@ -209,6 +209,22 @@ offline_uid_batch_size = 512
 request_timeout = "5s"
 retry_max_attempts = 3
 
+# Synchronous admission runs after Send plugins and before message submission.
+# This group is independent of webhook.http_addr, focus_events, and plugin.enable.
+[webhook.before_send]
+# Explicit opt-in; enabling requires an absolute HTTP(S) callback URL.
+enabled = false
+# Receives one JSON message per POST with event=msg.before_send.
+http_addr = ""
+# Bounds each callback within the original send deadline; zero uses 500ms.
+timeout = "500ms"
+# Callback timeout policy: allow preserves the input payload; deny rejects.
+on_timeout = "deny"
+# Transport, HTTP status, or invalid response policy; never overrides a denial.
+on_error = "deny"
+# Maximum concurrent callbacks per node; saturation always rejects without queueing.
+max_in_flight = 256
+
 [plugin]
 enable = true
 dir = "./data/wukongim-single-node-data/plugins"

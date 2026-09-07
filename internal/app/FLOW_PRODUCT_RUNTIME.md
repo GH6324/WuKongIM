@@ -271,7 +271,9 @@ SEND with channel authority routing enabled:
 
 ```text
 gateway/API send
-  -> message.App delegates to channelappend.Router
+  -> message.App evaluates permissions and optional Send plugins
+  -> optional synchronous before-send Webhook admits or rejects the message
+  -> channelappend.Router
   -> local authority writer or forwarded Channel Append RPC
   -> ordinary Channel message row plus sender-sequence index commit atomically
      (CMD/SyncOnce uses the separate command Channel log)

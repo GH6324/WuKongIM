@@ -20,6 +20,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
 - Channel authority routing, message-ID allocation, durable append,
   idempotency, realtime `NoPersist`, and post-commit delivery belong to
   `internal/runtime/channelappend`.
+- Optional synchronous before-send Webhook policy runs after plugins, independent
+  of plugin skip controls. Its HTTP adapter cannot decide product failure policy.
 - Permission stores return raw authoritative facts. This package owns policy
   order and reason precedence.
 - Concrete Slot, Channel, cluster, gateway, and access types must not cross the
@@ -72,8 +74,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
 ## Read First
 
 - [Permission policy](permission.go)
-- [Batch permission reads](permission_batch.go)
 - [Send orchestration](send.go)
+- [Before-send Webhook policy](before_send.go)
 - [Committed sync](sync.go)
 - [Message-page policy and read seam](page_reader.go)
 

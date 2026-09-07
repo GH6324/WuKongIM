@@ -773,6 +773,7 @@ func (a *App) ensureChannelAppendMetadataCache() *clusterinfra.ChannelAppendMeta
 func (a *App) wireMessages() {
 	if a.messages == nil {
 		messageOpts := message.Options{
+			BeforeSendWebhook:      a.beforeSendWebhook,
 			Submitter:              a.channelAppendRouter,
 			SystemUIDs:             a.users,
 			PersonWhitelistEnabled: a.cfg.Message.PersonWhitelistEnabled,

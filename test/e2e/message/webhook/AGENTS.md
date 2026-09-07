@@ -4,9 +4,11 @@ This scenario owns black-box webhook coverage for `cmd/wukongim`.
 
 ## Purpose
 
-Prove a real single-node cluster can deliver node-local webhook callbacks for
-committed SEND side effects through the public WKProto gateway and an external
-HTTP endpoint.
+Prove single-node cluster post-commit notifications and three-node synchronous
+msg.before_send admission through real WKProto, Product HTTP, committed history,
+and an external HTTP endpoint. Cover payload mutation, business rejection,
+independent timeout/error policies, transient sends, and one callback per ingress
+attempt across authority forwarding.
 
 ## Run
 
@@ -21,3 +23,6 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/webhook -count=1 -timeout 2m -p=
 - Do not import `internal/app`, `internal/usecase`, or storage internals.
 - Keep webhook waits bounded and include node diagnostics plus captured webhook
   requests on failure.
+
+- Gateway token authentication is explicitly disabled in this scenario to isolate
+  callback behavior; these tests do not establish an authentication claim.
