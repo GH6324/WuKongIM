@@ -3,11 +3,11 @@
   "info": {
     "title": "WuKongIM Outbound Webhooks",
     "version": "3.0.0-beta-snapshot",
-    "description": "The three outbound callback events emitted by the bounded in-memory Webhook runtime.",
+    "description": "Synchronous before-send admission and three asynchronous notification events.",
     "x-i18n": {
       "zh": {
         "title": "WuKongIM 出站 Webhook",
-        "description": "有界内存 Webhook Runtime 发出的三个出站回调事件。"
+        "description": "同步发送前准入与三个异步通知事件。"
       }
     }
   },
@@ -16,12 +16,20 @@
     {
       "name": "Messages",
       "description": "Committed messages and offline-recipient candidates.",
-      "x-i18n": { "zh": { "description": "已提交消息与离线接收候选。" } }
+      "x-i18n": {
+        "zh": {
+          "description": "已提交消息与离线接收候选。"
+        }
+      }
     },
     {
       "name": "Presence",
       "description": "Legacy-compatible user presence strings.",
-      "x-i18n": { "zh": { "description": "兼容格式的用户在线状态字符串。" } }
+      "x-i18n": {
+        "zh": {
+          "description": "兼容格式的用户在线状态字符串。"
+        }
+      }
     }
   ],
   "webhooks": {
@@ -36,7 +44,9 @@
             "description": "接收一批有界的已提交持久消息。"
           }
         },
-        "tags": ["Messages"],
+        "tags": [
+          "Messages"
+        ],
         "security": [],
         "x-wukongim-delivery": "best-effort-memory-queue",
         "parameters": [
@@ -50,14 +60,20 @@
             "application/json": {
               "schema": {
                 "type": "array",
-                "items": { "$ref": "#/components/schemas/WebhookMessage" }
+                "items": {
+                  "$ref": "#/components/schemas/WebhookMessage"
+                }
               }
             }
           }
         },
         "responses": {
-          "200": { "$ref": "#/components/responses/Accepted" },
-          "default": { "$ref": "#/components/responses/RetryableFailure" }
+          "200": {
+            "$ref": "#/components/responses/Accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/RetryableFailure"
+          }
         }
       }
     },
@@ -72,7 +88,9 @@
             "description": "接收一条已提交消息与一批有界 UID；UID 为明文数组或 gzip 压缩形式。"
           }
         },
-        "tags": ["Messages"],
+        "tags": [
+          "Messages"
+        ],
         "security": [],
         "x-wukongim-delivery": "best-effort-memory-queue",
         "parameters": [
@@ -84,13 +102,19 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/OfflineWebhook" }
+              "schema": {
+                "$ref": "#/components/schemas/OfflineWebhook"
+              }
             }
           }
         },
         "responses": {
-          "200": { "$ref": "#/components/responses/Accepted" },
-          "default": { "$ref": "#/components/responses/RetryableFailure" }
+          "200": {
+            "$ref": "#/components/responses/Accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/RetryableFailure"
+          }
         }
       }
     },
@@ -105,7 +129,9 @@
             "description": "接收一批有界、尽力而为的兼容状态字符串；它们来自 UID Owner 当前节点的活跃会话，不是集群全局在线状态。"
           }
         },
-        "tags": ["Presence"],
+        "tags": [
+          "Presence"
+        ],
         "security": [],
         "x-wukongim-delivery": "best-effort-memory-queue",
         "parameters": [
@@ -124,13 +150,92 @@
                   "description": "uid-deviceFlag-online-sessionID-deviceOnlineCount-totalOnlineCount; parse the final five numeric fields from the right because UID may contain hyphens"
                 }
               },
-              "example": ["alice-1-1-42-1-2"]
+              "example": [
+                "alice-1-1-42-1-2"
+              ]
             }
           }
         },
         "responses": {
-          "200": { "$ref": "#/components/responses/Accepted" },
-          "default": { "$ref": "#/components/responses/RetryableFailure" }
+          "200": {
+            "$ref": "#/components/responses/Accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/RetryableFailure"
+          }
+        }
+      }
+    },
+    "msg.before_send": {
+      "post": {
+        "operationId": "onMessageBeforeSend",
+        "summary": "Decide whether to send",
+        "description": "Synchronously inspect the final payload before submission. Parent cancellation wins; explicit denial never fails open.",
+        "x-i18n": {
+          "zh": {
+            "summary": "决定是否发送消息",
+            "description": "提交前同步检查最终内容。原请求取消优先，明确拒绝不会失败放行。"
+          }
+        },
+        "tags": [
+          "Messages"
+        ],
+        "security": [],
+        "x-wukongim-delivery": "synchronous-bounded-no-retry",
+        "parameters": [
+          {
+            "name": "event",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "msg.before_send",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeforeSendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Explicit decision, limited to 64 KiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeforeSendDecision"
+                },
+                "examples": {
+                  "allow": {
+                    "value": {
+                      "allow": true
+                    }
+                  },
+                  "replace": {
+                    "value": {
+                      "allow": true,
+                      "payload": "bmV3"
+                    }
+                  },
+                  "reject": {
+                    "value": {
+                      "allow": false,
+                      "reason_code": 200
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Callback error handled by on_error; redirects are not followed."
+          }
         }
       }
     }
@@ -141,84 +246,186 @@
         "name": "event",
         "in": "query",
         "required": true,
-        "schema": { "type": "string", "const": "msg.notify" }
+        "schema": {
+          "type": "string",
+          "const": "msg.notify"
+        }
       },
       "MsgOfflineEvent": {
         "name": "event",
         "in": "query",
         "required": true,
-        "schema": { "type": "string", "const": "msg.offline" }
+        "schema": {
+          "type": "string",
+          "const": "msg.offline"
+        }
       },
       "UserOnlineStatusEvent": {
         "name": "event",
         "in": "query",
         "required": true,
-        "schema": { "type": "string", "const": "user.onlinestatus" }
+        "schema": {
+          "type": "string",
+          "const": "user.onlinestatus"
+        }
       }
     },
     "schemas": {
       "WebhookMessageHeader": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["no_persist", "red_dot", "sync_once"],
+        "required": [
+          "no_persist",
+          "red_dot",
+          "sync_once"
+        ],
         "properties": {
-          "no_persist": { "type": "integer", "const": 0 },
-          "red_dot": { "type": "integer", "enum": [0, 1] },
-          "sync_once": { "type": "integer", "enum": [0, 1] }
+          "no_persist": {
+            "type": "integer",
+            "const": 0
+          },
+          "red_dot": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          },
+          "sync_once": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          }
         }
       },
       "WebhookMessageFields": {
         "type": "object",
-        "required": ["header", "setting", "expire", "message_id", "message_idstr", "client_msg_no", "message_seq", "from_uid", "channel_id", "channel_type", "timestamp", "payload"],
+        "required": [
+          "header",
+          "setting",
+          "expire",
+          "message_id",
+          "message_idstr",
+          "client_msg_no",
+          "message_seq",
+          "from_uid",
+          "channel_id",
+          "channel_type",
+          "timestamp",
+          "payload"
+        ],
         "properties": {
-          "header": { "$ref": "#/components/schemas/WebhookMessageHeader" },
-          "setting": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
-          "topic": { "type": "string" },
-          "expire": { "type": "integer", "format": "uint32", "minimum": 0 },
-          "message_id": { "type": "integer", "format": "uint64", "minimum": 0 },
-          "message_idstr": { "type": "string", "pattern": "^[0-9]+$" },
-          "client_msg_no": { "type": "string" },
-          "message_seq": { "type": "integer", "format": "uint64", "minimum": 0 },
-          "from_uid": { "type": "string" },
-          "channel_id": { "type": "string" },
-          "channel_type": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
-          "timestamp": { "type": "integer", "format": "int32", "description": "Unix seconds." },
+          "header": {
+            "$ref": "#/components/schemas/WebhookMessageHeader"
+          },
+          "setting": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "topic": {
+            "type": "string"
+          },
+          "expire": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "message_id": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "message_idstr": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "client_msg_no": {
+            "type": "string"
+          },
+          "message_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "from_uid": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "channel_type": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Unix seconds."
+          },
           "payload": {
             "oneOf": [
-              { "type": "string", "contentEncoding": "base64" },
-              { "type": "null" }
+              {
+                "type": "string",
+                "contentEncoding": "base64"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
       },
       "WebhookMessage": {
         "allOf": [
-          { "$ref": "#/components/schemas/WebhookMessageFields" }
+          {
+            "$ref": "#/components/schemas/WebhookMessageFields"
+          }
         ],
         "unevaluatedProperties": false
       },
       "OfflineWebhook": {
         "allOf": [
-          { "$ref": "#/components/schemas/WebhookMessageFields" },
+          {
+            "$ref": "#/components/schemas/WebhookMessageFields"
+          },
           {
             "type": "object",
             "properties": {
-              "source_id": { "type": "integer", "format": "int64" }
+              "source_id": {
+                "type": "integer",
+                "format": "int64"
+              }
             },
             "oneOf": [
               {
-                "required": ["to_uids"],
+                "required": [
+                  "to_uids"
+                ],
                 "properties": {
                   "to_uids": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 }
               },
               {
-                "required": ["compress", "compress_to_uids"],
+                "required": [
+                  "compress",
+                  "compress_to_uids"
+                ],
                 "properties": {
-                  "compress": { "type": "string", "const": "gzip" },
+                  "compress": {
+                    "type": "string",
+                    "const": "gzip"
+                  },
                   "compress_to_uids": {
                     "type": "string",
                     "contentEncoding": "base64",
@@ -230,6 +437,90 @@
           }
         ],
         "unevaluatedProperties": false
+      },
+      "BeforeSendRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from_uid",
+          "channel_id",
+          "channel_type",
+          "client_msg_no",
+          "payload",
+          "no_persist",
+          "sync_once"
+        ],
+        "properties": {
+          "from_uid": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Canonical source channel, including generated subscriber-scoped source channels."
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "client_msg_no": {
+            "type": "string",
+            "description": "Caller-provided retry identity; may be empty when the caller omitted it."
+          },
+          "payload": {
+            "type": "string",
+            "contentEncoding": "base64"
+          },
+          "no_persist": {
+            "type": "boolean"
+          },
+          "sync_once": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BeforeSendDecision": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "allow"
+            ],
+            "properties": {
+              "allow": {
+                "const": true
+              },
+              "payload": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "minLength": 4,
+                "maxLength": 43692
+              },
+              "reason_code": {
+                "const": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "allow"
+            ],
+            "properties": {
+              "allow": {
+                "const": false
+              },
+              "reason_code": {
+                "type": "integer",
+                "minimum": 128,
+                "maximum": 255
+              }
+            }
+          }
+        ],
+        "description": "A denial with invalid optional fields still rejects using NotAllowSend (11). Malformed decisions use on_error."
       }
     },
     "responses": {

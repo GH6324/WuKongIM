@@ -9,6 +9,10 @@ _openapi:
 
 事件名通过 `?event=...` 传递，请求体没有公共信封。
 
+## `msg.before_send`
+
+同步发送前回调使用单个未提交消息对象，返回放行、Payload 替换或拒绝决定。配置与失败策略见[发送前业务回调](/zh/guide/integration/webhooks#发送前业务回调)；完整字段见本页下方 OpenAPI。
+
 ## 消息对象
 
 `msg.notify` 的请求体是下列对象的数组；`msg.offline` 把同一对象直接展开到顶层。
@@ -71,4 +75,4 @@ _openapi:
 
 计数来自 UID Owner 的本地活跃会话投影。UID 本身可能包含连字符；兼容接收端应把整串视为不透明值，或从右侧解析最后五个数字段，不能直接按 `-` 固定切片。
 
-<OpenAPIPage document="wukongim-webhooks-beta-zh" webhooks={[{"name":"msg.notify","method":"post"},{"name":"msg.offline","method":"post"},{"name":"user.onlinestatus","method":"post"}]} showDescription />
+<OpenAPIPage document="wukongim-webhooks-beta-zh" webhooks={[{"name":"msg.before_send","method":"post"},{"name":"msg.notify","method":"post"},{"name":"msg.offline","method":"post"},{"name":"user.onlinestatus","method":"post"}]} showDescription />
