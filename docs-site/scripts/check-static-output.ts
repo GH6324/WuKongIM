@@ -789,7 +789,7 @@ export async function checkStaticOutput() {
         '/contracts/json-rpc.experimental.schema.json',
         'Experimental',
       ],
-      'interface-inventory': ['108', '56', 'cluster_health', '/plugin/start'],
+      'interface-inventory': ['108', '57', 'slot_identity_metadata', 'cluster_health', '/plugin/start'],
     } as const;
     for (const [page, facts] of Object.entries(alignedSurfaceFacts)) {
       const markdown = await text(`llms.mdx/${locale}/api/${page}/content.md`);
@@ -982,7 +982,7 @@ export async function checkStaticOutput() {
       'webhooks/events': ['msg.notify', 'msg.offline', 'user.onlinestatus'],
       'webhooks/payloads': ['message_idstr', 'compress_to_uids'],
       'specifications/openapi': ['OpenAPI 3.1', '41', 'webhooks'],
-      'interface-inventory': ['108', '56', '/plugin/start'],
+      'interface-inventory': ['108', '57', 'slot_identity_metadata', '/plugin/start'],
     })) {
       const pageId = `/${locale}/api/${page}`;
       for (const fact of facts) {
