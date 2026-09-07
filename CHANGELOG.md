@@ -23,6 +23,8 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Add a directly runnable, standard-library Go before-send Webhook example with allow/replace/reject rules, bilingual setup instructions, and real-process send/history validation. / 新增可直接运行的 Go 发送前 Webhook 示例，支持放行、改写及拒绝，并附中英文接入说明和真实进程验证。
+
 - Add a reproducible local three-node Webhook acceptance guide covering Token authentication, failure policies, overload isolation, recovery, and observable results. / 新增本机三节点 Webhook 验收指南，覆盖 Token 鉴权、失败策略、过载隔离、恢复及观测结果。
 
 - Document synchronous before-send Webhook configuration, request/response contracts, failure policies, business rejection codes, and cluster behavior in Chinese and English. / 补充同步发送前 Webhook 的中英文接入、配置及协议文档。

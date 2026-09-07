@@ -9,8 +9,8 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 
 `docs-site` is the standalone Fumadocs application for public WuKongIM v3 docs
 under `/zh` and `/en`. It owns navigation, MDX, search, SEO, machine-readable
-output, SDK and API references, and the runnable JavaScript/Web example. It
-documents runtime contracts but does not define them.
+output, SDK and API references, and runnable JavaScript/Web and Go Webhook
+examples. It documents runtime contracts but does not define them.
 
 ## Boundaries
 

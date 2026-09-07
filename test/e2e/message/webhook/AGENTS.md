@@ -11,6 +11,10 @@ independent timeout/error policies, transient sends, and one callback per ingres
 attempt across authority forwarding. The authenticated fault test also checks
 Token rejection, slow/unavailable/malformed/redirecting callbacks, per-node
 overload isolation and recovery, callback counts, and public metric deltas.
+`TestGoBeforeSendWebhookExample` builds the published Go example, owns its
+separate process, and checks Product HTTP decisions and committed history in a
+single-node cluster. Gateway Token auth stays enabled; explicit denial is also
+checked with `on_error=allow`.
 
 ## Run
 

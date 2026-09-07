@@ -65,6 +65,51 @@ Client retries may repeat callbacks. Deduplicate by sender, source channel, and 
 
 Monitor `wukongim_webhook_before_send_total{result}` and `wukongim_webhook_before_send_duration_seconds{result}` for `allow`, `reject`, `timeout_allow`, `timeout_deny`, `error_allow`, `error_deny`, `overloaded`, `invalid_request`, and `canceled`. Labels contain no UID, channel, endpoint, or message content. The client sets only Content-Type, with no built-in signature or authentication header; establish callback trust through a controlled network or proxy.
 
+## Run the Go business callback example
+
+The repository includes a [complete Go example](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/go-webhook) using only the Go 1.22+ standard library. It is a separate business HTTP service with no SDK or database dependency. You can also copy `main.go` elsewhere and run `go run main.go`.
+
+Start from a source checkout containing this feature:
+
+```bash
+cd docs-site/examples/go-webhook
+go run .
+```
+
+The default endpoint is `http://127.0.0.1:8090/webhook`. Change the port with `go run . -addr 127.0.0.1:8091`; stop with Ctrl+C. First try the callback from another terminal:
+
+```bash
+curl -fsS 'http://127.0.0.1:8090/webhook?event=msg.before_send' \
+  -H 'Content-Type: application/json' \
+  -d '{"from_uid":"alice","channel_id":"example-group","channel_type":2,"client_msg_no":"example-allow","payload":"aGVsbG8="}'
+```
+
+Expect `{"allow":true}`. Replace the Base64 `payload` to exercise each rule:
+
+| Text | Base64 Payload | Result |
+| --- | --- | --- |
+| `hello` | `aGVsbG8=` | Allow unchanged |
+| `[replace] hello` | `W3JlcGxhY2VdIGhlbGxv` | Rewrite to `Reviewed: hello` |
+| `[reject] hello` | `W3JlamVjdF0gaGVsbG8=` | HTTP 200 with `allow=false` and `reason_code=200` |
+
+Then configure the callback in your existing `wukongim.toml`:
+
+```toml
+[webhook.before_send]
+enabled = true
+http_addr = "http://127.0.0.1:8090/webhook"
+timeout = "500ms"
+on_timeout = "deny"
+on_error = "deny"
+max_in_flight = 64
+```
+
+Restart the single-node cluster or every ingress node on the same host, then send the table's text through your existing client. For SDK text Payloads such as `{"type":1,"content":"hello"}`, rules apply to `content` while preserving other JSON fields. Custom message types and binary Payloads pass through unchanged. The example README includes Product HTTP group creation, send, and history commands. Successful sends return `reason=1`; this example's business denial returns 200. Received messages and history must contain the rewritten content, with no history row for a denied message.
+
+Customize `evaluate` in `main.go`. Its current rules have no side effects or cache: the same input and rules produce the same decision. Add durable idempotency if your business logic writes data, and do not treat callback allowance as proof of message commit. Logs contain only the decision type. The body is limited to 64 KiB, Payload to 32767 bytes, and each example process to 64 concurrent requests; excess requests receive HTTP 503. A rewrite exceeding the Payload limit explicitly rejects.
+
+The example accepts only loopback bind addresses for processes on the same host. `127.0.0.1` inside another host or container refers to that host or container; remote use needs a reachable trusted proxy and source authentication. Client Token authentication and business callback authentication are separate boundaries.
+
 ## Validate before-send callbacks on your computer
 
 Run from a source checkout containing this feature, with the Go toolchain required by `go.mod`. The test builds the current source and starts three real server processes plus a controllable callback on a loopback address. Docker, cloud servers, and an external Webhook URL are not required.

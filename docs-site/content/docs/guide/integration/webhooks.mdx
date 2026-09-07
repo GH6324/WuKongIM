@@ -65,6 +65,51 @@ Content-Type: application/json
 
 监控 `wukongim_webhook_before_send_total{result}` 和 `wukongim_webhook_before_send_duration_seconds{result}`，区分 `allow`、`reject`、`timeout_allow`、`timeout_deny`、`error_allow`、`error_deny`、`overloaded`、`invalid_request`、`canceled`。指标不包含 UID、频道、回调地址或消息内容。当前只发送 Content-Type，无内置签名或鉴权头；应通过受控网络或代理建立业务端对回调来源的信任。
 
+## 运行 Go 业务回调示例
+
+仓库提供[完整 Go 示例](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/go-webhook)，只依赖 Go 1.22+ 标准库。它是独立的业务 HTTP 服务，不需要 SDK 或数据库；也可以单独复制 `main.go` 后执行 `go run main.go`。
+
+从包含此功能的源码仓库根目录启动：
+
+```bash
+cd docs-site/examples/go-webhook
+go run .
+```
+
+默认地址是 `http://127.0.0.1:8090/webhook`。可用 `go run . -addr 127.0.0.1:8091` 修改端口；按 Ctrl+C 停止。先在另一个终端验证回调：
+
+```bash
+curl -fsS 'http://127.0.0.1:8090/webhook?event=msg.before_send' \
+  -H 'Content-Type: application/json' \
+  -d '{"from_uid":"alice","channel_id":"example-group","channel_type":2,"client_msg_no":"example-allow","payload":"aGVsbG8="}'
+```
+
+预期返回 `{"allow":true}`。更换请求中的 Base64 `payload` 可以验证全部规则：
+
+| 内容 | Base64 Payload | 结果 |
+| --- | --- | --- |
+| `hello` | `aGVsbG8=` | 原样放行 |
+| `[replace] hello` | `W3JlcGxhY2VdIGhlbGxv` | 改写为 `Reviewed: hello` |
+| `[reject] hello` | `W3JlamVjdF0gaGVsbG8=` | HTTP 200，`allow=false`、`reason_code=200` |
+
+再将已有 `wukongim.toml` 的发送前回调配置为：
+
+```toml
+[webhook.before_send]
+enabled = true
+http_addr = "http://127.0.0.1:8090/webhook"
+timeout = "500ms"
+on_timeout = "deny"
+on_error = "deny"
+max_in_flight = 64
+```
+
+重启同一主机上的单节点集群或各入口节点，然后用现有客户端发送上表中的文字。对于 SDK 文本 Payload `{"type":1,"content":"hello"}`，规则作用于 `content`，改写时保留其他 JSON 字段；自定义类型和二进制 Payload 原样放行。Product HTTP 的建群、发送和历史查询命令见示例 README。成功发送的 `reason` 为 1，示例业务拒绝为 200；接收和历史中应看到改写后的内容，拒绝消息没有历史记录。
+
+修改 `main.go` 的 `evaluate` 函数即可替换业务规则。当前规则没有副作用或缓存，相同输入和规则得到相同决定；新增业务写入时需要自行实现持久化幂等，不能把回调放行当作消息已提交。日志只输出决定类型。请求体最多 64 KiB、Payload 最多 32767 字节，每个示例进程最多同时处理 64 个请求，超额返回 HTTP 503。改写后超出 Payload 上限会明确拒绝。
+
+此示例仅接受回环监听地址，用于同机进程联调。其他主机或容器中的 `127.0.0.1` 指向它们自身；跨主机接入需要可达的可信代理及来源鉴权。客户端 Token 鉴权与业务回调鉴权是两件事。
+
 ## 在本机验证发送前回调
 
 从包含此功能的源码仓库根目录运行，需要 `go.mod` 指定的 Go 工具链。测试会构建当前源码，自动启动真实三节点集群和回环地址上的可控回调服务；无需 Docker、云服务器或外部 Webhook 地址。
