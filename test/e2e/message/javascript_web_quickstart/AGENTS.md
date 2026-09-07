@@ -19,6 +19,8 @@ single-node cluster and a real Chromium browser.
   delivery or the history response arrives first.
 - Keep this scenario opt-in with `WK_E2E_DOCS_JAVASCRIPT_WEB=1` so the complete
   Go e2e suite does not require npm or Chromium.
+- Failure summaries may expose only capture bounds and at most four numeric
+  locations from the fixed browser spec, never raw assertion values.
 - Keep command output bounded but never publish its raw tail or the node log
   tail. On failure retain at most three Playwright PNG screenshots under the
   ignored `tmp/docs-site-e2e/` directory, with each image capped at 2 MiB;
