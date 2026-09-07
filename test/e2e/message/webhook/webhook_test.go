@@ -8,14 +8,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/stretchr/testify/require"
@@ -124,6 +127,342 @@ func TestWukongIMWebhookReceivesNotifyOfflineAndOnlineStatus(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+// TestBeforeSendWebhookAuthenticatedFaults exercises callback failure boundaries
+// through real authenticated sessions and verifies decisions against public metrics.
+func TestBeforeSendWebhookAuthenticatedFaults(t *testing.T) {
+	var mu sync.Mutex
+	counts, active, peak := map[string]int{}, map[string]int{}, map[string]int{}
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	sink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ClientMsgNo string `json:"client_msg_no"`
+			Payload     []byte `json:"payload"`
+		}
+		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" ||
+			r.URL.Query().Get("event") != "msg.before_send" ||
+			json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req) != nil {
+			http.Error(w, "invalid callback", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		counts[req.ClientMsgNo]++
+		active[r.URL.Path]++
+		if active[r.URL.Path] > peak[r.URL.Path] {
+			peak[r.URL.Path] = active[r.URL.Path]
+		}
+		mu.Unlock()
+		defer func() {
+			mu.Lock()
+			active[r.URL.Path]--
+			mu.Unlock()
+		}()
+		switch string(req.Payload) {
+		case "deny":
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": false, "reason_code": 200})
+		case "modify":
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": true, "payload": []byte("modified")})
+		case "timeout":
+			<-r.Context().Done()
+		case "block":
+			select {
+			case entered <- struct{}{}:
+			case <-r.Context().Done():
+				return
+			}
+			select {
+			case <-release:
+				_ = json.NewEncoder(w).Encode(map[string]any{"allow": true})
+			case <-r.Context().Done():
+			}
+		case "slow":
+			timer := time.NewTimer(100 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				_ = json.NewEncoder(w).Encode(map[string]any{"allow": true})
+			case <-r.Context().Done():
+			}
+		case "http_error":
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		case "malformed":
+			_, _ = io.WriteString(w, `{"allow":`)
+		case "redirect":
+			http.Redirect(w, r, "/must-not-follow", http.StatusTemporaryRedirect)
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": true})
+		}
+	}))
+	defer func() {
+		unblock()
+		sink.Close()
+	}()
+	options := []suite.Option{suite.WithManagerHTTP()}
+	for id := uint64(1); id <= 3; id++ {
+		onTimeout, onError := "deny", "deny"
+		if id == 2 {
+			onTimeout = "allow"
+		}
+		if id == 3 {
+			onError = "allow"
+		}
+		options = append(options, suite.WithNodeConfigOverrides(id, map[string]string{
+			"WK_GATEWAY_TOKEN_AUTH_ON":             "true",
+			"WK_CLUSTER_HASH_SLOT_COUNT":           "256",
+			"WK_CLUSTER_SLOT_REPLICA_N":            "2",
+			"WK_PLUGIN_ENABLE":                     "false",
+			"WK_WEBHOOK_BEFORE_SEND_ENABLED":       "true",
+			"WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR":     sink.URL + "/" + strconv.FormatUint(id, 10),
+			"WK_WEBHOOK_BEFORE_SEND_TIMEOUT":       "3s",
+			"WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT": "2",
+			"WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT":    onTimeout,
+			"WK_WEBHOOK_BEFORE_SEND_ON_ERROR":      onError,
+		}))
+	}
+	cluster := suite.New(t).StartThreeNodeCluster(options...)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
+	_, err := cluster.WaitSlotLeadersStable(ctx, time.Second)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	const sender, receiver, group = "fault-sender", "fault-receiver", "fault-group"
+	for _, uid := range []string{sender, receiver} {
+		_, err = suite.PostJSON(ctx, "http://"+cluster.MustNode(1).APIAddr()+"/user/token", map[string]any{
+			"uid": uid, "token": uid + "-test-token", "device_flag": uint8(frame.APP), "device_level": 0,
+		}, nil)
+		require.NoError(t, err)
+	}
+	connect := func(node uint64, uid string) *wkclient.Client {
+		t.Helper()
+		conn, err := wkclient.New(wkclient.Config{Addr: cluster.MustNode(node).GatewayAddr(), AutoRecvAck: true})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = conn.Close() })
+		_, err = conn.Connect(ctx, wkclient.ConnectOptions{UID: uid, Token: uid + "-test-token", DeviceID: uid + "-device", DeviceFlag: frame.APP})
+		require.NoError(t, err)
+		return conn
+	}
+	senderConn, receiverConn := connect(1, sender), connect(3, receiver)
+	bad, err := wkclient.New(wkclient.Config{Addr: cluster.MustNode(2).GatewayAddr()})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bad.Close() })
+	_, err = bad.Connect(ctx, wkclient.ConnectOptions{UID: sender, Token: "incorrect", DeviceID: "invalid-device", DeviceFlag: frame.APP})
+	require.EqualError(t, err, "client: connack reason=ReasonAuthFail")
+	_ = bad.Close()
+	require.NoError(t, suite.PostChannel(ctx, cluster.MustNode(1).APIAddr(), map[string]any{
+		"channel_id": group, "channel_type": 2, "reset": 1, "subscribers": []string{sender, receiver},
+	}))
+	body := func(id, payload string) map[string]any {
+		return map[string]any{"from_uid": sender, "channel_id": group, "channel_type": 2, "client_msg_no": id, "payload": []byte(payload)}
+	}
+	warm, err := suite.PostMessageSendEventually(ctx, cluster.MustNode(1).APIAddr(), body("fault-warm", "warm"))
+	require.NoError(t, err)
+	require.EqualValues(t, frame.ReasonSuccess, warm.Reason)
+	expectedHistory := map[string]string{"fault-warm": "warm"}
+	receive := func(id, payload string) {
+		t.Helper()
+		recvCtx, stop := context.WithTimeout(ctx, 5*time.Second)
+		defer stop()
+		received, err := receiverConn.Recv(recvCtx)
+		require.NoError(t, err)
+		require.Equal(t, id, received.ClientMsgNo)
+		require.Equal(t, payload, string(received.Payload))
+		expectedHistory[id] = payload
+	}
+	receive("fault-warm", "warm")
+	baseline := map[uint64][]suite.MetricSample{}
+	for id := uint64(1); id <= 3; id++ {
+		baseline[id], err = suite.FetchMetricSamples(ctx, cluster.MustNode(id).APIAddr())
+		require.NoError(t, err)
+	}
+	wantedMetrics := map[uint64]map[string]float64{1: {}, 2: {}, 3: {}}
+	wantedCallbacks := map[string]int{}
+	for seq, mode := range []string{"allow", "modify", "deny"} {
+		id := "fault-wk-" + mode
+		start := time.Now()
+		result, sendErr := senderConn.Send(ctx, wkclient.Message{ClientSeq: uint64(seq + 1), ClientMsgNo: id, ChannelID: group, ChannelType: 2, Payload: []byte(mode)})
+		t.Logf("transport=wkproto mode=%s latency_ms=%.2f", mode, float64(time.Since(start).Microseconds())/1000)
+		wantedCallbacks[id] = 1
+		if mode == "deny" {
+			require.Error(t, sendErr)
+			require.EqualValues(t, 200, result.ReasonCode)
+			require.Zero(t, result.MessageSeq)
+			wantedMetrics[1]["reject"]++
+		} else {
+			require.NoError(t, sendErr)
+			payload := mode
+			if mode == "modify" {
+				payload = "modified"
+			}
+			receive(id, payload)
+			wantedMetrics[1]["allow"]++
+		}
+	}
+	for _, tc := range []struct {
+		node          uint64
+		mode, outcome string
+		reason        uint8
+	}{
+		{1, "slow", "allow", 1}, {1, "timeout", "timeout_deny", uint8(frame.ReasonSystemError)},
+		{2, "timeout", "timeout_allow", 1}, {2, "deny", "reject", 200}, {3, "deny", "reject", 200},
+		{1, "http_error", "error_deny", uint8(frame.ReasonSystemError)}, {3, "http_error", "error_allow", 1},
+		{1, "malformed", "error_deny", uint8(frame.ReasonSystemError)}, {3, "malformed", "error_allow", 1},
+		{1, "redirect", "error_deny", uint8(frame.ReasonSystemError)},
+	} {
+		id := fmt.Sprintf("fault-http-%d-%s", tc.node, tc.mode)
+		start := time.Now()
+		result, err := suite.PostMessageSend(ctx, cluster.MustNode(tc.node).APIAddr(), body(id, tc.mode))
+		require.NoError(t, err)
+		require.Equal(t, tc.reason, result.Reason, id)
+		t.Logf("node=%d mode=%s result=%s latency_ms=%.2f", tc.node, tc.mode, tc.outcome, float64(time.Since(start).Microseconds())/1000)
+		wantedCallbacks[id] = 1
+		wantedMetrics[tc.node][tc.outcome]++
+		if tc.reason == 1 {
+			receive(id, tc.mode)
+		} else {
+			require.Zero(t, result.MessageSeq)
+			require.Zero(t, result.MessageID)
+		}
+	}
+	// Saturate node 3 with on_error=allow: overload must still reject without
+	// invoking the callback. Node 2 stays available, and node 3 recovers on release.
+	const saturatedNode = uint64(3)
+	type response struct {
+		id     string
+		result suite.MessageSendResponse
+		err    error
+	}
+	blocked := make(chan response, 2)
+	for i := 0; i < 2; i++ {
+		id := fmt.Sprintf("fault-block-%d", i)
+		go func() {
+			result, err := suite.PostMessageSend(ctx, cluster.MustNode(saturatedNode).APIAddr(), body(id, "block"))
+			blocked <- response{id, result, err}
+		}()
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal("callbacks did not saturate")
+		}
+	}
+	var overloadMax time.Duration
+	for i := 0; i < 16; i++ {
+		id := fmt.Sprintf("fault-overload-%d", i)
+		start := time.Now()
+		result, err := suite.PostMessageSend(ctx, cluster.MustNode(saturatedNode).APIAddr(), body(id, "allow"))
+		require.NoError(t, err)
+		require.EqualValues(t, frame.ReasonSystemError, result.Reason)
+		require.Zero(t, result.MessageSeq)
+		require.Zero(t, result.MessageID)
+		overloadMax = max(overloadMax, time.Since(start))
+		wantedCallbacks[id] = 0
+		wantedMetrics[saturatedNode]["overloaded"]++
+	}
+	t.Logf("overload_requests=16 callback_requests=0 max_latency_ms=%.2f", float64(overloadMax.Microseconds())/1000)
+	result, err := suite.PostMessageSend(ctx, cluster.MustNode(2).APIAddr(), body("fault-other-node", "allow"))
+	require.NoError(t, err)
+	require.EqualValues(t, frame.ReasonSuccess, result.Reason)
+	receive("fault-other-node", "allow")
+	wantedCallbacks["fault-other-node"] = 1
+	wantedMetrics[2]["allow"]++
+	unblock()
+	blockedReceives := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		var r response
+		select {
+		case r = <-blocked:
+		case <-ctx.Done():
+			t.Fatal("blocked sends did not finish")
+		}
+		require.NoError(t, r.err)
+		require.EqualValues(t, frame.ReasonSuccess, r.result.Reason)
+		wantedCallbacks[r.id] = 1
+		wantedMetrics[saturatedNode]["allow"]++
+		expectedHistory[r.id] = "block"
+		blockedReceives[r.id] = true
+	}
+	for i := 0; i < 2; i++ {
+		recv, err := receiverConn.Recv(ctx)
+		require.NoError(t, err)
+		require.Contains(t, blockedReceives, recv.ClientMsgNo)
+		require.Equal(t, "block", string(recv.Payload))
+		delete(blockedReceives, recv.ClientMsgNo)
+	}
+	result, err = suite.PostMessageSend(ctx, cluster.MustNode(saturatedNode).APIAddr(), body("fault-recovered", "allow"))
+	require.NoError(t, err)
+	require.EqualValues(t, frame.ReasonSuccess, result.Reason)
+	receive("fault-recovered", "allow")
+	wantedCallbacks["fault-recovered"] = 1
+	wantedMetrics[saturatedNode]["allow"]++
+	sink.Close()
+	for _, id := range []uint64{1, 3} {
+		key := fmt.Sprintf("fault-unreachable-%d", id)
+		result, err := suite.PostMessageSend(ctx, cluster.MustNode(id).APIAddr(), body(key, "unreachable"))
+		require.NoError(t, err)
+		wantedCallbacks[key] = 0
+		if id == 1 {
+			require.EqualValues(t, frame.ReasonSystemError, result.Reason)
+			require.Zero(t, result.MessageSeq)
+			wantedMetrics[id]["error_deny"]++
+		} else {
+			require.EqualValues(t, frame.ReasonSuccess, result.Reason)
+			receive(key, "unreachable")
+			wantedMetrics[id]["error_allow"]++
+		}
+	}
+	var history struct {
+		Messages []struct {
+			ClientMsgNo string `json:"client_msg_no"`
+			Payload     []byte `json:"payload"`
+		} `json:"messages"`
+	}
+	_, err = suite.PostJSON(ctx, "http://"+cluster.MustNode(2).APIAddr()+"/channel/messagesync", map[string]any{"login_uid": receiver, "channel_id": group, "channel_type": 2, "limit": 100}, &history)
+	require.NoError(t, err)
+	require.Len(t, history.Messages, len(expectedHistory))
+	for _, msg := range history.Messages {
+		require.Contains(t, expectedHistory, msg.ClientMsgNo)
+		require.Equal(t, expectedHistory[msg.ClientMsgNo], string(msg.Payload))
+		delete(expectedHistory, msg.ClientMsgNo)
+	}
+	require.Empty(t, expectedHistory)
+	mu.Lock()
+	observedCounts, observedPeak, observedActive := maps.Clone(counts), maps.Clone(peak), maps.Clone(active)
+	mu.Unlock()
+	for id, want := range wantedCallbacks {
+		require.Equal(t, want, observedCounts[id], id)
+	}
+	for path, peakCount := range observedPeak {
+		require.LessOrEqual(t, peakCount, 2, path)
+		require.Zero(t, observedActive[path], path)
+		t.Logf("callback_node=%s peak_in_flight=%d active_after_recovery=%d", path, peakCount, observedActive[path])
+	}
+	require.Equal(t, 2, observedPeak["/3"])
+
+	for id := uint64(1); id <= 3; id++ {
+		samples, err := suite.FetchMetricSamples(ctx, cluster.MustNode(id).APIAddr())
+		require.NoError(t, err)
+		for _, outcome := range []string{"allow", "reject", "error_allow", "error_deny", "timeout_allow", "timeout_deny", "overloaded", "invalid_request", "canceled"} {
+			want := wantedMetrics[id][outcome]
+			labels := map[string]string{"result": outcome}
+			delta := suite.SumMetricSamples(samples, "wukongim_webhook_before_send_total", labels) - suite.SumMetricSamples(baseline[id], "wukongim_webhook_before_send_total", labels)
+			require.Equal(t, want, delta, "node=%d outcome=%s", id, outcome)
+		}
+		cpuDelta := "unavailable"
+		hasCPU := func(samples []suite.MetricSample) bool {
+			return slices.ContainsFunc(samples, func(sample suite.MetricSample) bool { return sample.Name == "process_cpu_seconds_total" })
+		}
+		if hasCPU(samples) && hasCPU(baseline[id]) {
+			cpuDelta = fmt.Sprintf("%.3f", suite.SumMetricSamples(samples, "process_cpu_seconds_total", nil)-suite.SumMetricSamples(baseline[id], "process_cpu_seconds_total", nil))
+		}
+		t.Logf("node=%d heap_before_bytes=%.0f heap_after_bytes=%.0f goroutines_before=%.0f goroutines_after=%.0f cpu_seconds_delta=%s", id,
+			suite.SumMetricSamples(baseline[id], "go_memstats_heap_alloc_bytes", nil), suite.SumMetricSamples(samples, "go_memstats_heap_alloc_bytes", nil),
+			suite.SumMetricSamples(baseline[id], "go_goroutines", nil), suite.SumMetricSamples(samples, "go_goroutines", nil), cpuDelta)
+	}
 }
 
 type webhookSink struct {

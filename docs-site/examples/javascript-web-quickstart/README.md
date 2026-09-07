@@ -36,6 +36,15 @@ Open <http://127.0.0.1:5173>.
 The event panel distinguishes a local outgoing message, the server send result,
 an online incoming message, and a message restored after reconnect.
 
+The first person-message directory is projected asynchronously after SENDACK.
+A latest-page history request can briefly return HTTP 200 with an empty list.
+The example's backend retries only an empty latest-page result (both sequence
+bounds zero) within its existing 20-attempt budget, waiting 250 ms between
+attempts. A genuinely empty chat returns an empty list after at most 19 waits
+(4.75 seconds plus HTTP request time). Nonempty results and ordinary cursor pages
+return immediately. Unrelated errors still fail; production applications must
+provide their own consistency and request-deadline policy.
+
 ## Configuration
 
 | Variable | Default | Purpose |

@@ -227,3 +227,68 @@ test("route discovery rejects an incomplete Product HTTP response", async () => 
 
   await assert.rejects(client.discoverRoute(), /invalid ws_addr/);
 });
+
+test("latest person history waits for membership projection after an empty success", async () => {
+  const requests: Request[] = [];
+  const waits: number[] = [];
+  const message = {
+    message_idstr: "99", message_seq: 3, client_msg_no: "offline-3",
+    from_uid: "alice", timestamp: 1_700_000_000, payload: "ZHVyYWJsZQ==",
+  };
+  const client = new ProductHttpClient({
+    baseUrl: "http://127.0.0.1:5001",
+    fetch: async (input, init) => {
+      requests.push(new Request(input, init));
+      return Response.json({ messages: requests.length < 3 ? [] : [message] });
+    },
+    personDirectoryRetry: {
+      maxAttempts: 4, delayMs: 250,
+      wait: async (delay) => { waits.push(delay); },
+    },
+  });
+  const messages = await client.syncPersonMessages({
+    loginUid: "bob", peerUid: "alice", startMessageSeq: 0,
+    endMessageSeq: 0, limit: 50, pullMode: 1,
+  });
+  assert.deepEqual(messages.map((value) => value.messageSeq), [3]);
+  assert.equal(requests.length, 3);
+  assert.deepEqual(waits, [250, 250]);
+  const bodies = await Promise.all(requests.map((request) => request.text()));
+  assert.equal(new Set(bodies).size, 1);
+});
+
+test("an empty latest person history remains a valid result after the bounded budget", async () => {
+  let requests = 0;
+  const waits: number[] = [];
+  const client = new ProductHttpClient({
+    baseUrl: "http://127.0.0.1:5001",
+    fetch: async () => { requests += 1; return Response.json({ messages: [] }); },
+    personDirectoryRetry: {
+      maxAttempts: 3, delayMs: 250,
+      wait: async (delay) => { waits.push(delay); },
+    },
+  });
+  const messages = await client.syncPersonMessages({
+    loginUid: "bob", peerUid: "alice", startMessageSeq: 0,
+    endMessageSeq: 0, limit: 50, pullMode: 0,
+  });
+  assert.deepEqual(messages, []);
+  assert.equal(requests, 3);
+  assert.deepEqual(waits, [250, 250]);
+});
+
+test("empty bounded person-history pages do not retry", async () => {
+  for (const [startMessageSeq, endMessageSeq] of [[4, 0], [0, 4]]) {
+    let requests = 0;
+    const client = new ProductHttpClient({
+      baseUrl: "http://127.0.0.1:5001",
+      fetch: async () => { requests += 1; return Response.json({ messages: [] }); },
+      personDirectoryRetry: { wait: async () => { assert.fail("ordinary pages must not wait"); } },
+    });
+    assert.deepEqual(await client.syncPersonMessages({
+      loginUid: "bob", peerUid: "alice", startMessageSeq: startMessageSeq!,
+      endMessageSeq: endMessageSeq!, limit: 50, pullMode: 1,
+    }), []);
+    assert.equal(requests, 1);
+  }
+});

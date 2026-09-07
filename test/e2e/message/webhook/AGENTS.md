@@ -8,7 +8,9 @@ Prove single-node cluster post-commit notifications and three-node synchronous
 msg.before_send admission through real WKProto, Product HTTP, committed history,
 and an external HTTP endpoint. Cover payload mutation, business rejection,
 independent timeout/error policies, transient sends, and one callback per ingress
-attempt across authority forwarding.
+attempt across authority forwarding. The authenticated fault test also checks
+Token rejection, slow/unavailable/malformed/redirecting callbacks, per-node
+overload isolation and recovery, callback counts, and public metric deltas.
 
 ## Run
 
@@ -24,5 +26,13 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/webhook -count=1 -timeout 2m -p=
 - Keep webhook waits bounded and include node diagnostics plus captured webhook
   requests on failure.
 
-- Gateway token authentication is explicitly disabled in this scenario to isolate
-  callback behavior; these tests do not establish an authentication claim.
+- The notification and admission tests explicitly disable Gateway Token
+  authentication to isolate callback semantics. `TestBeforeSendWebhookAuthenticatedFaults`
+  enables Token authentication on all three nodes, provisions test credentials
+  through Product HTTP, and checks both valid cross-node sessions and invalid Tokens.
+- The fault test uses 256 hash slots, two Slot replicas, a three-second callback
+  timeout, and two in-flight calls per node. Node-specific failure policies are
+  deliberate test fixtures; deployment configurations must remain consistent.
+- Resource snapshots and a finite saturation burst are diagnostic evidence,
+  not production capacity or leak qualification. Report absent CPU metrics as
+  unavailable, never zero. Close test callbacks and all node processes on exit.

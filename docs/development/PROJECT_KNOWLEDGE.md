@@ -2,6 +2,8 @@
 
 ## Internal
 
+- The product composition deliberately leaves person-directory admission out of synchronous SEND. UID memberships are projected after durable append, so SENDACK does not imply immediate history visibility. The JavaScript quickstart BFF retries an empty latest page within its finite projection budget; normal cursor pages and unrelated errors keep their original behavior.
+
 - Opening a new person conversation before its first persistent SEND may precede UID-owned membership creation. Ordinary single/batch history sync returns an empty page without reading Channel history or creating membership in that case; missing group membership and all tombstones remain rejected. After valid membership preflight, both storage and routed Channel-not-found errors mean an empty page. Unread commands treat confirmed missing membership/Channel as a no-op, but propagate metadata, routing and hydration failures.
 
 - `internal` is the promoted send-to-sendack kernel: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.

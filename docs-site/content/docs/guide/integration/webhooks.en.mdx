@@ -65,6 +65,23 @@ Client retries may repeat callbacks. Deduplicate by sender, source channel, and 
 
 Monitor `wukongim_webhook_before_send_total{result}` and `wukongim_webhook_before_send_duration_seconds{result}` for `allow`, `reject`, `timeout_allow`, `timeout_deny`, `error_allow`, `error_deny`, `overloaded`, `invalid_request`, and `canceled`. Labels contain no UID, channel, endpoint, or message content. The client sets only Content-Type, with no built-in signature or authentication header; establish callback trust through a controlled network or proxy.
 
+## Validate before-send callbacks on your computer
+
+Run from a source checkout containing this feature, with the Go toolchain required by `go.mod`. The test builds the current source and starts three real server processes plus a controllable callback on a loopback address. Docker, cloud servers, and an external Webhook URL are not required.
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/message/webhook \
+  -run '^TestBeforeSendWebhookAuthenticatedFaults$' -count=1 -timeout 2m -p=1 -v
+```
+
+This scenario enables client Token authentication and uses 256 hash slots, two Slot replicas, and two concurrent callbacks per node. The callback timeout is three seconds. Nodes intentionally use different failure policies to check denial, timeout-open, and error-open behavior separately; actual deployments must configure nodes consistently.
+
+The test checks authentication, allowance, Payload replacement, business denial, a 100 ms slow response, timeout, HTTP 503, malformed JSON, redirects, and connection failure. With both callback slots occupied on one node, 16 additional sends must reject without invoking the callback. Another node must remain available, and the saturated node must recover after release. Received content must match committed history, denied messages must be absent, and callback counts and public metric deltas must match the decisions.
+
+Verbose output records send latency, peak callback concurrency, and before/after heap and goroutine snapshots. If the platform lacks the process CPU metric, it reports `unavailable`. These observations describe a finite fault scenario, not throughput capacity, latency percentiles, or long-term memory stability. The test stops its processes and removes temporary data on completion.
+
+The callback uses test rules and does not validate your business logic or Webhook signature authentication. Repeat the allow, replace, reject, and failure-policy cases against your actual business service when it is available.
+
 ## Enable asynchronous notifications webhooks
 
 Configure `wukongim.toml`:
