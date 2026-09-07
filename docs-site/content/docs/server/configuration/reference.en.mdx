@@ -205,6 +205,7 @@ When the corresponding `api.external_*` is omitted, default external `/route` an
 | TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
 | `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | Enforces receiver-side allowlist checks for person messages; disabled by default for compatibility. |
+| `message.cmd_channel_suffix` | `WK_MESSAGE_CMD_CHANNEL_SUFFIX` | `string` | Reserved command-channel suffix; omitted or empty uses `____cmd`. Only ASCII letters, digits, underscores and hyphens are allowed; reserve it from business channel IDs. Must match on every node and requires restart. Choose before first use: changing it does not migrate stored command channels or UID bindings and can make pending commands inaccessible. |
 | `message.system_uid` | `WK_MESSAGE_SYSTEM_UID` | `string` | Primary system account UID used when trusted sends omit a sender; omitted or empty uses `____system`. Every cluster node must use the same value. |
 | `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | Device ID for trusted system sessions; omitted or empty uses `____device`, so an empty value cannot disable recognition. Such sessions may bypass channel-type send permissions after the send-ban check. |
 | `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | Cache lifetime for permission, membership, and missing-channel reads; `0` disables caching. |

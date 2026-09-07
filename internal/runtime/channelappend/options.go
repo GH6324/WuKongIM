@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/authority"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 const (
@@ -324,6 +325,8 @@ type PersistAfterEnqueuer interface {
 
 // Options configures the local channel append group.
 type Options struct {
+	// CommandChannelSuffix selects command IDs; empty retains the legacy default.
+	CommandChannelSuffix string
 	// LocalNodeID is the node id allowed to own local channel authority state.
 	LocalNodeID uint64
 	// Appender owns blocking durable append for prepared channel messages.
@@ -445,11 +448,12 @@ func applyDefaults(opts Options) Options {
 
 func preparePortsFromOptions(opts Options) preparePorts {
 	return preparePorts{
-		messageID:   opts.MessageID,
-		authorizer:  opts.Authorizer,
-		idempotency: opts.Idempotency,
-		senderFence: opts.SenderFence,
-		clock:       opts.Clock,
+		commandChannels: runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
+		messageID:       opts.MessageID,
+		authorizer:      opts.Authorizer,
+		idempotency:     opts.Idempotency,
+		senderFence:     opts.SenderFence,
+		clock:           opts.Clock,
 	}
 }
 
@@ -463,6 +467,7 @@ func appendPortsFromOptions(opts Options) appendPorts {
 
 func commitPortsFromOptions(opts Options) commitPorts {
 	return commitPorts{
+		commandChannels:            runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		subscribers:                opts.Subscribers,
 		recipientAuthorityResolver: opts.RecipientAuthorityResolver,
 		deliveryEnqueuer:           opts.OnlineDeliveryEnqueuer,

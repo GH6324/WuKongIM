@@ -16,6 +16,7 @@ import (
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 var (
@@ -296,6 +297,10 @@ func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 
 // MessageConfig contains message usecase settings.
 type MessageConfig struct {
+	// CMDChannelSuffix is reserved for internal command-channel IDs. Empty uses ____cmd.
+	// It must match on every node and remain unchanged for existing data; changing it
+	// does not migrate stored command channels or their UID bindings.
+	CMDChannelSuffix string
 	// PersonWhitelistEnabled enables receiver-side personal allowlist enforcement for sends.
 	// It is disabled by default to match legacy WhitelistOffOfPerson=true compatibility.
 	PersonWhitelistEnabled bool
@@ -531,6 +536,9 @@ func defaultManagerConfig(cfg ManagerConfig) ManagerConfig {
 }
 
 func defaultMessageConfig(cfg MessageConfig) MessageConfig {
+	if cfg.CMDChannelSuffix == "" {
+		cfg.CMDChannelSuffix = runtimechannelid.CommandChannelSuffix
+	}
 	cfg.SystemUID = strings.TrimSpace(cfg.SystemUID)
 	if cfg.SystemUID == "" {
 		cfg.SystemUID = userusecase.DefaultSystemUID
@@ -865,6 +873,12 @@ func validateChannelConfig(cfg ChannelConfig) error {
 }
 
 func validateMessageConfig(cfg MessageConfig) error {
+	// Restrict the reserved suffix to unambiguous ASCII channel-safe characters.
+	for _, ch := range cfg.CMDChannelSuffix {
+		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-') {
+			return fmt.Errorf("%w: message cmd channel suffix must use only ASCII letters, digits, _ or -", ErrInvalidConfig)
+		}
+	}
 	if strings.ContainsAny(cfg.SystemUID, "@#&") {
 		return fmt.Errorf("%w: message system uid must not contain @, #, or &", ErrInvalidConfig)
 	}

@@ -438,7 +438,8 @@ func (a *App) wireManagerConnectionRPC() {
 		return
 	}
 	readService := managementusecase.New(managementusecase.Options{
-		Cluster: clusterinfra.NewManagementSnapshotReader(node),
+		CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+		Cluster:              clusterinfra.NewManagementSnapshotReader(node),
 		RuntimeSummary: managementRuntimeSummaryReader{
 			app:         a,
 			localNodeID: node.NodeID(),
@@ -516,6 +517,7 @@ func (a *App) wireManagerChannelRPC() {
 		return
 	}
 	service := managementusecase.New(managementusecase.Options{
+		CommandChannelSuffix:  a.cfg.Message.CMDChannelSuffix,
 		Cluster:               clusterinfra.NewManagementSnapshotReader(node),
 		ChannelBusinessReader: clusterinfra.NewChannelBusinessReader(channelNode),
 	})
@@ -530,7 +532,8 @@ func (a *App) wireManagerMessageRetentionRPC() {
 		return
 	}
 	service := managementusecase.New(managementusecase.Options{
-		MessageRetention: clusterinfra.NewLocalManagementMessageRetentionOperator(node),
+		CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+		MessageRetention:     clusterinfra.NewLocalManagementMessageRetentionOperator(node),
 	})
 	adapter := accessnode.New(accessnode.Options{ManagerMessageRetention: service, Logger: a.logger.Named("node")})
 	registrar.RegisterRPC(accessnode.ManagerMessageRetentionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerMessageRetentionRPC))
@@ -645,11 +648,13 @@ func (a *App) wireManagerPluginRPC() {
 	if !hasRegistrar || a.plugins == nil {
 		return
 	}
-	service := managementusecase.New(managementusecase.Options{Plugins: a.plugins})
+	service := managementusecase.New(managementusecase.Options{
+		CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix, Plugins: a.plugins})
 	if node, ok := a.cluster.(clusterinfra.ManagementNode); ok {
 		service = managementusecase.New(managementusecase.Options{
-			Cluster: clusterinfra.NewManagementSnapshotReader(node),
-			Plugins: a.plugins,
+			CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+			Cluster:              clusterinfra.NewManagementSnapshotReader(node),
+			Plugins:              a.plugins,
 		})
 	}
 	adapter := accessnode.New(accessnode.Options{
@@ -698,6 +703,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				a.messageIDs = messageIDs
 			}
 			opts := channelappend.Options{
+				CommandChannelSuffix:   a.cfg.Message.CMDChannelSuffix,
 				LocalNodeID:            nodeID,
 				Appender:               clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
 				MessageID:              messageIDs,
@@ -740,14 +746,15 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			}
 			client := clusterinfra.NewChannelAppendClient(authorityNode, remote, metadata)
 			router := channelappend.NewRouter(channelappend.RouterOptions{
-				LocalNodeID:        nodeID,
-				Resolver:           client,
-				Local:              group,
-				Remote:             client,
-				MaxOutboundPerNode: a.cfg.Delivery.EventQueueSize,
-				MaxRouteAttempts:   defaultDeliveryRetryMaxAttempts,
-				Observer:           observer,
-				PressureObserver:   observer,
+				CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+				LocalNodeID:          nodeID,
+				Resolver:             client,
+				Local:                group,
+				Remote:               client,
+				MaxOutboundPerNode:   a.cfg.Delivery.EventQueueSize,
+				MaxRouteAttempts:     defaultDeliveryRetryMaxAttempts,
+				Observer:             observer,
+				PressureObserver:     observer,
 			})
 			a.channelAppends = group
 			a.channelAppendRouter = router
@@ -773,6 +780,7 @@ func (a *App) ensureChannelAppendMetadataCache() *clusterinfra.ChannelAppendMeta
 func (a *App) wireMessages() {
 	if a.messages == nil {
 		messageOpts := message.Options{
+			CommandChannelSuffix:   a.cfg.Message.CMDChannelSuffix,
 			Submitter:              a.channelAppendRouter,
 			SystemUIDs:             a.users,
 			PersonWhitelistEnabled: a.cfg.Message.PersonWhitelistEnabled,
@@ -812,9 +820,11 @@ func (a *App) wireCMDSync() {
 	if a.cmdSync == nil {
 		if node, ok := a.cluster.(clusterinfra.CMDSyncNode); ok {
 			store := clusterinfra.NewCMDSyncStore(node)
+			store.CommandChannelSuffix = a.cfg.Message.CMDChannelSuffix
 			a.cmdSync = cmdsyncusecase.New(cmdsyncusecase.Options{
-				States:   store,
-				Messages: store,
+				CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+				States:               store,
+				Messages:             store,
 			})
 		}
 	}
@@ -1054,6 +1064,7 @@ func managerPrometheusBaseURL(cfg PrometheusConfig) string {
 func (a *App) newManagerManagement() accessmanager.Management {
 	if node, ok := a.cluster.(clusterinfra.ManagementNode); ok {
 		opts := managementusecase.Options{
+			CommandChannelSuffix:    a.cfg.Message.CMDChannelSuffix,
 			Cluster:                 clusterinfra.NewManagementSnapshotReader(node),
 			Conversations:           a.conversations,
 			ChannelBusinessOperator: newManagerChannelBusinessOperator(a.channels),
