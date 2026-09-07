@@ -80,7 +80,6 @@ describe('API specification pages', () => {
       'msg.notify',
       'msg.offline',
       'user.onlinestatus',
-      'msg.before_send',
     ]);
     expect(operationCount(goldenPath)).toBe(3);
     expect(operationCount(messaging)).toBe(1);

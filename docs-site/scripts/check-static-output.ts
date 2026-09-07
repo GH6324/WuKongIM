@@ -497,10 +497,10 @@ export async function checkStaticOutput() {
     webhooksOpenAPI['x-wukongim-scope'] !== 'outbound-webhooks-beta' ||
     Object.keys(webhooksOpenAPI.paths ?? {}).length !== 0 ||
     Object.keys(webhooksOpenAPI.webhooks ?? {}).sort().join('\n') !==
-      ['msg.before_send', 'msg.notify', 'msg.offline', 'user.onlinestatus'].join('\n') ||
+      ['msg.notify', 'msg.offline', 'user.onlinestatus'].join('\n') ||
     Object.values(webhooksOpenAPI.webhooks ?? {}).some((item) => !item.post)
   ) {
-    throw new Error('Webhook OpenAPI must use exactly four top-level webhooks');
+    throw new Error('Webhook OpenAPI must use exactly three top-level webhooks');
   }
 
   const jsonRPCSchema = JSON.parse(

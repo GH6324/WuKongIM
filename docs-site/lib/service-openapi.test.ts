@@ -68,13 +68,13 @@ describe('service OpenAPI contracts', () => {
 
   test('keeps the OpenAPI webhook set and payload branches source-aligned', async () => {
     const [types, mapper, sender] = await Promise.all([
-      Promise.all([source('../../internal/runtime/webhook/types.go'), source('../../internal/infra/webhook/before_send.go')]).then((parts) => parts.join('\n')),
+      source('../../internal/runtime/webhook/types.go'),
       source('../../internal/runtime/webhook/mapper.go'),
       source('../../internal/runtime/webhook/sender.go'),
     ]);
     const names = Object.keys(webhooks.webhooks).sort();
 
-    expect(names).toEqual(['msg.before_send', 'msg.notify', 'msg.offline', 'user.onlinestatus']);
+    expect(names).toEqual(['msg.notify', 'msg.offline', 'user.onlinestatus']);
     for (const event of names) expect(types).toContain(`= "${event}"`);
     expect(mapper).toContain('json:"compress_to_uids,omitempty"');
     expect(mapper).toContain('json:"source_id,omitempty"');

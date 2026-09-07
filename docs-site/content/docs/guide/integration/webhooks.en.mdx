@@ -3,69 +3,9 @@ title: Webhooks
 description: Consume message and online-status events securely and idempotently.
 ---
 
-Webhooks support synchronous business decisions before sending and asynchronous notifications for committed messages, offline recipients, and presence changes. The business service receives callbacks over HTTP.
+Webhooks send committed messages, offline recipients, and online-status changes to one product HTTP endpoint. They are suitable for asynchronous business work, not client message synchronization.
 
-## Before-send business callback
-
-`msg.before_send` runs synchronously after permission checks and Send plugins, before message submission. It defaults to disabled and is independent of asynchronous Webhook `http_addr`, `focus_events`, and plugin enablement. Configure every sending ingress node consistently; changes require a restart.
-
-```toml
-[webhook.before_send]
-enabled = true
-http_addr = "https://business.example.com/im/webhook"
-timeout = "500ms"
-on_timeout = "deny"
-on_error = "deny"
-max_in_flight = 256
-```
-
-Environment overrides are `WK_WEBHOOK_BEFORE_SEND_ENABLED`, `WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR`, `WK_WEBHOOK_BEFORE_SEND_TIMEOUT`, `WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT`, `WK_WEBHOOK_BEFORE_SEND_ON_ERROR`, and `WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT`. The URL must use HTTP(S), without userinfo or a fragment.
-
-```http
-POST /im/webhook?event=msg.before_send
-Content-Type: application/json
-```
-
-```json
-{
-  "from_uid": "u1",
-  "channel_id": "group1",
-  "channel_type": 2,
-  "client_msg_no": "business-message-001",
-  "payload": "aGVsbG8=",
-  "no_persist": false,
-  "sync_once": false
-}
-```
-
-`channel_id` identifies the canonical source channel: person channels use the server-normalized identity, SyncOnce uses the source rather than internal command channel, and request-scoped `subscribers` use the stable temporary source channel derived from that recipient snapshot. No committed `message_id` or `message_seq` exists yet. Payloads use Base64. Each group message invokes one callback per ingress send attempt, independent of member count; authority forwarding does not repeat it.
-
-Return HTTP 200 with one explicit JSON decision:
-
-| Outcome | Response |
-| --- | --- |
-| Allow unchanged | `{"allow":true}` |
-| Allow replacement | `{"allow":true,"payload":"bmV3"}` |
-| Standard rejection | `{"allow":false}` |
-| Business rejection code | `{"allow":false,"reason_code":200}` |
-
-`allow` is required. Only Payload can change; identity and routing fields remain immutable. Omit `payload` to preserve the input. A replacement must be valid Base64 decoding to 1–32767 bytes. The response is limited to 64 KiB and one JSON object; unknown or duplicate fields, missing decisions, trailing JSON, and invalid field types in allow responses are callback errors. Business codes 128–255 retain their values in SENDACK `reason_code` and Product HTTP `reason`, independently of HTTP status. A decoded denial with an omitted or invalid rejection code returns standard NotAllowSend (11); an inapplicable Payload on a denial also remains a denial.
-
-| Condition | Behavior |
-| --- | --- |
-| Explicit business denial | Always reject, without message submission or delivery |
-| Callback timeout | `on_timeout`: `allow` keeps the pre-callback Payload; `deny` returns SystemError (15) |
-| Network failure, non-200 status, or no parseable decision | `on_error`: `allow` keeps the input; `deny` returns SystemError (15) |
-| `max_in_flight` reached | Immediately return SystemError (15), without another waiting queue |
-| Original send canceled or expired | Stop; failure-open policy cannot override it |
-
-Both failure policies default to `deny`. Calls are not automatically retried, redirects are not followed, and callbacks never enter the asynchronous notification queue. The callback is capped by the original send's remaining deadline; leave time for submission. Explicit denial takes precedence over callback failure-open, while parent cancellation always wins.
-
-Client retries may repeat callbacks. Deduplicate by sender, source channel, and `client_msg_no`; callers needing retry correlation must provide a stable nonempty `client_msg_no`. Business approval does not guarantee later message commit, so do not perform irreversible billing solely on this callback. NoPersist and SyncOnce also pass through it while retaining their existing delivery and storage semantics.
-
-Monitor `wukongim_webhook_before_send_total{result}` and `wukongim_webhook_before_send_duration_seconds{result}` for `allow`, `reject`, `timeout_allow`, `timeout_deny`, `error_allow`, `error_deny`, `overloaded`, `invalid_request`, and `canceled`. Labels contain no UID, channel, endpoint, or message content. The client sets only Content-Type, with no built-in signature or authentication header; establish callback trust through a controlled network or proxy.
-
-## Enable asynchronous notifications webhooks
+## Enable webhooks
 
 Configure `wukongim.toml`:
 
@@ -92,7 +32,6 @@ Only HTTP 200 is success. Connection errors, timeouts, and other status codes re
 
 | Event | Request body | Typical use |
 | --- | --- | --- |
-| `msg.before_send` | One uncommitted message object | Synchronous allow, replace, or reject |
 | `msg.notify` | Array of committed messages | Audit, search indexing, asynchronous notification |
 | `msg.offline` | One message and a bounded batch of offline UIDs | Offline-push candidate calculation |
 | `user.onlinestatus` | Array of compatibility status strings | UID-owner-local, best-effort session hint |
@@ -128,7 +67,7 @@ Each `user.onlinestatus` item has this form:
 
 The counts cover active sessions on the UID owner's current node only. They are not cluster-global presence and the event stream is neither complete nor ordered. A UID may contain `-`; parse the final five numeric fields from the right and treat the remaining prefix as the UID.
 
-## Asynchronous notification reliability
+## Reliability boundary
 
 <Callout type="warn" title="Webhook delivery is bounded and best effort">
   Queue saturation, process exit, request cancellation, or retry exhaustion can lose an event. The current runtime has no disk-backed webhook outbox or crash replay. A webhook failure does not change an already-successful SENDACK or durable append.

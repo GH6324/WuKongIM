@@ -1,17 +1,15 @@
 ---
 title: Webhook 事件类型
-description: 同步发送前回调与异步通知的触发条件、批次及用途。
+description: 三个受支持事件的触发条件、批次与用途。
 ---
 
-异步通知运行时产生以下三个事件。`focus_events` 只用于筛选这些精确名称；空数组表示全部启用。
+当前运行时只产生以下三个事件。`focus_events` 只用于筛选这些精确名称；空数组表示全部启用。
 
 | 事件 | 触发边界 | 请求体 / 默认批次 |
 | --- | --- | --- |
 | `msg.notify` | 普通消息完成多数派持久提交后 | 消息数组；最多 100 条，最多等待 500ms |
 | `msg.offline` | 合格的持久消息存在无在线路由的接收者时 | 单个扁平对象；UID 每批最多 512 个 |
 | `user.onlinestatus` | UID Owner 本地活跃会话上线，或最后一个本地会话下线时 | 状态字符串数组；最多 512 条，最多等待 2s |
-
-`msg.before_send` 是独立启用的同步发送前回调，响应决定放行、修改或拒绝；以下队列和重试语义仅适用于三个异步通知事件。配置、完整请求和失败策略见[发送前业务回调](/zh/guide/integration/webhooks#发送前业务回调)。
 
 ## `msg.notify`
 
@@ -32,6 +30,6 @@ description: 同步发送前回调与异步通知的触发条件、批次及用�
 
 事件记录 Owner 上观察到的会话过渡。它是兼容字符串，不保证每个中间状态都到达，也不是全局有序的 Presence 日志。字段格式见[请求结构](/zh/api/webhooks/payloads)。
 
-<Callout type="info" title="插件与其他协议">
+<Callout type="info" title="没有其他事件">
   Plugin 的 Send/Receive/PersistAfter Hook、集群 RPC 和 benchmark `EVENT` 帧都不是 HTTP Webhook 事件。
 </Callout>

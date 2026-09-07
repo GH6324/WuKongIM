@@ -242,7 +242,7 @@ export const wkprotoEncryptionProfile = {
   ],
 } as const;
 
-export type WebhookBodyShape = 'message-array' | 'offline-message-object' | 'status-string-array' | 'before-send-object';
+export type WebhookBodyShape = 'message-array' | 'offline-message-object' | 'status-string-array';
 
 export interface WebhookEventContract {
   name: string;
@@ -255,7 +255,6 @@ export const webhookEventContracts: readonly WebhookEventContract[] = [
   { name: 'msg.notify', body: 'message-array', boundary: 'durable committed messages' },
   { name: 'msg.offline', body: 'offline-message-object', boundary: 'eligible durable offline-recipient candidates' },
   { name: 'user.onlinestatus', body: 'status-string-array', boundary: 'legacy-compatible presence records' },
-  { name: 'msg.before_send', body: 'before-send-object', boundary: 'permission-accepted final payload before submission' },
 ];
 
 /** Defaults applied by internal/app.NormalizeWebhookConfig. */

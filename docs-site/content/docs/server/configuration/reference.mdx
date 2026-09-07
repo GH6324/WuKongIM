@@ -256,12 +256,6 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 | `webhook.offline_uid_batch_size` | `WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE` | `int` | 单个 `msg.offline` 请求最多携带的离线 UID 数；`0` 使用默认值 `512`。 |
 | `webhook.request_timeout` | `WK_WEBHOOK_REQUEST_TIMEOUT` | `duration` | 单次出站 Webhook 请求尝试的超时时间；`0` 使用默认值 `5s`。 |
 | `webhook.retry_max_attempts` | `WK_WEBHOOK_RETRY_MAX_ATTEMPTS` | `int` | 一个已接纳 Webhook 批次在丢弃前的最多尝试次数；`0` 使用默认值 `3`。 |
-| `webhook.before_send.enabled` | `WK_WEBHOOK_BEFORE_SEND_ENABLED` | `bool` | 独立启用同步发送前回调；默认 false。 |
-| `webhook.before_send.http_addr` | `WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR` | `string` | 同步回调 HTTP(S) 地址；启用时必填，诊断输出脱敏。 |
-| `webhook.before_send.timeout` | `WK_WEBHOOK_BEFORE_SEND_TIMEOUT` | `duration` | 单次回调期限；0 使用 500ms，受原发送期限约束。 |
-| `webhook.before_send.on_timeout` | `WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT` | `string` | 回调超时策略：allow 或 deny；默认 deny。 |
-| `webhook.before_send.on_error` | `WK_WEBHOOK_BEFORE_SEND_ON_ERROR` | `string` | 调用错误策略：allow 或 deny；默认 deny，不覆盖明确拒绝。 |
-| `webhook.before_send.max_in_flight` | `WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT` | `int` | 每节点并发上限；0 使用 256，满载立即拒绝。 |
 
 ## 插件
 

@@ -3,69 +3,9 @@ title: Webhook
 description: 安全、幂等地消费消息和在线状态事件。
 ---
 
-Webhook 支持发送前的同步业务决策，以及已提交消息、离线接收者和在线状态变化的异步通知。业务端通过 HTTP 接收回调。
+Webhook 把已提交消息、离线接收者和在线状态变化发送到一个业务 HTTP 端点。它适合触发业务异步处理，不是客户端消息同步机制。
 
-## 发送前业务回调
-
-`msg.before_send` 是同步回调，在权限检查和 Send 插件之后、消息提交之前执行。默认关闭；独立于异步 Webhook 的 `http_addr`、`focus_events` 和插件开关。各发送入口节点必须部署一致配置，重启后生效。
-
-```toml
-[webhook.before_send]
-enabled = true
-http_addr = "https://business.example.com/im/webhook"
-timeout = "500ms"
-on_timeout = "deny"
-on_error = "deny"
-max_in_flight = 256
-```
-
-对应环境变量为 `WK_WEBHOOK_BEFORE_SEND_ENABLED`、`WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR`、`WK_WEBHOOK_BEFORE_SEND_TIMEOUT`、`WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT`、`WK_WEBHOOK_BEFORE_SEND_ON_ERROR`、`WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT`；环境变量覆盖 TOML。URL 必须为 HTTP(S)，不能包含 userinfo 或 fragment。
-
-```http
-POST /im/webhook?event=msg.before_send
-Content-Type: application/json
-```
-
-```json
-{
-  "from_uid": "u1",
-  "channel_id": "group1",
-  "channel_type": 2,
-  "client_msg_no": "business-message-001",
-  "payload": "aGVsbG8=",
-  "no_persist": false,
-  "sync_once": false
-}
-```
-
-`channel_id` 是规范化的源频道标识：单聊使用服务端规范化标识；SyncOnce 使用源频道而非内部命令频道；请求级 `subscribers` 使用同一收件人快照推导出的稳定临时源频道。服务端不会在此时分配已提交的 `message_id` 或 `message_seq`。`payload` 为 Base64；一个群消息每次入口发送尝试只调用一次，不按成员回调，跨节点 authority 转发也不重复调用。
-
-业务端返回 HTTP 200 和一个明确的 JSON 决定：
-
-| 结果 | 响应 |
-| --- | --- |
-| 原样放行 | `{"allow":true}` |
-| 修改后放行 | `{"allow":true,"payload":"bmV3"}` |
-| 默认拒绝 | `{"allow":false}` |
-| 业务拒绝码 | `{"allow":false,"reason_code":200}` |
-
-`allow` 必填。只允许修改 Payload，不能改变身份或路由字段。省略 `payload` 保留输入；替换内容必须是有效 Base64，解码后为 1–32767 字节。响应体最多 64 KiB，必须是单个 JSON 对象；未知或重复字段、缺少决定、多余 JSON，以及放行响应中的错误字段类型都属于回调错误。业务码范围为 128–255，在 SENDACK 的 `reason_code` 和 Product HTTP 的 `reason` 中保留原值，与 HTTP 状态码无关。省略或填写无效拒绝码时，已解码的拒绝返回标准 NotAllowSend（11）；带有不适用 Payload 的拒绝同样拒绝。
-
-| 情况 | 处理 |
-| --- | --- |
-| 明确的业务拒绝 | 始终拒绝，无消息提交或投递 |
-| 回调超时 | `on_timeout`：`allow` 保留进入回调前的 Payload，`deny` 返回系统错误（15） |
-| 网络失败、非 HTTP 200、无法解析出有效决定 | `on_error`：`allow` 保留原 Payload，`deny` 返回系统错误（15） |
-| 并发达到 `max_in_flight` | 立即返回系统错误（15），无额外等待队列 |
-| 原发送请求取消或期限耗尽 | 终止发送；不会被放行策略覆盖 |
-
-两种失败策略均默认为 `deny`。回调不自动重试、不跟随重定向，不进入异步通知队列。回调期限受发送请求剩余期限约束，应为消息提交留出时间。明确拒绝优先于回调失败放行；发送请求自身取消仍具有最高优先级。
-
-客户端重试可能再次回调。业务端应按发送者、源频道、`client_msg_no` 做幂等；需要重试关联的调用方必须提供稳定且非空的 `client_msg_no`。业务放行不代表随后一定提交成功，不应仅凭此回调完成不可逆扣费等业务事务。NoPersist 和 SyncOnce 同样经过回调，但保留各自的投递、存储语义。
-
-监控 `wukongim_webhook_before_send_total{result}` 和 `wukongim_webhook_before_send_duration_seconds{result}`，区分 `allow`、`reject`、`timeout_allow`、`timeout_deny`、`error_allow`、`error_deny`、`overloaded`、`invalid_request`、`canceled`。指标不包含 UID、频道、回调地址或消息内容。当前只发送 Content-Type，无内置签名或鉴权头；应通过受控网络或代理建立业务端对回调来源的信任。
-
-## 启用异步通知
+## 启用
 
 在 `wukongim.toml` 中配置：
 
@@ -92,7 +32,6 @@ Content-Type: application/json
 
 | 事件 | 请求体 | 用途 |
 | --- | --- | --- |
-| `msg.before_send` | 单个待发送消息对象 | 同步放行、修改或拒绝 |
 | `msg.notify` | 已提交消息数组 | 业务审计、搜索索引、异步通知 |
 | `msg.offline` | 一条消息及一批离线 UID | 离线推送候选计算 |
 | `user.onlinestatus` | 兼容在线状态字符串数组 | UID Owner 本地、尽力而为的会话提示 |
@@ -128,7 +67,7 @@ JSON 中的 `payload` 是 Base64。`msg.offline` 在 UID 数量较小时使用 `
 
 这些计数只来自 UID Owner 当前节点上的活跃 Session，不是集群全局 Presence，也不保证事件完整或有序。UID 可以含 `-`；需要解析时从右侧取最后五个数字段，其余前缀才是 UID。
 
-## 异步通知的可靠性边界
+## 可靠性边界
 
 <Callout type="warn" title="Webhook 是有界、尽力而为的">
   队列满、进程退出、请求取消或重试耗尽都可能丢失事件。当前运行时没有磁盘级 Webhook Outbox 或崩溃重放。Webhook 失败不会影响已经成功的 SENDACK 和消息持久化。

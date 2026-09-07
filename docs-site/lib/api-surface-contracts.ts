@@ -548,7 +548,7 @@ export const pluginHostRPCPaths = [
   '/plugin/httpForward',
 ] as const;
 
-export const webhookEvents = ['msg.notify', 'msg.offline', 'user.onlinestatus', 'msg.before_send'] as const;
+export const webhookEvents = ['msg.notify', 'msg.offline', 'user.onlinestatus'] as const;
 
 export const benchmarkWorkerHTTP = [
   'GET /healthz',
