@@ -17,6 +17,8 @@ Every category must contain at least one "- " list entry. Release headings use
 the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 -->
 
+## [v3.0.0-beta.9] - 2026-09-07
+
 ### 🐛 Bug Fixes / 问题修复
 
 - 修复 Demo 打开尚无消息的单聊时历史同步和未读清零返回 400 的问题：单条及批量同步返回空消息数组，缺失会话的未读操作幂等成功，不创建成员关系；群成员校验、已移除成员限制和真实存储/路由故障仍保持有效。
