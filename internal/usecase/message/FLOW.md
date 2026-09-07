@@ -21,7 +21,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
   idempotency, realtime `NoPersist`, and post-commit delivery belong to
   `internal/runtime/channelappend`.
 - Optional synchronous before-send Webhook policy runs after plugins, independent
-  of plugin skip controls. Its HTTP adapter cannot decide product failure policy.
+  of plugin skip controls. Callback source IDs use the same configured command
+  codec as permission checks. The HTTP adapter cannot decide failure policy.
 - Permission stores return raw authoritative facts. This package owns policy
   order and reason precedence.
 - Concrete Slot, Channel, cluster, gateway, and access types must not cross the

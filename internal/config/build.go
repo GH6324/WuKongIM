@@ -58,8 +58,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			LargeGroupSubscriberThreshold: 500,
 		},
 		Message: app.MessageConfig{
-			SystemUID:      "____system",
-			SystemDeviceID: "____device",
+			CMDChannelSuffix: "____cmd",
+			SystemUID:        "____system",
+			SystemDeviceID:   "____device",
 		},
 		ChannelMessageRetention: app.ChannelMessageRetentionConfig{
 			ScanInterval:     time.Minute,
@@ -866,6 +867,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Message.PersonWhitelistEnabled = enabled
+	}
+	if raw := configValue(values, "WK_MESSAGE_CMD_CHANNEL_SUFFIX"); raw != "" {
+		cfg.Message.CMDChannelSuffix = raw
 	}
 	if raw := configValue(values, "WK_MESSAGE_SYSTEM_UID"); raw != "" {
 		cfg.Message.SystemUID = raw

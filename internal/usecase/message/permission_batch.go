@@ -52,7 +52,7 @@ func (a *App) checkGroupSendPermissionsBatch(
 	plans := make([]groupPermissionReadPlan, len(groupIndexes))
 	for i, groupIndex := range groupIndexes {
 		cmd := items[groups[groupIndex].representative].Command
-		sourceChannelID, _ := runtimechannelid.FromCommandChannel(cmd.ChannelID)
+		sourceChannelID, _ := a.commandChannels.FromCommandChannel(cmd.ChannelID)
 		channelType := int64(cmd.ChannelType)
 		plan := groupPermissionReadPlan{
 			command:        cmd,
@@ -212,7 +212,7 @@ func (a *App) checkPersonSendPermissionsBatch(
 	plans := make([]personPermissionReadPlan, len(groupIndexes))
 	for i, groupIndex := range groupIndexes {
 		cmd := items[groups[groupIndex].representative].Command
-		sourceChannelID, commandChannel := runtimechannelid.FromCommandChannel(cmd.ChannelID)
+		sourceChannelID, commandChannel := a.commandChannels.FromCommandChannel(cmd.ChannelID)
 		cmd.ChannelID = sourceChannelID
 		if cmd.NormalizePersonChannel {
 			normalized, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
@@ -223,7 +223,7 @@ func (a *App) checkPersonSendPermissionsBatch(
 			cmd.ChannelID = normalized
 		}
 		if commandChannel {
-			cmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
+			cmd.ChannelID = a.commandChannels.ToCommandChannel(cmd.ChannelID)
 		}
 		plan := personPermissionReadPlan{
 			command:         cmd,
@@ -233,7 +233,7 @@ func (a *App) checkPersonSendPermissionsBatch(
 			allowlistEntry:  -1,
 			receiverChannel: -1,
 		}
-		permissionChannelID, _ := runtimechannelid.FromCommandChannel(cmd.ChannelID)
+		permissionChannelID, _ := a.commandChannels.FromCommandChannel(cmd.ChannelID)
 		plan.terminalChannel = addRead(PermissionRead{
 			Kind: PermissionReadChannel, ChannelID: permissionChannelID, ChannelType: int64(channelTypePerson),
 		})

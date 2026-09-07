@@ -195,6 +195,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "gateway.send_timeout", EnvKey: "WK_GATEWAY_SEND_TIMEOUT", Kind: kindDuration, Group: "gateway", Label: "Gateway send timeout"},
 
 	{TOMLPath: "message.person_whitelist_enabled", EnvKey: "WK_MESSAGE_PERSON_WHITELIST_ENABLED", Kind: kindBool, Group: "message", Label: "Person whitelist enabled"},
+	{TOMLPath: "message.cmd_channel_suffix", EnvKey: "WK_MESSAGE_CMD_CHANNEL_SUFFIX", Kind: kindString, Group: "message", Label: "Command channel suffix", Description: "Reserved command-channel suffix; empty defaults to ____cmd. Use only ASCII letters, digits, _ or -. Must match on every cluster node. Changing it does not migrate existing command channels or bindings; requires restart."},
 	{TOMLPath: "message.system_uid", EnvKey: "WK_MESSAGE_SYSTEM_UID", Kind: kindString, Group: "message", Label: "System UID", Description: "Primary system account UID used when trusted message senders are omitted; defaults to ____system and must match on every cluster node."},
 	{TOMLPath: "message.system_device_id", EnvKey: "WK_MESSAGE_SYSTEM_DEVICE_ID", Kind: kindString, Group: "message", Label: "System device ID"},
 	{TOMLPath: "message.permission_cache_ttl", EnvKey: "WK_MESSAGE_PERMISSION_CACHE_TTL", Kind: kindDuration, Group: "message", Label: "Permission cache TTL"},
@@ -377,6 +378,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_GATEWAY_LISTENERS",
 		"WK_GATEWAY_SEND_TIMEOUT",
 		"WK_MESSAGE_PERSON_WHITELIST_ENABLED",
+		"WK_MESSAGE_CMD_CHANNEL_SUFFIX",
 		"WK_MESSAGE_SYSTEM_UID",
 		"WK_MESSAGE_SYSTEM_DEVICE_ID",
 		"WK_MESSAGE_PERMISSION_CACHE_TTL",

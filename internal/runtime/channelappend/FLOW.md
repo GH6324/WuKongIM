@@ -64,6 +64,9 @@ sends terminate successfully before routing.
 - Idempotency recovery observes only batch counts for recovered, unresolved,
   and lookup-error items. Recovered items are not errors; every fresh item that
   fails its bounded retry remains unresolved with its original aligned result.
+- Command IDs use the configured per-instance suffix. Person validation and
+  recipient derivation strip it before parsing UIDs; event and authority IDs
+  retain it. Router and local preparation must produce the same canonical ID.
 - Persistent command messages use their command Channel; transient messages
   write neither Channel logs nor directory membership.
 - Observability is aggregate and low-cardinality: never label Channel, UID,

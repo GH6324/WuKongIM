@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -316,8 +317,10 @@ type Observer interface {
 
 // Options configures the v2 plugin usecase.
 type Options struct {
-	Runtime Runtime
-	Invoker Invoker
+	// CommandChannelSuffix selects command IDs; empty retains the legacy default.
+	CommandChannelSuffix string
+	Runtime              Runtime
+	Invoker              Invoker
 	// DesiredStore persists plugin config and enable state.
 	DesiredStore DesiredStore
 	// Messages submits plugin-origin /message/send host RPCs.
@@ -354,6 +357,8 @@ type Options struct {
 
 // App orchestrates v2 plugin lifecycle, selection, and hook invocation usecases.
 type App struct {
+	// commandChannels keeps internal command IDs consistent with this node configuration.
+	commandChannels        runtimechannelid.CommandCodec
 	runtime                Runtime
 	invoker                Invoker
 	desired                DesiredStore

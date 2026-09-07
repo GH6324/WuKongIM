@@ -3,10 +3,13 @@ package channelappend
 import (
 	"context"
 	"fmt"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"time"
 )
 
 type commitPorts struct {
+	// commandChannels applies the deployment suffix without process-global state.
+	commandChannels            runtimechannelid.CommandCodec
 	subscribers                SubscriberSource
 	recipientAuthorityResolver RecipientAuthorityResolver
 	deliveryEnqueuer           OnlineDeliveryEnqueuer

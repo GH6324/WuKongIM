@@ -157,6 +157,13 @@ default_session_async_send_batch_max_bytes = 524288
 send_timeout = "5s"
 
 [message]
+# Reserved suffix used for internal command-channel IDs (empty uses ____cmd).
+# Use only ASCII letters, digits, underscores, or hyphens. Do not use this suffix
+# for business channel IDs. Every cluster node must use the same value.
+# Set it before first use: changing it does not migrate stored command channels
+# or UID bindings and may leave pending commands inaccessible. Requires restart.
+# Environment override: WK_MESSAGE_CMD_CHANNEL_SUFFIX.
+cmd_channel_suffix = "____cmd"
 person_whitelist_enabled = false
 # System account UID used when a trusted message sender is omitted.
 # Omitted or empty values use the built-in ____system account.

@@ -239,10 +239,12 @@ func TestBeforeSendWebhookSourceChannelIdentityAndOriginalSubmission(t *testing.
 		cmd         SendCommand
 		source      string
 		channelType uint8
+		suffix      string
 	}{
-		{"person", SendCommand{ChannelID: "u2", ChannelType: 1, NormalizePersonChannel: true}, channelid.EncodePersonChannel("u1", "u2"), 1},
-		{"command", SendCommand{ChannelID: "g1____cmd", ChannelType: 2, SyncOnce: true}, "g1", 2},
-		{"subscribers", SendCommand{RequestScoped: true, MessageScopedUIDs: []string{"u2", "u1"}, SyncOnce: true}, scoped.SourceChannelID, scoped.ChannelType},
+		{"person", SendCommand{ChannelID: "u2", ChannelType: 1, NormalizePersonChannel: true}, channelid.EncodePersonChannel("u1", "u2"), 1, ""},
+		{"command", SendCommand{ChannelID: "g1____cmd", ChannelType: 2, SyncOnce: true}, "g1", 2, ""},
+		{"subscribers", SendCommand{RequestScoped: true, MessageScopedUIDs: []string{"u2", "u1"}, SyncOnce: true}, scoped.SourceChannelID, scoped.ChannelType, ""},
+		{"custom command", SendCommand{ChannelID: "g1____custom", ChannelType: 2, SyncOnce: true}, "g1", 2, "____custom"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := tt.cmd
@@ -254,7 +256,7 @@ func TestBeforeSendWebhookSourceChannelIdentityAndOriginalSubmission(t *testing.
 				return BeforeSendDecision{Allow: true}, nil
 			}), nil)
 			submitter := &recordingSubmitter{}
-			app := New(Options{BeforeSendWebhook: hook, Submitter: submitter})
+			app := New(Options{BeforeSendWebhook: hook, Submitter: submitter, CommandChannelSuffix: tt.suffix})
 			_, err := app.Send(context.Background(), cmd)
 			require.NoError(t, err)
 			if cmd.RequestScoped {

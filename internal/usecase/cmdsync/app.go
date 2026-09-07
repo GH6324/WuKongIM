@@ -18,6 +18,8 @@ const (
 
 // App owns durable CMD sync and ack business rules.
 type App struct {
+	// commandChannels applies the deployment suffix without process-global state.
+	commandChannels runtimechannelid.CommandCodec
 	states          StateStore
 	messages        MessageStore
 	records         *SyncRecordCache
@@ -48,6 +50,7 @@ func New(opts Options) *App {
 		opts.Records = NewSyncRecordCache(SyncRecordCacheOptions{Now: opts.Now, MaxRecordsPerUID: opts.MaxLimit})
 	}
 	return &App{
+		commandChannels: runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		states:          opts.States,
 		messages:        opts.Messages,
 		records:         opts.Records,
@@ -108,7 +111,7 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 	recordsByKey := make(map[CommandChannelKey]SyncRecord, len(candidates))
 	for _, candidate := range candidates {
 		msg := cloneSyncedMessage(candidate.message)
-		if sourceID, ok := runtimechannelid.FromCommandChannel(msg.ChannelID); ok {
+		if sourceID, ok := a.commandChannels.FromCommandChannel(msg.ChannelID); ok {
 			msg.ChannelID = sourceID
 		}
 		result.Messages = append(result.Messages, msg)
@@ -175,7 +178,7 @@ func (a *App) Bind(ctx context.Context, cmd BindCommand) error {
 	if a.messages == nil {
 		return ErrMessageStoreRequired
 	}
-	key := CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel(channelID), ChannelType: cmd.ChannelType}
+	key := CommandChannelKey{ChannelID: a.commandChannels.ToCommandChannel(channelID), ChannelType: cmd.ChannelType}
 	tail, err := a.messages.CommandChannelTail(ctx, key)
 	if err != nil {
 		return err
@@ -204,7 +207,7 @@ func (a *App) Unbind(ctx context.Context, cmd UnbindCommand) error {
 	now := a.now().UnixNano()
 	return a.states.TombstoneUserCMDChannelMemberships(ctx, []metadb.UserCMDChannelMembership{{
 		UID:              uid,
-		CommandChannelID: runtimechannelid.ToCommandChannel(channelID),
+		CommandChannelID: a.commandChannels.ToCommandChannel(channelID),
 		ChannelType:      int64(cmd.ChannelType),
 		Tombstone:        true,
 		TombstoneAt:      now,

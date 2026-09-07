@@ -123,7 +123,9 @@ func dispatchRecipientsForTarget(ctx context.Context, mode onlinedelivery.Mode, 
 		return recipientDispatchResult{}, err
 	}
 	if event.ChannelType == channelTypePerson {
-		left, right, err := runtimechannelid.DecodePersonChannel(event.ChannelID)
+		// Resolve participants from the source ID, retaining the command ID on the event.
+		sourceID, _ := ports.commandChannels.FromCommandChannel(event.ChannelID)
+		left, right, err := runtimechannelid.DecodePersonChannel(sourceID)
 		if err != nil {
 			return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "person_channel_decode"})
 		}

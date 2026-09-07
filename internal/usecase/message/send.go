@@ -949,7 +949,7 @@ func (a *App) beforeSendHook(ctx context.Context, cmd SendCommand) (SendCommand,
 	if err != nil || reason != ReasonSuccess || a == nil || a.beforeSendWebhook == nil {
 		return cmd, reason, err
 	}
-	return a.beforeSendWebhook.check(ctx, cmd)
+	return a.beforeSendWebhook.check(ctx, cmd, a.commandChannels)
 }
 
 func (a *App) beforePluginSendHook(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {

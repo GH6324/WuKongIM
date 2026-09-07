@@ -14,7 +14,11 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (SendCom
 		return cmd, ReasonSuccess, nil
 	}
 
-	sourceChannelID, alreadyCommandChannel := runtimechannelid.FromCommandChannel(cmd.ChannelID)
+	var channels runtimechannelid.CommandCodec
+	if a != nil {
+		channels = a.commandChannels
+	}
+	sourceChannelID, alreadyCommandChannel := channels.FromCommandChannel(cmd.ChannelID)
 	cmd.ChannelID = sourceChannelID
 	if cmd.ChannelType == channelTypePerson && cmd.NormalizePersonChannel {
 		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
@@ -25,7 +29,7 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (SendCom
 	}
 	reapplyCommandChannel := func(next SendCommand) SendCommand {
 		if alreadyCommandChannel {
-			next.ChannelID = runtimechannelid.ToCommandChannel(next.ChannelID)
+			next.ChannelID = channels.ToCommandChannel(next.ChannelID)
 		}
 		return next
 	}

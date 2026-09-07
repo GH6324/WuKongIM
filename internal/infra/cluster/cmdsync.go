@@ -40,6 +40,8 @@ func (s *CMDSyncStore) UpsertUserCMDChannelMemberships(ctx context.Context, memb
 // CMDSyncStore adapts cluster CMD directory rows and command-channel logs.
 type CMDSyncStore struct {
 	node CMDSyncNode
+	// CommandChannelSuffix must match the sending runtime and CMD sync usecase.
+	CommandChannelSuffix string
 }
 
 var _ cmdsync.StateStore = (*CMDSyncStore)(nil)
@@ -99,7 +101,7 @@ func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.Comm
 	if fromSeq == 0 {
 		fromSeq = 1
 	}
-	sourceChannelID, _ := runtimechannelid.FromCommandChannel(key.ChannelID)
+	sourceChannelID, _ := (runtimechannelid.CommandCodec{Suffix: s.CommandChannelSuffix}).FromCommandChannel(key.ChannelID)
 	channel, err := s.node.GetChannelMetadataAuthoritative(ctx, sourceChannelID, int64(key.ChannelType))
 	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
 		return nil, err

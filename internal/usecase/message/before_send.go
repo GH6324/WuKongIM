@@ -75,7 +75,7 @@ func NewBeforeSendWebhook(opts BeforeSendOptions) (*BeforeSendWebhook, error) {
 
 // check runs after plugins and before authority routing for every send mode.
 // Parent cancellation always wins; a business denial can never fail open.
-func (w *BeforeSendWebhook) check(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {
+func (w *BeforeSendWebhook) check(ctx context.Context, cmd SendCommand, commandChannels channelid.CommandCodec) (SendCommand, Reason, error) {
 	start := time.Now()
 	outcome := "error_deny"
 	defer func() {
@@ -100,7 +100,7 @@ func (w *BeforeSendWebhook) check(ctx context.Context, cmd SendCommand) (SendCom
 	}
 	callCtx, cancel := context.WithTimeout(ctx, w.opts.Timeout)
 	defer cancel()
-	request, err := beforeSendRequest(cmd)
+	request, err := beforeSendRequest(cmd, commandChannels)
 	if err != nil {
 		outcome = "invalid_request"
 		return cmd, ReasonInvalidRequest, err
@@ -160,8 +160,8 @@ func (w *BeforeSendWebhook) validateDecision(d BeforeSendDecision) error {
 // by callback validation and protocol adapters, separate from internal Reasons.
 func IsBusinessReasonCode(code uint32) bool { return code >= 128 && code <= 255 }
 
-func beforeSendRequest(cmd SendCommand) (BeforeSendRequest, error) {
-	sourceID, _ := channelid.FromCommandChannel(cmd.ChannelID)
+func beforeSendRequest(cmd SendCommand, commandChannels channelid.CommandCodec) (BeforeSendRequest, error) {
+	sourceID, _ := commandChannels.FromCommandChannel(cmd.ChannelID)
 	channelType := cmd.ChannelType
 	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
 		if !cmd.SyncOnce {
@@ -170,7 +170,7 @@ func beforeSendRequest(cmd SendCommand) (BeforeSendRequest, error) {
 		if cmd.ChannelID != "" {
 			return BeforeSendRequest{}, ErrRequestSubscribersConflictChannel
 		}
-		scoped, err := channelid.RequestSubscriberChannelFor(cmd.MessageScopedUIDs)
+		scoped, err := commandChannels.RequestSubscriberChannelFor(cmd.MessageScopedUIDs)
 		if err != nil {
 			return BeforeSendRequest{}, ErrRequestSubscribersRequired
 		}

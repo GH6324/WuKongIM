@@ -31,7 +31,7 @@ func (a *App) wireDelivery() {
 		LocalNodeID:               localNodeID,
 		Presence:                  deliveryinfra.NewPresenceResolver(a.presence),
 		RemoteOwnerPusher:         remote,
-		SessionWriter:             deliveryinfra.NewLocalSessionWriter(deliveryinfra.LocalSessionWriterOptions{Online: a.online, Logger: a.logger.Named("delivery.owner")}),
+		SessionWriter:             deliveryinfra.NewLocalSessionWriter(deliveryinfra.LocalSessionWriterOptions{CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix, Online: a.online, Logger: a.logger.Named("delivery.owner")}),
 		OfflineRecipientsObserver: offlineObserver,
 		QueueSize:                 a.cfg.Delivery.EventQueueSize,
 		Workers:                   a.cfg.Delivery.RecipientWorkerConcurrency,

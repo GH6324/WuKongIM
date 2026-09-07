@@ -733,6 +733,10 @@
 - Shell scripts that must stop and wait for a background sampler must start it in the owning shell; command substitution creates a subshell-owned child that the parent cannot reliably wait or clean up.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.
 
+- Command channels use `message.cmd_channel_suffix` (default `____cmd`) consistently on every node. The suffix is deployment-stable: changing it does not migrate stored CMD channels or UID bindings. Parse person participants only after removing the suffix; retain command IDs for authority and storage.
+
+- After merging a task branch, verify its tip is reachable from the target, remove its clean worktree, and delete the original local branch; preserve uncommitted work and never force-delete unmerged work.
+
 ## Synchronous before-send Webhook
 
 - `webhook.before_send` independently enables `msg.before_send` after permission and Send plugins, before submission for every send mode. Plugin disable/skip does not bypass it; authority forwarding does not repeat it.

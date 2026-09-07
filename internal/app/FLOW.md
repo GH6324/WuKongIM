@@ -57,6 +57,8 @@ Stop or startup rollback
   Webhook workers and plugin enablement; configuration errors fail startup.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
+- Command-channel suffixes are injected across send, delivery, CMD sync, plugin
+  projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user
   privilege checks, Product HTTP compatibility, legacy conversation projection,
   and plugin-origin default sends.
@@ -84,7 +86,6 @@ Stop or startup rollback
   its committed-entry lag is zero, not invalid or an unsigned underflow.
 - Issue/Review Agent composition keeps read, verification, signed-state, and
   publication credentials separated and never joins the product cluster.
-
 ## Read First
 
 - [app.go](app.go)
@@ -92,7 +93,6 @@ Stop or startup rollback
 - [backup.go](backup.go)
 - [issue_agent.go](issue_agent.go)
 - [review_agent.go](review_agent.go)
-
 ## Update Triggers
 
 - Dependency ownership or the sole-composition-root boundary changes.

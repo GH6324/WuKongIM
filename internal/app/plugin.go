@@ -81,16 +81,17 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		Logger:     pluginLogger,
 	})
 	pluginOptions := pluginusecase.Options{
-		Runtime:          pluginRuntimeAdapter{runtime: runtime, sandboxDir: a.cfg.Plugin.SandboxDir},
-		Invoker:          invoker,
-		DesiredStore:     pluginDesiredStoreAdapter{store: store},
-		Messages:         pluginMessageSender{app: a},
-		DefaultSenderUID: a.cfg.Message.SystemUID,
-		SystemUIDs:       a.users,
-		FailOpen:         a.cfg.Plugin.FailOpen,
-		Observer:         a.pluginUsecaseObserver(),
-		Logger:           pluginLogger,
-		NodeID:           nodeID,
+		CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+		Runtime:              pluginRuntimeAdapter{runtime: runtime, sandboxDir: a.cfg.Plugin.SandboxDir},
+		Invoker:              invoker,
+		DesiredStore:         pluginDesiredStoreAdapter{store: store},
+		Messages:             pluginMessageSender{app: a},
+		DefaultSenderUID:     a.cfg.Message.SystemUID,
+		SystemUIDs:           a.users,
+		FailOpen:             a.cfg.Plugin.FailOpen,
+		Observer:             a.pluginUsecaseObserver(),
+		Logger:               pluginLogger,
+		NodeID:               nodeID,
 	}
 	if bindingNode, ok := a.cluster.(clusterinfra.PluginBindingNode); ok {
 		pluginOptions.ReceiveBindings = clusterinfra.NewPluginBindingReader(bindingNode)
