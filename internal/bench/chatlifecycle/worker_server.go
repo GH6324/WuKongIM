@@ -16,6 +16,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 	"github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 var errWorkerServerConfig = errors.New("chat lifecycle worker server: invalid configuration")
@@ -1107,6 +1108,8 @@ func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
 }
 
 type engineWorkerGenerationFactory struct {
+	// benchToken stays in the worker process and never enters assignments or reports.
+	benchToken        string
 	clock             SessionClock
 	newSessionFactory func(WorkerAssignment) (SessionClientFactory, error)
 	newSyncer         func(WorkerAssignment) (ConversationSyncer, error)
@@ -1116,8 +1119,8 @@ type engineWorkerGenerationFactory struct {
 // NewEngineWorkerGenerationFactory composes the existing deterministic models,
 // real conversation-sync client, WKProto adapter, verifier, and Engine. It does
 // not introduce a parallel traffic runtime.
-func NewEngineWorkerGenerationFactory() WorkerGenerationFactory {
-	return engineWorkerGenerationFactory{}
+func NewEngineWorkerGenerationFactory(benchToken string) WorkerGenerationFactory {
+	return engineWorkerGenerationFactory{benchToken: benchToken}
 }
 
 func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGeneration, error) {
@@ -1176,6 +1179,8 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 			gatewayAddress := assignment.Config.Observation.GatewayTCPAddrs[int(assignment.WorkerID)%len(assignment.Config.Observation.GatewayTCPAddrs)]
 			return engineWorkerSessionFactory{
 				address: gatewayAddress, ackTimeout: assignment.Config.Thresholds.Latency.SingleAnomaly,
+				runID: assignment.RunID, assignmentID: assignment.AssignmentID,
+				tokens: target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs, Token: f.benchToken, HTTPClient: &http.Client{Timeout: 5 * time.Second}}),
 			}, nil
 		}
 	}
@@ -1378,11 +1383,38 @@ func (t *wallWorkerGenerationTicker) Wait(ctx context.Context) bool {
 func (t *wallWorkerGenerationTicker) Stop() { t.ticker.Stop() }
 
 type engineWorkerSessionFactory struct {
-	address    string
-	ackTimeout time.Duration
+	// tokens persists one device credential before its CONNECT; the session pool bounds concurrent logins.
+	tokens       *target.Client
+	runID        string
+	assignmentID string
+	address      string
+	ackTimeout   time.Duration
 }
 
-func (f engineWorkerSessionFactory) NewSession(_ context.Context, _, token string) (SessionClient, error) {
+func (f engineWorkerSessionFactory) NewSession(ctx context.Context, uid, token string) (SessionClient, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if f.tokens == nil {
+		return nil, errWorkerServerConfig
+	}
+	// Repeated and returning logins upsert the same credential without retaining
+	// an unbounded history of prepared UIDs. APP/slave matches the WKProto client.
+	prepareCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := f.tokens.UpsertTokens(prepareCtx, model.BatchTokensRequest{
+		RunID: f.runID, BatchID: f.assignmentID + "-token-" + uid, Upsert: true,
+		Users: []model.UserTokenItem{{UID: uid, Token: token}},
+	}); err != nil {
+		if err := prepareCtx.Err(); err != nil {
+			return nil, err
+		}
+		return nil, errors.New("chat lifecycle session: token preparation failed")
+	}
+	if err := prepareCtx.Err(); err != nil {
+		return nil, err
+	}
+
 	client, err := wkproto.NewClient(wkproto.ClientConfig{
 		Addr: f.address, Token: token,
 		OperationTimeout: 5 * time.Second, AckTimeout: f.ackTimeout,

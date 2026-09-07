@@ -35,6 +35,12 @@ func LoadCredentials() (Credentials, error) {
 	return Credentials{benchToken: benchToken, workerToken: workerToken}, nil
 }
 
+// LoadBenchToken resolves the worker's target credential without requiring a
+// worker-control environment value when control authentication came from a flag.
+func LoadBenchToken() (string, error) {
+	return loadCredential(benchTokenEnvironment, benchTokenFileEnvironment)
+}
+
 func loadCredential(valueEnvironment, fileEnvironment string) (string, error) {
 	value := strings.TrimSpace(os.Getenv(valueEnvironment))
 	path := strings.TrimSpace(os.Getenv(fileEnvironment))

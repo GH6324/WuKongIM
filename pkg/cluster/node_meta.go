@@ -69,7 +69,8 @@ func (n *Node) UpsertDeviceMetadata(ctx context.Context, device metadb.Device) e
 	})
 }
 
-// GetDeviceMetadata reads durable per-device token metadata from the current Slot route.
+// GetDeviceMetadata reads device credentials from the current Slot leader so
+// authentication never uses an unapplied or non-replica ingress copy.
 func (n *Node) GetDeviceMetadata(ctx context.Context, uid string, deviceFlag int64) (metadb.Device, error) {
 	if err := ctxErr(ctx); err != nil {
 		return metadb.Device{}, err
@@ -77,14 +78,10 @@ func (n *Node) GetDeviceMetadata(ctx context.Context, uid string, deviceFlag int
 	if err := n.ensureForeground(); err != nil {
 		return metadb.Device{}, err
 	}
-	if n.defaultSlotMetaDB == nil {
+	if n.defaultSlotProxy == nil {
 		return metadb.Device{}, ErrNotStarted
 	}
-	route, err := n.RouteKey(uid)
-	if err != nil {
-		return metadb.Device{}, err
-	}
-	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetDevice(ctx, uid, deviceFlag)
+	return n.defaultSlotProxy.GetDevice(ctx, uid, deviceFlag)
 }
 
 // BindPluginUser persists one UID-owned plugin binding through Slot ownership.

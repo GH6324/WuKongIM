@@ -57,3 +57,5 @@ _openapi:
 | `POST` | `/bench/v1/channels/subscribers/remove` |
 
 `terminal-fence/prepare` 还要求 Terminal Fence Controller 和非空 Token。Bench 包含数据准备、运行时驱逐和终止栅栏，不是只读接口，也不是公共集成合同。
+
+`users/tokens` 通过用户用例持久化设备 Token，只有写入成功才计入 `accepted_users`。未接入用户用例时能力标志为 false，请求返回 501；持久化失败返回 500，已成功写入的前缀不会回滚，可用相同凭据重新 upsert。生命周期 worker 在 CONNECT 前完成此准备，并保持 Gateway Token 鉴权开启。

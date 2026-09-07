@@ -8,6 +8,9 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Read device credentials from the current Slot leader so newly written or rotated Tokens authenticate consistently through any ingress, including nodes outside the Slot replica set. This uses promoted internal RPC 87; upgrade all cluster nodes together before relying on cross-node authentication.
+- Fix benchmark Token preparation to persist device credentials through the user use case before chat-lifecycle CONNECT, restoring authenticated three-node workloads without disabling Gateway authentication.
+- Restore Manager browser smoke validation with Gateway Token authentication enabled by using all-node HTTP readiness before authenticated browser navigation.
 - Restore the documentation browser acceptance runner and pinned Chromium dependency; validate BFF-issued credentials with Gateway Token authentication enabled, including bidirectional messaging and reconnect recovery.
 - Fix transient person-channel command sends rejecting valid system senders or deriving recipients and client channel IDs with the command suffix. Preserve the command flag on delivered packets.
 

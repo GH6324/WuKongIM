@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/access/api/demoui"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
@@ -696,7 +697,7 @@ func (s *Server) handleBenchCapabilities(c *gin.Context) {
 		Enabled: true,
 		Version: versionV1,
 		Supports: capabilitiesSupports{
-			UsersTokensBatch:               true,
+			UsersTokensBatch:               s.users != nil,
 			ChannelsBatch:                  s.benchData != nil,
 			ChannelSubscribersBatch:        s.benchData != nil,
 			ChannelSubscriberRemovalsBatch: s.benchData != nil,
@@ -791,7 +792,22 @@ func (s *Server) handleBenchTokens(c *gin.Context) {
 		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.addCount("accepted_users", len(items))
+	if s.users == nil {
+		writeBenchError(c, http.StatusNotImplemented, "bench user token writer is not configured")
+		return
+	}
+	// Token preparation uses the same cluster-backed persistence as /user/token.
+	// A failed batch may have a durable prefix; callers can safely upsert it again.
+	for _, item := range items {
+		if err := s.users.UpdateToken(c.Request.Context(), userusecase.UpdateTokenCommand{
+			UID: item.UID, Token: item.Token,
+			DeviceFlag: protocolmeta.DeviceFlag(item.DeviceFlag), DeviceLevel: protocolmeta.DeviceLevel(item.DeviceLevel),
+		}); err != nil {
+			writeBenchError(c, http.StatusInternalServerError, "bench user token update failed")
+			return
+		}
+		s.addCount("accepted_users", 1)
+	}
 	c.JSON(http.StatusOK, mutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: len(items)})
 }
 

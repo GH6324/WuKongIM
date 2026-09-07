@@ -38,5 +38,6 @@ This domain owns black-box multi-node cluster lifecycle coverage for
 - `goroutine_monitor`: real three-node Manager fan-out of current process,
   module, and task goroutine ownership with selected-node filtering.
 - `manager_browser_smoke`: opt-in Chromium validation of the production
-  Manager bundle against a real three-node cluster, including authenticated
+  Manager bundle against a real three-node cluster with Gateway Token auth
+  enabled and all-node HTTP readiness, including authenticated
   desktop routes, localized copy, not-found handling, and mobile navigation.
