@@ -53,6 +53,9 @@ It does not subscribe users, deliver messages, or implement storage and transpor
   first in the old raw-array envelope.
 - Inactive empty membership is omitted; explicit activation returns an empty
   conversation without a last message.
+- Unread commands are idempotent no-ops for missing/tombstoned memberships or
+  a confirmed deleted Channel; they never create membership. Failed metadata or
+  head reads remain errors, and delete-command absence semantics stay unchanged.
 - SEND, receive, delivery, and pull never mutate `read_seq` or `activated_at`.
 - The opaque cursor contains `(ActivatedAt, ChannelID, ChannelType)` only.
 - Hydrated payload bytes are cloned once into usecase-owned immutable data and

@@ -8,6 +8,7 @@ import (
 )
 
 // ClearUnread marks a conversation as read through the latest known message.
+// An absent membership or deleted Channel is already read and needs no write.
 func (a *App) ClearUnread(ctx context.Context, cmd ClearUnreadCommand) error {
 	if a == nil {
 		return ErrStoreRequired
@@ -18,8 +19,8 @@ func (a *App) ClearUnread(ctx context.Context, cmd ClearUnreadCommand) error {
 	if a.memberships == nil || a.hydrator == nil {
 		return ErrStoreRequired
 	}
-	row, head, err := a.membershipMutationHead(ctx, cmd.UID, cmd.ChannelID, cmd.ChannelType)
-	if err != nil {
+	row, head, found, err := a.membershipMutationHead(ctx, cmd.UID, cmd.ChannelID, cmd.ChannelType)
+	if err != nil || !found {
 		return err
 	}
 	if head.LastCommittedSeq <= row.ReadSeq {
@@ -29,6 +30,7 @@ func (a *App) ClearUnread(ctx context.Context, cmd ClearUnreadCommand) error {
 }
 
 // SetUnread marks enough messages as read so at most cmd.Unread messages remain unread.
+// An absent conversation has zero unread messages; this command never creates one.
 func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	if a == nil {
 		return ErrStoreRequired
@@ -42,8 +44,8 @@ func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	if a.memberships == nil || a.hydrator == nil {
 		return ErrStoreRequired
 	}
-	row, head, err := a.membershipMutationHead(ctx, cmd.UID, cmd.ChannelID, cmd.ChannelType)
-	if err != nil {
+	row, head, found, err := a.membershipMutationHead(ctx, cmd.UID, cmd.ChannelID, cmd.ChannelType)
+	if err != nil || !found {
 		return err
 	}
 	visibilityFloor := maxMembershipFloor(joinVisibilityFloor(row.JoinSeq), row.DeletedToSeq, head.RetentionThroughSeq)
@@ -68,9 +70,12 @@ func (a *App) DeleteConversation(ctx context.Context, cmd DeleteConversationComm
 	if a.memberships == nil || a.hydrator == nil {
 		return ErrStoreRequired
 	}
-	_, head, err := a.membershipMutationHead(ctx, cmd.UID, cmd.ChannelID, cmd.ChannelType)
+	_, head, found, err := a.membershipMutationHead(ctx, cmd.UID, cmd.ChannelID, cmd.ChannelType)
 	if err != nil {
 		return err
+	}
+	if !found {
+		return metadb.ErrNotFound
 	}
 	return a.memberships.HideUserChannelMembership(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), head.LastCommittedSeq, a.now().UnixNano())
 }
@@ -88,30 +93,32 @@ func (a *App) ActivateConversation(ctx context.Context, cmd ActivateConversation
 	return a.memberships.ActivateUserChannelMembership(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), now, now)
 }
 
-func (a *App) membershipMutationHead(ctx context.Context, uid, channelID string, channelType uint8) (metadb.UserChannelMembership, HydrationResult, error) {
+// membershipMutationHead distinguishes authoritative absence from failed reads.
+// Callers decide whether a missing conversation is an idempotent success.
+func (a *App) membershipMutationHead(ctx context.Context, uid, channelID string, channelType uint8) (metadb.UserChannelMembership, HydrationResult, bool, error) {
 	row, ok, err := a.memberships.GetUserChannelMembership(ctx, uid, channelID, int64(channelType))
 	if err != nil {
-		return metadb.UserChannelMembership{}, HydrationResult{}, err
+		return metadb.UserChannelMembership{}, HydrationResult{}, false, err
 	}
 	if !ok || row.Tombstone {
-		return metadb.UserChannelMembership{}, HydrationResult{}, metadb.ErrNotFound
+		return metadb.UserChannelMembership{}, HydrationResult{}, false, nil
 	}
 	heads, err := a.hydrator.HydrateConversationHeads(ctx, uid, []metadb.UserChannelMembership{row})
 	if err != nil {
-		return metadb.UserChannelMembership{}, HydrationResult{}, err
+		return metadb.UserChannelMembership{}, HydrationResult{}, false, err
 	}
 	if len(heads) != 1 {
-		return metadb.UserChannelMembership{}, HydrationResult{}, errors.New("conversation: misaligned mutation hydration")
+		return metadb.UserChannelMembership{}, HydrationResult{}, false, errors.New("conversation: misaligned mutation hydration")
 	}
 	switch heads[0].Outcome {
 	case HydrationOK, HydrationNoVisibleMessage:
-		return row, heads[0], nil
+		return row, heads[0], true, nil
 	case HydrationDelete:
-		return metadb.UserChannelMembership{}, HydrationResult{}, metadb.ErrNotFound
+		return metadb.UserChannelMembership{}, HydrationResult{}, false, nil
 	case HydrationRetryable:
-		return metadb.UserChannelMembership{}, HydrationResult{}, ErrRouteNotReady
+		return metadb.UserChannelMembership{}, HydrationResult{}, false, ErrRouteNotReady
 	default:
-		return metadb.UserChannelMembership{}, HydrationResult{}, errors.New("conversation: invalid mutation hydration outcome")
+		return metadb.UserChannelMembership{}, HydrationResult{}, false, errors.New("conversation: invalid mutation hydration outcome")
 	}
 }
 

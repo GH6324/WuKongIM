@@ -61,9 +61,11 @@ depending on their frames, JSON, or concrete cluster runtimes.
   `PageReader` interprets latest intent and the floor together. Command filtering
   remains after the bounded scan and never triggers refill reads. Plugin reads
   retain their separate authorization and response contracts.
-- Sync reads committed data only, never mutate membership, and treat a missing
-  Channel runtime as an empty page only where the compatibility contract says
-  so.
+- Sync reads committed data only and never mutate membership. A new person
+  conversation without membership returns an empty page without a Channel read;
+  missing group membership and tombstones still fail validation. Single and batch
+  reads map storage and routed Channel-not-found errors to empty pages after
+  membership validation; other read failures remain errors.
 - Stream-finish projection fails closed when authority movement loses required
   cache-only lanes; callers must replay deltas or provide a complete snapshot.
 
