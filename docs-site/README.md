@@ -6,7 +6,8 @@ WuKongIMSDK and WuKongEasySDK, and the public API and protocol references.
 
 ## Develop
 
-The site uses Bun `1.3.11`.
+The site uses Bun `1.3.11`. The complete verification gate also needs Go
+1.22+ for the dependency-free business Webhook example.
 
 ```bash
 bun install
@@ -26,6 +27,17 @@ npm run dev
 Its browser code talks to WuKongIM Gateway only. The loopback development BFF
 owns Product HTTP calls and must be replaced by an authenticated application
 backend in production.
+
+The Go before-send Webhook example is a separate standard-library-only module:
+
+```bash
+cd examples/go-webhook
+go run .
+```
+
+See its `README.md` for direct callback requests, server configuration, business
+rules, and Product HTTP send/history checks. `bun run sample:go-webhook:check`
+runs its fast unit tests from the documentation-site root and is part of `verify`.
 
 ## Content workflow
 
