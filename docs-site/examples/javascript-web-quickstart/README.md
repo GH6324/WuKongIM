@@ -61,6 +61,7 @@ src/client/   Browser UI, SDK wrapper, and reconnect flow
 src/server/   Local service and Product HTTP client
 public/       HTML and CSS
 test/         Fast unit tests
+e2e/          Real-browser messaging and reconnect assertions
 scripts/      Browser bundle build
 ```
 
@@ -75,6 +76,14 @@ npm run build
 output. The browser bundle removes SDK `console` calls because the published SDK
 can log decoded message data.
 
+## Browser tests
+
+The repository's Go E2E harness starts a single-node cluster with Token
+authentication enabled and runs the pinned Chromium tests through `npm run test:e2e`.
+The tests use BFF-issued credentials and cover online messaging and reconnect
+recovery. Run this scenario from the repository root following
+`test/e2e/message/javascript_web_quickstart/AGENTS.md`.
+
 ## Production work still required
 
 - Authenticate users in your own backend and issue short-lived credentials.
@@ -86,3 +95,5 @@ can log decoded message data.
   multi-device conflict handling separately.
 - Test reconnect, offline recovery, browser lifecycle, and rollback in every
   browser and deployment environment you support.
+
+On reconnect, live delivery may precede the history response. The browser test checks that history contains the offline message and that the UI displays it once across both paths.

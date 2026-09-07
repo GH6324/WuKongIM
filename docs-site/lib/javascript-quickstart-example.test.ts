@@ -29,22 +29,24 @@ describe('JavaScript Web quickstart example', () => {
       test: 'tsx --test test/*.test.ts',
       check: 'npm test && npm run build',
     });
-    expect(manifest.scripts).not.toHaveProperty('test:e2e');
+    expect(manifest.scripts['test:e2e']).toBe('npm run build && playwright test');
     expect(manifest.scripts).not.toHaveProperty('verify:acceptance');
-    expect(manifest.devDependencies).not.toHaveProperty('@playwright/test');
+    expect(manifest.devDependencies['@playwright/test']).toBe('1.62.1');
+    expect(lock.packages['node_modules/@playwright/test']?.version).toBe('1.62.1');
     expect(manifest.devDependencies).not.toHaveProperty('@axe-core/playwright');
     expect(lock.lockfileVersion).toBe(3);
     expect(lock.packages['node_modules/wukongimjssdk']?.version).toBe('1.3.5');
 
     for (const removed of [
-      'playwright.config.ts',
       'scripts/verify-acceptance.ts',
       'src/acceptance/report.ts',
       'test/acceptance-report.test.ts',
-      'e2e/quickstart.spec.ts',
     ]) {
       expect(await Bun.file(new URL(removed, sampleRoot)).exists()).toBe(false);
     }
+
+    expect(await Bun.file(new URL('playwright.config.ts', sampleRoot)).exists()).toBe(true);
+    expect(await Bun.file(new URL('e2e/quickstart.spec.ts', sampleRoot)).exists()).toBe(true);
 
     const readme = await sampleText('README.md');
     expect(readme).toContain('npm run dev');
