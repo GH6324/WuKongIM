@@ -737,4 +737,4 @@
 
 - After merging a task branch, verify its tip is reachable from the target, remove its clean worktree, and delete the original local branch; preserve uncommitted work and never force-delete unmerged work.
 
-- Documentation browser acceptance keeps Token authentication enabled: HTTP readiness precedes browser CONNECT with BFF-provisioned credentials. The quickstart owns its pinned Playwright runner and exercises online exchange and offline recovery before a clean-HEAD receipt is published.
+- Documentation browser acceptance keeps Token authentication enabled: HTTP readiness precedes browser CONNECT with BFF-provisioned credentials. The quickstart owns its pinned Playwright runner and exercises online exchange and offline recovery before a clean-HEAD receipt is published. Recovery asserts history content and one UI message across live/sync arrival orders.

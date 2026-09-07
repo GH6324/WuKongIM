@@ -95,3 +95,5 @@ recovery. Run this scenario from the repository root following
   multi-device conflict handling separately.
 - Test reconnect, offline recovery, browser lifecycle, and rollback in every
   browser and deployment environment you support.
+
+On reconnect, live delivery may precede the history response. The browser test checks that history contains the offline message and that the UI displays it once across both paths.

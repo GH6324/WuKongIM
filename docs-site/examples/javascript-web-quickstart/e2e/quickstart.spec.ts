@@ -76,10 +76,12 @@ test("Alice and Bob exchange durable messages and recover an offline message", a
   await expect(bob.getByTestId("connection-status")).toHaveAttribute("data-state", "connected");
   const sync = await syncResponse;
   expect(sync.status()).toBe(200);
-  const history = await sync.json();
-  expect(history.messages).toEqual(expect.arrayContaining([
-    expect.objectContaining({ fromUid: "alice", text: "alice-offline" }),
-  ]));
+  const history = await sync.json() as { messages: Array<{ fromUid: string; payload: string }> };
+  const offlineHistory = history.messages.filter((message) =>
+    message.fromUid === "alice" &&
+    JSON.parse(Buffer.from(message.payload, "base64").toString("utf8")).content === "alice-offline",
+  );
+  expect(offlineHistory).toHaveLength(1);
   await expect(bob.getByTestId("event-status").last()).toContainText("Sync complete");
   // Reconnect delivery may beat the history response; the session deduplicates both.
   const recovered = bob.locator('[data-testid="event-received"], [data-testid="event-synced"]')
