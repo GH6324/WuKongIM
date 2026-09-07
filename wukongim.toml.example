@@ -58,6 +58,13 @@ large_group_subscriber_threshold = 500
 
 [api]
 listen_addr = "127.0.0.1:5001"
+# Optional client-facing overrides. These loopback examples suit host-local
+# access or SSH forwarding. Omit them to derive addresses from Gateway listeners:
+# default external /route and /route/batch replace only wildcard listener hosts
+# with the request Host, retaining the Gateway port, scheme and path. Concrete
+# listener hosts, intranet routes and explicit node selectors stay unchanged.
+# Set overrides for remapped host ports, separate public domains, TLS proxies,
+# or a backend whose API request host is not reachable by its clients.
 external_tcp_addr = "127.0.0.1:5100"
 external_ws_addr = "ws://127.0.0.1:5200"
 

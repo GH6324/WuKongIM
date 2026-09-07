@@ -79,11 +79,15 @@ type Config struct {
 type APIConfig struct {
 	// ListenAddr is the HTTP API listen address. An empty value disables the API service.
 	ListenAddr string
-	// ExternalTCPAddr is the published WKProto TCP gateway address returned by bench capacity discovery.
+	// ExternalTCPAddr overrides the published WKProto TCP address for routing and capacity discovery.
+	// When empty, listeners supply the address; default external /route requests
+	// replace only a wildcard listener host with the HTTP request host.
 	ExternalTCPAddr string
-	// ExternalWSAddr is the published WebSocket gateway address returned by bench capacity discovery.
+	// ExternalWSAddr overrides the published WebSocket URL, including its public port and path.
+	// Empty uses the same listener/request-host rules as ExternalTCPAddr.
 	ExternalWSAddr string
-	// ExternalWSSAddr is the published secure WebSocket gateway address returned by bench capacity discovery.
+	// ExternalWSSAddr overrides the published secure WebSocket URL.
+	// Empty uses the same listener/request-host rules without inferring TLS from HTTP.
 	ExternalWSSAddr string
 }
 

@@ -117,6 +117,8 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 | `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | 向容量发现等调用方公布的 WebSocket URL 覆盖项；留空时从首个匹配的 `gateway.listeners` 推导，无匹配项则为空。它不会创建监听器，诊断制品会脱敏。 |
 | `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | 向容量发现等调用方公布的安全 WebSocket URL 覆盖项；留空时从首个匹配的 `gateway.listeners` 推导，无匹配项则为空。它不会创建监听器，诊断制品会脱敏。 |
 
+未设置对应 `api.external_*` 时，默认公网 `/route` 与 `/route/batch` 会用有效请求 `Host` 的主机名补全监听器中的通配主机名，并保留 Gateway 的端口、协议和路径。显式地址、具体监听地址（包括回环地址）、内网查询和指定节点路由不变；容量发现仍返回监听器推导地址。自动补全响应使用 `Cache-Control: no-store`。该规则不读取代理转发头，也不推测 NAT 端口或 TLS 入口；反向代理应保留原始 `Host`。外部端口映射、独立入口以及业务后端通过内网调用 `/route` 时，应显式公布客户端可达的地址。
+
 ## Manager
 
 | TOML | 环境变量 | 类型 | 说明 |

@@ -52,6 +52,8 @@ sudo wukongim config validate --config /etc/wukongim/wukongim.toml
 
 Services bind to loopback by default. Configure the firewall, TLS, and ingress policy before exposing them.
 
+Initialization binds WebSocket to `127.0.0.1:5200`, which `/route` preserves as a concrete listener address. Forward `5001`, `5200`, and `5301` as shown in [Quick Start](/en/guide/quick-start/single-node-cluster) to use the Demo without `api.external_ws_addr`. If the listener is changed to a wildcard, default external routing can complete its host from the request. Remapped external ports, separate domains, and TLS proxies still require explicit published addresses; see the [Docker address rules](/en/server/deployment/docker).
+
 ## 3. Start and verify
 
 ```bash

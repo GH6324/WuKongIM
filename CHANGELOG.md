@@ -19,6 +19,7 @@ the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 
 ### 🐛 Bug Fixes / 问题修复
 
+- 未配置客户端对外地址时，默认公网 `/route` 和 `/route/batch` 会用请求主机名补全 Gateway 的通配监听地址，修复标准 Docker 部署中 Demo 连接 `ws://0.0.0.0:5200` 失败的问题；显式地址、Linux 回环监听、内网查询和指定节点路由保持原有行为。
 - `/message/send` 现在会在 `from_uid` 与兼容别名 `sender_uid` 均为空时使用系统账号，并支持通过 `message.system_uid` / `WK_MESSAGE_SYSTEM_UID` 配置该账号（默认 `____system`），恢复 Demo 命令消息的旧版兼容行为。
 
 ### 🔧 Improvements / 改进

@@ -61,8 +61,8 @@
       "get": {
         "operationId": "getQuickstartGatewayRoute",
         "summary": "Resolve Gateway addresses",
-        "description": "Returns the configured public or intranet addresses; node aliases are checked in node_id, nodeId, nodeID order.",
-        "x-i18n": { "zh": { "summary": "解析 Gateway 地址", "description": "返回已配置的公网或内网地址；节点别名按 node_id、nodeId、nodeID 顺序读取。" } },
+        "description": "Default external routes complete wildcard listener hosts from Host; explicit addresses win. See [address rules](/en/server/configuration/reference).",
+        "x-i18n": { "zh": { "summary": "解析 Gateway 地址", "description": "默认公网路由按请求 Host 补全通配监听主机名，显式地址优先；详见[地址规则](/zh/server/configuration/reference)。" } },
         "tags": ["Routing"],
         "security": [],
         "x-wukongim-trust": "trusted-backend-only",
@@ -83,8 +83,8 @@
       "post": {
         "operationId": "getGatewayRoutesBatch",
         "summary": "Resolve one address group for UIDs",
-        "description": "Echoes an unbounded UID array inside the selected address group; retained for compatibility.",
-        "x-i18n": { "zh": { "summary": "批量解析 UID 地址组", "description": "在所选地址组中回显无上限 UID 数组；该接口仅为兼容保留。" } },
+        "description": "Echoes an unbounded UID array in one address group; retained for compatibility. Address completion follows GET /route.",
+        "x-i18n": { "zh": { "summary": "批量解析 UID 地址组", "description": "在一个地址组中回显无上限 UID 数组，仅为兼容保留；地址补全规则与 GET /route 相同。" } },
         "tags": ["Routing"],
         "deprecated": true,
         "security": [],

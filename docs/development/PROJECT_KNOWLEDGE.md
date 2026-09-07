@@ -508,6 +508,14 @@
   online-only. Group telemetry requires an existing Channel and sender
   membership; neither protocol ACKs nor sync cursors prove that a device
   executed the business operation.
+- Default external `/route` and `/route/batch` may replace only listener-derived
+  wildcard hosts with the current HTTP request Host. Each explicit
+  `api.external_*` override wins independently; concrete listeners, intranet
+  requests and node selectors retain their addresses. Completion preserves
+  Gateway ports, schemes and paths, ignores proxy headers, and returns
+  `Cache-Control: no-store` without mutating shared route state. Docker port
+  remapping, separate TLS ingress and backend-only API hosts require reachable
+  client-facing overrides; Linux loopback plus SSH forwarding needs no override.
 - Public deployment guidance treats the root Compose stack as development-only.
   The public Docker quick path uses a direct `docker run` command with a
   read-only `wukongim.toml` bind mount and a named data volume; it does not

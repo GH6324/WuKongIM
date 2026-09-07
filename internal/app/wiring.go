@@ -866,11 +866,16 @@ func (a *App) wireAPI() {
 			Conversations:            a.conversations,
 			ConversationListObserver: a.conversationListObserver(),
 			LegacyRouteExternal:      legacyRouteExternal,
-			LegacyRouteIntranet:      legacyRouteIntranet,
-			LegacyRouteNodes:         legacyRouteNodes,
-			MetricsHandler:           a.metricsHandler(),
-			DebugAPIEnabled:          a.cfg.Observability.DebugAPIEnabled,
-			DebugConfig:              a.debugConfigSnapshot,
+			LegacyRouteHostFallback: accessapi.LegacyRouteHostFallback{
+				TCP: strings.TrimSpace(a.cfg.API.ExternalTCPAddr) == "",
+				WS:  strings.TrimSpace(a.cfg.API.ExternalWSAddr) == "",
+				WSS: strings.TrimSpace(a.cfg.API.ExternalWSSAddr) == "",
+			},
+			LegacyRouteIntranet: legacyRouteIntranet,
+			LegacyRouteNodes:    legacyRouteNodes,
+			MetricsHandler:      a.metricsHandler(),
+			DebugAPIEnabled:     a.cfg.Observability.DebugAPIEnabled,
+			DebugConfig:         a.debugConfigSnapshot,
 			DebugCluster: func(ctx context.Context) (any, error) {
 				return a.debugClusterSnapshot(ctx)
 			},

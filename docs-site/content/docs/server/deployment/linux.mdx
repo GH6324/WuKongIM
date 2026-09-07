@@ -52,6 +52,8 @@ sudo wukongim config validate --config /etc/wukongim/wukongim.toml
 
 默认只监听回环地址。对外开放服务前，请先配置防火墙、TLS 和入口策略。
 
+初始化的 WebSocket 监听地址为 `127.0.0.1:5200`，`/route` 会保留该具体地址。按[快速开始](/zh/guide/quick-start/single-node-cluster)转发 `5001`、`5200` 和 `5301` 后即可从自己电脑体验 Demo，无需配置 `api.external_ws_addr`。如果改为通配监听，默认公网路由可按请求主机名补全；非默认外部端口、独立域名及 TLS 代理仍需显式对外地址，见 [Docker 部署中的地址规则](/zh/server/deployment/docker)。
+
 ## 3. 启动并验证
 
 ```bash

@@ -18,8 +18,9 @@ _openapi:
       - content: Resolve Gateway addresses
         id: resolve-gateway-addresses
     contents:
-      - content: Returns the configured public or intranet addresses; node aliases are
-          checked in node_id, nodeId, nodeID order.
+      - content: Default external routes complete wildcard listener hosts from Host;
+          explicit addresses win. See [address
+          rules](/en/server/configuration/reference).
         heading: resolve-gateway-addresses
       - content: >-
           GET /route
@@ -28,8 +29,9 @@ _openapi:
 
           Resolve Gateway addresses
 
-          Returns the configured public or intranet addresses; node aliases are
-          checked in node_id, nodeId, nodeID order.
+          Default external routes complete wildcard listener hosts from Host;
+          explicit addresses win. See [address
+          rules](/en/server/configuration/reference).
 
           node_id query optional `integer:uint64` 1–∞ Preferred node selector;
           when supplied it must identify a configured node with an ID greater

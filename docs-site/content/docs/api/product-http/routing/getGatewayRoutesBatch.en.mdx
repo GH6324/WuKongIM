@@ -22,8 +22,8 @@ _openapi:
       - content: Resolve one address group for UIDs
         id: resolve-one-address-group-for-uids
     contents:
-      - content: Echoes an unbounded UID array inside the selected address group;
-          retained for compatibility.
+      - content: Echoes an unbounded UID array in one address group; retained for
+          compatibility. Address completion follows GET /route.
         heading: resolve-one-address-group-for-uids
       - content: >-
           POST /route/batch
@@ -32,8 +32,8 @@ _openapi:
 
           Resolve one address group for UIDs
 
-          Echoes an unbounded UID array inside the selected address group;
-          retained for compatibility.
+          Echoes an unbounded UID array in one address group; retained for
+          compatibility. Address completion follows GET /route.
 
           node_id query optional `integer:uint64` 1–∞ Preferred node selector;
           when supplied it must identify a configured node with an ID greater

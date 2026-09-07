@@ -9,7 +9,7 @@ Chat Demo 是随 `wukongim` 软件包提供的浏览器应用。Linux 服务启�
 
 | 环境 | Chat Demo 地址 | API 基地址 |
 | --- | --- | --- |
-| Linux 单节点集群 | `http://127.0.0.1:5001/demo/` | 页面同源 |
+| Linux / Docker 单节点集群 | `http://127.0.0.1:5001/demo/` | 页面同源 |
 | 仓库三节点 Compose | `http://127.0.0.1:15001/demo/` | 页面同源 |
 
 需要连接另一个 API 地址时，可以使用：
@@ -19,6 +19,14 @@ http://127.0.0.1:5001/demo/?apiurl=http://host:port
 ```
 
 Demo 先调用 `/route` 获取客户端 WebSocket 地址，再使用 JavaScript SDK 建立长连接。
+
+## 排查连接地址
+
+在浏览器开发者工具的 Network 中检查 `/route` 响应。默认 Docker 端口映射下，未填写 `api.external_ws_addr` 时，`ws_addr` 应使用本次 API 请求的主机名及 Gateway 端口 `5200`。Linux 初始化默认监听 `127.0.0.1:5200`，通过 SSH 同时转发 `5001` 和 `5200` 即可体验，无需填写对外地址。
+
+如果响应仍包含 `ws://0.0.0.0:5200`，确认使用包含自动补全修复的版本，并检查是否显式配置了通配对外地址。旧版本可在已有 `[api]` 中设置 `external_ws_addr = "ws://127.0.0.1:5200"` 后重启；直接远程访问时使用客户端可达的服务器地址和外部端口。环境变量 `WK_EXTERNAL_WSADDR` 优先于 TOML。
+
+页面可打开但 WebSocket 连接失败时，检查 Docker 映射或 SSH 转发是否包含 `5200`。非默认映射端口、独立域名或 HTTPS/WSS 代理需要显式对外地址及实际可用的 TLS/WebSocket 入口，详见 [Docker 部署](/zh/server/deployment/docker)。
 
 ## 登录字段
 

@@ -56,6 +56,10 @@ bench or debug request
   a production authentication claim.
 - `/route`, legacy channel/user/message/CMD/conversation routes, and their
   response envelopes remain compatibility surfaces independent of bench mode.
+- Default external `/route` and `/route/batch` complete listener-derived wildcard
+  hosts from the request Host and disable caching for the completed response.
+  Explicit published addresses, concrete listener hosts, intranet requests and
+  node selectors stay unchanged; proxy headers never infer hosts, ports or TLS.
 - `/message/send` resolves its sender as `from_uid`, then the legacy
   `sender_uid` alias, then the configured system UID when both are empty.
 - Person-channel IDs are normalized only at the entry boundary; durable

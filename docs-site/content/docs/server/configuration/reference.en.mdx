@@ -117,6 +117,8 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 | `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | WebSocket URL override published to capacity discovery and similar callers; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener and is redacted from diagnostic artifacts. |
 | `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | Secure WebSocket URL override published to capacity discovery and similar callers; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener and is redacted from diagnostic artifacts. |
 
+When the corresponding `api.external_*` is omitted, default external `/route` and `/route/batch` complete only wildcard listener hosts from a valid request Host, preserving the Gateway port, scheme, and path. Explicit addresses, concrete listener hosts (including loopback), intranet queries, and explicit node selectors stay unchanged; capacity discovery still returns listener-derived addresses. Completed responses use `Cache-Control: no-store`. Completion ignores forwarded headers and cannot infer NAT ports or TLS ingress; reverse proxies should preserve the original Host. Configure client-reachable overrides for remapped external ports, separate ingress, or a backend calling `/route` through an internal host.
+
 ## Manager
 
 | TOML | Environment | Type | Description |

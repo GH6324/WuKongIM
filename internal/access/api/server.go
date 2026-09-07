@@ -85,6 +85,17 @@ type LegacyRouteAddresses struct {
 	WSSAddr string
 }
 
+// LegacyRouteHostFallback permits request-host substitution only for listener-derived
+// default external addresses. Explicit published addresses must leave their flag false.
+type LegacyRouteHostFallback struct {
+	// TCP permits replacing an unspecified TCP listener host.
+	TCP bool
+	// WS permits replacing an unspecified WebSocket listener host.
+	WS bool
+	// WSS permits replacing an unspecified secure WebSocket listener host.
+	WSS bool
+}
+
 // LegacyRouteNodeAddresses stores public and intranet route addresses for one cluster node.
 type LegacyRouteNodeAddresses struct {
 	// External is returned by legacy route APIs unless the request asks for intranet addresses.
@@ -248,6 +259,9 @@ type Options struct {
 	ConversationListObserver ConversationListObserver
 	// LegacyRouteExternal is the default public gateway address set returned by /route APIs.
 	LegacyRouteExternal LegacyRouteAddresses
+	// LegacyRouteHostFallback selects default external addresses eligible for request-host completion.
+	// It never applies to intranet requests or explicit node selectors.
+	LegacyRouteHostFallback LegacyRouteHostFallback
 	// LegacyRouteIntranet is the default intranet gateway address set returned by /route APIs.
 	LegacyRouteIntranet LegacyRouteAddresses
 	// LegacyRouteNodes maps node_id query parameters to node-specific legacy route addresses.
@@ -296,6 +310,7 @@ type Server struct {
 	conversations        ConversationUsecase
 	conversationObserver ConversationListObserver
 	legacyRouteExternal  LegacyRouteAddresses
+	legacyRouteFallback  LegacyRouteHostFallback
 	legacyRouteIntranet  LegacyRouteAddresses
 	legacyRouteNodes     map[uint64]LegacyRouteNodeAddresses
 	metricsHandler       http.Handler
@@ -344,6 +359,7 @@ func New(opts Options) *Server {
 		conversations:        opts.Conversations,
 		conversationObserver: opts.ConversationListObserver,
 		legacyRouteExternal:  opts.LegacyRouteExternal,
+		legacyRouteFallback:  opts.LegacyRouteHostFallback,
 		legacyRouteIntranet:  opts.LegacyRouteIntranet,
 		legacyRouteNodes:     cloneLegacyRouteNodes(opts.LegacyRouteNodes),
 		metricsHandler:       opts.MetricsHandler,

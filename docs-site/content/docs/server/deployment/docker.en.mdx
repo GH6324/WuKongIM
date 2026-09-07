@@ -42,7 +42,15 @@ users = [{ username = "admin", password = "replace-with-a-strong-password", perm
 dir = "/var/lib/wukongim/logs"
 ```
 
-This file explicitly keeps the important `gateway.token_auth_on=true` setting: a client CONNECT token must exactly match the token stored through `/user/token` for the same UID and device category, or Gateway returns `ReasonAuthFail`. Do not disable it in production merely to simplify integration; see [Security & Access](/en/server/configuration/security) for the full boundary. The remaining fields cover only container startup, the API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` Gateway listeners, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. For remote clients, add `api.external_tcp_addr` and `api.external_ws_addr` with reachable addresses. See the [Configuration Reference](/en/server/configuration/reference) for every field and its default.
+This file explicitly keeps the important `gateway.token_auth_on=true` setting: a client CONNECT token must exactly match the token stored through `/user/token` for the same UID and device category, or Gateway returns `ReasonAuthFail`. Do not disable it in production merely to simplify integration; see [Security & Access](/en/server/configuration/security) for the full boundary. The remaining fields cover only container startup, the API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` Gateway listeners, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. When accessing the Demo through matching host ports, `api.external_tcp_addr` and `api.external_ws_addr` can be omitted; see the address rules below. See the [Configuration Reference](/en/server/configuration/reference) for every field and its default.
+
+### Automatic client address completion
+
+When `api.external_*` is omitted, default external `/route` and `/route/batch` replace a listener host of `0.0.0.0`, `[::]`, or an empty host with the hostname from the current request Host, preserving the Gateway port, scheme, and path. Opening `http://127.0.0.1:5001/demo/` therefore yields `ws://127.0.0.1:5200`; accessing the API directly through a server IP or domain yields that host with port `5200`.
+
+This applies only to the default external route. Explicit published addresses, concrete listener hosts (including Linux initialization's `127.0.0.1`), intranet requests, and explicit node selectors stay unchanged. Proxies must preserve the original Host; the server does not use `X-Forwarded-Host` or infer WSS from the HTTP scheme.
+
+For a mapping such as `15200:5200`, a separate WebSocket domain or TLS proxy, or a backend calling `/route` through an internal host unreachable by clients, set a browser-reachable `api.external_ws_addr` or `api.external_wss_addr`. Use `api.external_tcp_addr` for a non-default TCP ingress. Completion does not open ports or create TLS listeners.
 
 ### Set the configuration file permissions on Linux hosts
 
@@ -103,13 +111,14 @@ docker exec wukongim wget -q --spider -T 5 http://127.0.0.1:5001/readyz
 Open [http://127.0.0.1:5301](http://127.0.0.1:5301), sign in as `admin` with the password from the configuration file, and follow [Quick Start](/en/guide/quick-start) to complete one send-and-receive cycle.
 
 <details>
-<summary>How do I open Manager from my computer after deploying on a server?</summary>
+<summary>How do I open Manager and the Demo from my computer after deploying on a server?</summary>
 
-Manager and the Product API are mapped only to the server loopback address. Create an SSH tunnel, then open the same Manager URL on your computer:
+Manager and the Product API are mapped only to the server loopback address. Create an SSH tunnel including the Demo WebSocket port, then open the same Manager URL or the [Chat Demo](http://127.0.0.1:5001/demo/) on your computer:
 
 ```bash
 ssh -N \
   -L 5001:127.0.0.1:5001 \
+  -L 5200:127.0.0.1:5200 \
   -L 5301:127.0.0.1:5301 \
   user@server
 ```
