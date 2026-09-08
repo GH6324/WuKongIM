@@ -205,9 +205,9 @@ gh workflow run easysdk-release-acceptance.yml --ref main
 
 ## Rust 源码示例（2026-09-08）
 
-Rust 仓库为 [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust)，源码包版本 `0.1.0`，尚未发布到 crates.io。按 [Rust 快速接入](/zh/sdk/easy/rust/getting-started) 使用固定 revision `6c04759cab58e6d808b921069ac8c0fd0ad21a77`，运行 `cargo run --locked --example chat` 或 `cargo run --locked --example roundtrip`；两组 Rust 身份的 `device_flag` 均为 PC `2`。
+Rust 仓库为 [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust)，已发布 [crates.io 正式包 `0.1.0`](https://crates.io/crates/wukong-easy-sdk/0.1.0)。应用使用 `wukong-easy-sdk = "=0.1.0"` 安装；以下保留仓库源码示例。按 [Rust 快速接入](/zh/sdk/easy/rust/getting-started) 使用固定 revision `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`，运行 `cargo run --locked --example chat` 或 `cargo run --locked --example roundtrip`；两组 Rust 身份的 `device_flag` 均为 PC `2`。
 
-验证源码 `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` 已在 Linux CI 连接修复 WebSocket 缓冲区问题的 WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`，完成 Rust/Rust、Rust/`easyjssdk@2.0.4` 120 秒 WSS Unicode 回显、三次断网恢复、错误 Token 拒绝与清理。JS 对端使用 WEB `1`，集群为 256 Hash Slot 单节点集群。安装版本随后仅收紧发布包范围和回执版本绑定；详见 [Rust 验证记录](/zh/sdk/easy/rust/getting-started#验证记录)。这些源码结果独立于上方四端正式包凭据，不代表容量或多日稳定性。
+验证源码 `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b` 已在 Linux CI 连接修复 WebSocket 缓冲区问题的 WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`，完成 Rust/Rust、Rust/`easyjssdk@2.0.4` 120 秒 WSS Unicode 回显、三次断网恢复、错误 Token 拒绝与清理。JS 对端使用 WEB `1`，集群为 256 Hash Slot 单节点集群。正式包已另行通过空缓存下载、校验和比对及文档示例编译；详见 [Rust 验证记录](/zh/sdk/easy/rust/getting-started#验证记录)。这些源码结果独立于上方四端正式包凭据，不代表容量或多日稳定性。
 
 ## C++ vcpkg 与源码示例
 

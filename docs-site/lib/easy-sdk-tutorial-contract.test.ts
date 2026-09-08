@@ -424,12 +424,12 @@ describe('EasySDK tutorial content contract', () => {
 });
 
 
-describe('Rust EasySDK source distribution', () => {
-  test('pins bilingual source installs and makes resource/lifecycle boundaries explicit', async () => {
+describe('Rust EasySDK crates.io distribution', () => {
+  test('pins bilingual registry installs and preserves source evidence and lifecycle boundaries', async () => {
     const revisions: string[] = [];
     for (const suffix of ['', '.en']) {
       const page = await content(`rust/getting-started${suffix}.mdx`);
-      const revision = page.match(/rev = "([a-f0-9]{40})"/u)?.[1];
+      const revision = page.match(/git checkout ([a-f0-9]{40})/u)?.[1];
       expect(revision).toBeDefined();
       revisions.push(revision!);
       expect(page).toContain('https://github.com/WuKongIM/WuKongEasySDK-Rust');
@@ -444,7 +444,12 @@ describe('Rust EasySDK source distribution', () => {
       expect(page).toContain('listener.abort()');
       expect(page).toContain('cargo run --locked --example roundtrip');
       expect(page).toContain('132e46209d98fa0425cc0f88e7a97080cdad044d');
-      expect(page).not.toMatch(/wukong-easy-sdk\s*=\s*"[~^=0-9]/u);
+      expect(page).toContain('wukong-easy-sdk = "=0.1.0"');
+      expect(page).toContain('https://crates.io/crates/wukong-easy-sdk/0.1.0');
+      expect(page).toContain('5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b');
+      expect(page).toContain('34190886664');
+      expect(page).toContain('0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719');
+      expect(page).not.toMatch(/尚未发布到 crates\.io|has not been published to crates\.io/u);
     }
     expect(revisions[0]).toBe(revisions[1]);
   });
