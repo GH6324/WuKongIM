@@ -205,9 +205,9 @@ Continue with the [iOS](/en/sdk/easy/ios/getting-started), [Android](/en/sdk/eas
 
 ## Rust source example (2026-09-08)
 
-The Rust repository is [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust), source package version `0.1.0`, not yet published to crates.io. Follow the [Rust quickstart](/en/sdk/easy/rust/getting-started), pin revision `6c04759cab58e6d808b921069ac8c0fd0ad21a77`, and run `cargo run --locked --example chat` or `cargo run --locked --example roundtrip`. Both Rust identities use PC `2` for `device_flag`.
+The Rust repository is [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust), with [version `0.1.0` published on crates.io](https://crates.io/crates/wukong-easy-sdk/0.1.0). Applications install `wukong-easy-sdk = "=0.1.0"`; the repository source examples remain available below. Follow the [Rust quickstart](/en/sdk/easy/rust/getting-started), pin revision `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`, and run `cargo run --locked --example chat` or `cargo run --locked --example roundtrip`. Both Rust identities use PC `2` for `device_flag`.
 
-Verified source `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` passed Linux CI against WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, which fixes WebSocket buffer ownership: Rust/Rust checks, 120 seconds of Rust/`easyjssdk@2.0.4` WSS Unicode echoes, three transport interruptions, invalid-Token rejection and cleanup. JS uses WEB `1`; the server is a 256 Hash Slot single-node cluster. The installation pin subsequently tightens crate inclusion and receipt revision binding; see the [Rust verification record](/en/sdk/easy/rust/getting-started#verification-record). These source results are separate from the four registry receipts above and do not establish capacity or multi-day stability.
+Verified source `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b` passed Linux CI against WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, which fixes WebSocket buffer ownership: Rust/Rust checks, 120 seconds of Rust/`easyjssdk@2.0.4` WSS Unicode echoes, three transport interruptions, invalid-Token rejection and cleanup. JS uses WEB `1`; the server is a 256 Hash Slot single-node cluster. The public package separately passed empty-cache download, archive checksum comparison and tutorial compilation; see the [Rust verification record](/en/sdk/easy/rust/getting-started#verification-record). These source results are separate from the four registry receipts above and do not establish capacity or multi-day stability.
 
 ## C++ prebuilt, vcpkg and source examples
 
@@ -229,3 +229,21 @@ ctest --test-dir build -C Release --output-on-failure
 After both connect, send in both directions, observe `SEND completed` and peer `Message`, then enter `/quit`. The default device category is Desktop `2` and must match the backend Token record. The default development listener uses `/`. For dependencies, Windows, private CAs, and thread ownership, see [C++ quickstart](/en/sdk/easy/cpp/getting-started).
 
 The 2026-09-08 source acceptance used WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, Token authentication and 256 hash slots for C++/C++, C++/JS messaging, reconnect, invalid-token rejection, and presence cleanup. For environment and WS/WSS evidence, see [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md).
+
+## Python: run the pinned source example
+
+The Python tutorial pins [WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) project `0.1.0` at `c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a`, using Python 3.11+ and asyncio. There is no PyPI release yet. Follow the [Python quickstart](/en/sdk/easy/python/getting-started) to install source, then set each user's `WKIM_UID`, `WKIM_TOKEN`, `WKIM_PEER`, and `WKIM_URL` in two terminals and run:
+
+```sh
+python examples/chat.py
+```
+
+Python defaults to PC/Desktop `2`. Once both display `Connected`, send in both directions and enter `/quit` to exit. The source run used WuKongIM `0348c0539bbee420a859439695acdac911afa854`, independently of the historical four-platform server revisions above. A Token-authenticated 256-hash-slot single-node cluster passed Python/Python and actual JS `2.0.4` bidirectional messaging, heartbeat, reconnect, invalid-Token rejection, and online cleanup. Reproduce the separate process-level acceptance with:
+
+```sh
+uv sync --locked
+uv run python tests/product.py --server /absolute/path/to/wukongim \
+  --js-entry /absolute/path/to/WuKongEasySDK-JS/dist/cjs/index.js
+```
+
+The script starts a temporary local cluster, provisions test identities and checks online cleanup through public endpoints, then stops its own processes. Independent protocol tests cover WSS, automatic reconnect, and queue bounds. See the [Python validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a/docs/VALIDATION.md) for the full scope.

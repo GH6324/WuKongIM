@@ -7,13 +7,13 @@ WuKongEasySDK-Rust 适合原生 Rust 程序、桌面应用和已有业务后端�
 
 当前 Product Gateway 支持这条在线双向收发路径。SDK 不提供本地消息库、会话/未读、离线恢复或推送；需要这些能力时先阅读 [SDK 选择](/zh/sdk)。
 
-## 1. 安装固定源码版本
+## 1. 安装正式版本
 
-官方仓库：[WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust)。当前源码包版本为 `0.1.0`，需要 Rust **1.86+** 和 Tokio。此版本通过 Git 分发，尚未发布到 crates.io；使用以下精确 revision，不要使用浮动分支代替版本：
+官方仓库：[WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust)。已发布 [crates.io `0.1.0`](https://crates.io/crates/wukong-easy-sdk/0.1.0)，需要 Rust **1.86+** 和 Tokio。使用以下精确版本：
 
 ```toml
 [dependencies]
-wukong-easy-sdk = { git = "https://github.com/WuKongIM/WuKongEasySDK-Rust.git", rev = "6c04759cab58e6d808b921069ac8c0fd0ad21a77" }
+wukong-easy-sdk = "=0.1.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde_json = "1"
 ```
@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Rust.git
 cd WuKongEasySDK-Rust
-git checkout 6c04759cab58e6d808b921069ac8c0fd0ad21a77
+git checkout 5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b
 cargo test --locked
 ```
 
@@ -117,7 +117,7 @@ WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
   cargo run --locked --example roundtrip
 ```
 
-该 example 创建两个 Rust 客户端，核对 Unicode Payload 与发送结果，跨多个心跳周期检查连接，并手动重连后重复收发。JS 互通步骤见仓库 [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/6c04759cab58e6d808b921069ac8c0fd0ad21a77/README.md#development-and-live-verification)。
+该 example 创建两个 Rust 客户端，核对 Unicode Payload 与发送结果，跨多个心跳周期检查连接，并手动重连后重复收发。JS 互通步骤见仓库 [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b/README.md#development-and-live-verification)。
 
 ## 5. 管理生命周期与资源
 
@@ -163,10 +163,12 @@ let options = wukong_easy_sdk::Options {
 
 ## 验证记录
 
-2026-09-08，Rust 源码 `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` 通过 [跨平台 CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34188674153)：27 项协议、生命周期和 TLS 测试，以及 Clippy、API 文档和打包校验。覆盖 Linux Rust 1.86/stable、macOS 和 Windows stable。
+2026-09-08，crates.io `wukong-easy-sdk 0.1.0` 发布自源码 `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`。独立空缓存消费者从公共 registry 下载正式包，编译通过本页中英文的连接收发和私有 CA 示例。下载包 SHA-256 为 `0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719`，与 [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/tag/v0.1.0) 附件一致。
 
-[真实服务端 CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34188674151) 使用 WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5` 的 256 Hash Slot 单节点集群，开启 Token 校验并拒绝错误 Token。Rust/Rust 验证通过后，与 npm `easyjssdk@2.0.4` 完成 120 秒 WSS 收发、1,608 次 Unicode 回显、三次断网恢复及清理，未观察到重复或事件丢失。五项 TLS 测试另行验证可信 CA、不可信 CA、错误域名、过期证书和无效配置。
+同一源码通过 [跨平台 CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886754)：27 项协议、生命周期和 TLS 测试，以及 Clippy、API 文档和打包校验。覆盖 Linux Rust 1.86/stable、macOS 和 Windows stable。
 
-本页安装固定的 `6c04759cab58e6d808b921069ac8c0fd0ad21a77` 在上述源码上收紧了发布包文件范围与验收回执的版本绑定；Rust API 保持一致，文档代码已从该 Git 版本编译验证。旧服务端 `132e46209d98fa0425cc0f88e7a97080cdad044d` 仅通过早期短程验证，未通过持续收发，不应继承修复后服务端的验收结论。
+[真实服务端 CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886664) 使用 WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5` 的 256 Hash Slot 单节点集群，开启 Token 校验并拒绝错误 Token。Rust/Rust 验证通过后，与 npm `easyjssdk@2.0.4` 完成 120 秒 WSS 收发、3,012 次 Unicode 回显、三次断网恢复及清理，未观察到重复或事件丢失。五项 TLS 测试另行验证可信 CA、不可信 CA、错误域名、过期证书和无效配置。
 
-这是精确源码验证，不是 crates.io 发布包验收，也不代表物理设备、离线恢复、容量或多日稳定性。返回 [WuKongEasySDK](/zh/sdk/easy) 查看其他平台。
+另有源码 `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` 的 600 秒 macOS 验收记录：13,758 次回显及三次恢复。该历史记录与正式包安装验证分别保留。旧服务端 `132e46209d98fa0425cc0f88e7a97080cdad044d` 仅通过早期短程验证，未通过持续收发，不应继承修复后服务端的验收结论。
+
+公共 registry 安装验证与精确源码在线验收各自证明对应范围，不代表物理设备、离线恢复、容量或多日稳定性。返回 [WuKongEasySDK](/zh/sdk/easy) 查看其他平台。

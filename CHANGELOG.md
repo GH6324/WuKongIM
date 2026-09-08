@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Publish Rust EasySDK 0.1.0 installation instructions for crates.io, with bilingual examples and separately identified package and WSS recovery verification. / 更新 Rust EasySDK 0.1.0 的 crates.io 正式包安装文档，提供双语示例并分别记录包校验与 WSS 恢复验收。
+
 - Increase the initial logical Slot count in `wukongim init` and shipped single-node/three-node cluster configurations from 10 to 12. Hash slots remain 256; existing clusters retain their persisted Slot count. / `wukongim init` 及随仓库提供的单节点、三节点集群配置将初始逻辑 Slot 数从 10 调整为 12；Hash Slot 保持 256，已有集群继续使用持久化的 Slot 数。
 
 - Improve Manager node-log troubleshooting with explicit keyword search, a navigable details drawer and copy feedback, reliable retry, and live scrolling that preserves the reading position. / 优化管理台节点日志排查：关键字提交查询、可切换事件的详情抽屉与复制反馈、可靠重试，以及保护阅读位置的实时跟随。
@@ -36,6 +38,10 @@ move those entries into a version section named for that exact tag.
 ### 📚 Documentation / 文档
 
 - Document C++ SDK 0.1.0 prebuilt archives for Windows x64, macOS arm64 and Linux x64, including offline CMake integration, compatibility, checksums and upgrades. / 补充 C++ SDK 0.1.0 三平台预编译包的离线 CMake 接入、兼容要求、校验和升级说明。
+
+- Add C#/JavaScript EasySDK interoperability evidence for public NuGet and candidate source, including pinned dependencies, recovery scenarios, and Node/ws transport scope. / 补充 C#/JavaScript EasySDK 正式包与源码互通验证记录，明确固定依赖、故障恢复场景和 Node/ws 传输范围。
+
+- Add bilingual WuKongEasySDK-Python quickstarts, source installation, asyncio lifecycle guidance, and Python/JavaScript interoperability evidence. / 新增 WuKongEasySDK-Python 中英文接入教程、源码安装、asyncio 生命周期说明与 Python/JavaScript 互通验证记录。
 
 - Document the C++ EasySDK vcpkg Git registry with automatic dependency installation and a minimal CMake consumer. / 新增 C++ EasySDK vcpkg Git registry 接入文档，支持自动安装依赖和最小 CMake 消费端示例。
 

@@ -392,8 +392,8 @@ function publishedEasySDKGroup(): NavigationGroup {
     'easy',
     'WuKongEasySDK',
     'WuKongEasySDK',
-    '选择 iOS、Android、Flutter、Web、C#、C++ 或 Rust 快速接入，使用已验证的正式包或固定源码完成在线双向消息。',
-    'Choose an iOS, Android, Flutter, Web, C#, C++, or Rust quickstart with verified released packages or pinned source for online bidirectional messaging.',
+    '选择 iOS、Android、Flutter、Web、C#、C++、Rust 或 Python 快速接入，使用已验证的正式包或固定源码完成在线双向消息。',
+    'Choose an iOS, Android, Flutter, Web, C#, C++, Rust, or Python quickstart with verified released packages or pinned source for online bidirectional messaging.',
     [
       publishedPage(
         'examples',
@@ -434,8 +434,8 @@ function publishedEasySDKGroup(): NavigationGroup {
         'rust/getting-started',
         'Rust 快速接入',
         'Rust quickstart',
-        '固定 WuKongEasySDK-Rust 源码，使用 Tokio 完成在线消息、有限重连和清理。',
-        'Pin WuKongEasySDK-Rust source for Tokio online messaging, bounded reconnect, and cleanup.',
+        '安装 WuKongEasySDK-Rust 0.1.0 正式包，使用 Tokio 完成在线消息、有限重连和清理。',
+        'Install WuKongEasySDK-Rust 0.1.0 for Tokio online messaging, bounded reconnect, and cleanup.',
       ),
       publishedPage(
         'csharp/getting-started',
@@ -450,6 +450,13 @@ function publishedEasySDKGroup(): NavigationGroup {
         'C++ quickstart',
         '通过预编译包或 vcpkg 引入 SDK，以 C++17 和 CMake 完成在线收发与线程管理。',
         'Use prebuilt archives or vcpkg with C++17 and CMake for messaging and thread management.',
+      ),
+      publishedPage(
+        'python/getting-started',
+        'Python 快速接入',
+        'Python quickstart',
+        '安装 0.1.0 固定源码，用 asyncio 完成在线收发、重连和异步资源清理。',
+        'Install pinned 0.1.0 source and use asyncio for online messaging, reconnect, and async cleanup.',
       ),
     ],
   );

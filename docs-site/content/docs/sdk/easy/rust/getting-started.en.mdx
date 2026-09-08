@@ -7,13 +7,13 @@ WuKongEasySDK-Rust serves native Rust programs, desktop applications and communi
 
 The current Product Gateway supports this online bidirectional messaging path. The SDK does not provide a local message store, conversations/unread state, offline recovery or push. Read [SDK selection](/en/sdk) when you need those capabilities.
 
-## 1. Install a pinned source version
+## 1. Install the released version
 
-Official repository: [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust). The source package version is `0.1.0`, requiring Rust **1.86+** and Tokio. This version is distributed through Git and has not been published to crates.io; use the exact revision below:
+Official repository: [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust). [Version `0.1.0` is available on crates.io](https://crates.io/crates/wukong-easy-sdk/0.1.0), requiring Rust **1.86+** and Tokio. Install the exact version below:
 
 ```toml
 [dependencies]
-wukong-easy-sdk = { git = "https://github.com/WuKongIM/WuKongEasySDK-Rust.git", rev = "6c04759cab58e6d808b921069ac8c0fd0ad21a77" }
+wukong-easy-sdk = "=0.1.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde_json = "1"
 ```
@@ -91,7 +91,7 @@ For ongoing bidirectional communication, use the repository's terminal example:
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Rust.git
 cd WuKongEasySDK-Rust
-git checkout 6c04759cab58e6d808b921069ac8c0fd0ad21a77
+git checkout 5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b
 cargo test --locked
 ```
 
@@ -117,7 +117,7 @@ WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
   cargo run --locked --example roundtrip
 ```
 
-It creates two Rust clients, checks Unicode payloads and send results, spans multiple heartbeat periods, then reconnects and repeats the exchange. JS interoperability instructions are in the repository [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/6c04759cab58e6d808b921069ac8c0fd0ad21a77/README.md#development-and-live-verification).
+It creates two Rust clients, checks Unicode payloads and send results, spans multiple heartbeat periods, then reconnects and repeats the exchange. JS interoperability instructions are in the repository [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b/README.md#development-and-live-verification).
 
 ## 5. Manage lifecycle and resources
 
@@ -164,10 +164,12 @@ Acceptance pins `27a39f15bf163b433f417b78ab6bfc6e589585e5`; the older server can
 
 ## Verification record
 
-On 2026-09-08, Rust source `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` passed [cross-platform CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34188674153): 27 protocol, lifecycle and TLS tests, Clippy, API documentation and package verification on Linux Rust 1.86/stable, macOS stable and Windows stable.
+On 2026-09-08, crates.io `wukong-easy-sdk 0.1.0` was published from source `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`. An independent consumer with an empty Cargo cache downloaded the public registry package and compiled this tutorial's Chinese and English connection/messaging and private CA examples. The downloaded archive SHA-256 is `0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719`, matching the [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/tag/v0.1.0) attachment.
 
-[Real-server CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34188674151) used WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, a 256 Hash Slot single-node cluster with Token validation and explicit incorrect-Token rejection. After Rust/Rust checks, Rust exchanged 1,608 Unicode echoes with npm `easyjssdk@2.0.4` over WSS for 120 seconds, recovered from three transport interruptions and cleaned up. No duplicate echoes or event loss were observed. Five separate TLS tests cover trusted CA, unknown CA, wrong hostname, expiry and invalid configuration.
+The same source passed [cross-platform CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886754): 27 protocol, lifecycle and TLS tests, Clippy, API documentation and package verification on Linux Rust 1.86/stable, macOS stable and Windows stable.
 
-The installation pin `6c04759cab58e6d808b921069ac8c0fd0ad21a77` subsequently tightens crate file inclusion and receipt revision binding; the Rust API is unchanged, and the documentation snippets compile against this Git revision. Earlier server `132e46209d98fa0425cc0f88e7a97080cdad044d` passed only the initial short smoke and failed sustained messaging; it must not inherit the fixed server's acceptance results.
+[Real-server CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886664) used WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, a 256 Hash Slot single-node cluster with Token validation and explicit incorrect-Token rejection. After Rust/Rust checks, Rust exchanged 3,012 Unicode echoes with npm `easyjssdk@2.0.4` over WSS for 120 seconds, recovered from three transport interruptions and cleaned up. No duplicate echoes or event loss were observed. Five separate TLS tests cover trusted CA, unknown CA, wrong hostname, expiry and invalid configuration.
 
-This is exact-source verification, not crates.io package acceptance or evidence for physical devices, offline recovery, capacity or multi-day stability. Return to [WuKongEasySDK](/en/sdk/easy) for other platforms.
+A separate 600-second macOS receipt for source `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` records 13,758 echoes and three recoveries. That historical receipt remains separate from registry installation verification. Earlier server `132e46209d98fa0425cc0f88e7a97080cdad044d` passed only the initial short smoke and failed sustained messaging; it must not inherit the fixed server's acceptance results.
+
+Public registry installation and exact-source online acceptance establish their respective scopes; neither proves physical-device behavior, offline recovery, capacity or multi-day stability. Return to [WuKongEasySDK](/en/sdk/easy) for other platforms.

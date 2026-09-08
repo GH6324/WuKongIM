@@ -205,9 +205,9 @@ gh workflow run easysdk-release-acceptance.yml --ref main
 
 ## Rust 源码示例（2026-09-08）
 
-Rust 仓库为 [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust)，源码包版本 `0.1.0`，尚未发布到 crates.io。按 [Rust 快速接入](/zh/sdk/easy/rust/getting-started) 使用固定 revision `6c04759cab58e6d808b921069ac8c0fd0ad21a77`，运行 `cargo run --locked --example chat` 或 `cargo run --locked --example roundtrip`；两组 Rust 身份的 `device_flag` 均为 PC `2`。
+Rust 仓库为 [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust)，已发布 [crates.io 正式包 `0.1.0`](https://crates.io/crates/wukong-easy-sdk/0.1.0)。应用使用 `wukong-easy-sdk = "=0.1.0"` 安装；以下保留仓库源码示例。按 [Rust 快速接入](/zh/sdk/easy/rust/getting-started) 使用固定 revision `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`，运行 `cargo run --locked --example chat` 或 `cargo run --locked --example roundtrip`；两组 Rust 身份的 `device_flag` 均为 PC `2`。
 
-验证源码 `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` 已在 Linux CI 连接修复 WebSocket 缓冲区问题的 WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`，完成 Rust/Rust、Rust/`easyjssdk@2.0.4` 120 秒 WSS Unicode 回显、三次断网恢复、错误 Token 拒绝与清理。JS 对端使用 WEB `1`，集群为 256 Hash Slot 单节点集群。安装版本随后仅收紧发布包范围和回执版本绑定；详见 [Rust 验证记录](/zh/sdk/easy/rust/getting-started#验证记录)。这些源码结果独立于上方四端正式包凭据，不代表容量或多日稳定性。
+验证源码 `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b` 已在 Linux CI 连接修复 WebSocket 缓冲区问题的 WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`，完成 Rust/Rust、Rust/`easyjssdk@2.0.4` 120 秒 WSS Unicode 回显、三次断网恢复、错误 Token 拒绝与清理。JS 对端使用 WEB `1`，集群为 256 Hash Slot 单节点集群。正式包已另行通过空缓存下载、校验和比对及文档示例编译；详见 [Rust 验证记录](/zh/sdk/easy/rust/getting-started#验证记录)。这些源码结果独立于上方四端正式包凭据，不代表容量或多日稳定性。
 
 ## C++ 预编译包、vcpkg 与源码示例
 
@@ -229,3 +229,21 @@ ctest --test-dir build -C Release --output-on-failure
 两端都连接后双向输入文本，分别观察 `SEND completed` 和对端 `Message`，输入 `/quit` 清理。默认设备类别为 Desktop `2`，后端 Token 必须对应相同类别；默认开发配置使用 `/` 路径。依赖、Windows 命令、私有 CA 和线程约束见 [C++ quickstart](/zh/sdk/easy/cpp/getting-started).
 
 2026-09-08 的源码验收使用 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`、Token 鉴权及 256 hash slots，完成 C++/C++、C++/JS 消息、重连、错误 Token 拒绝和在线清理。完整环境与 WS/WSS 证据见 [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md).
+
+## Python：运行固定源码示例
+
+Python 教程固定 [WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) `0.1.0` 源码 `c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a`，使用 Python 3.11+ 和 asyncio，当前尚未发布到 PyPI。按 [Python 快速接入](/zh/sdk/easy/python/getting-started) 安装源码，两个终端分别设置 `WKIM_UID`、`WKIM_TOKEN`、`WKIM_PEER`、`WKIM_URL` 后运行：
+
+```sh
+python examples/chat.py
+```
+
+Python 默认设备类别为 PC/Desktop `2`。两人均显示 `Connected` 后双向发送，`/quit` 退出。源码验证连接的是 WuKongIM `0348c0539bbee420a859439695acdac911afa854`，不是本页历史四端正式包使用的服务端版本。开启 Token 鉴权的 256 Hash Slot 单节点集群上，Python/Python 和真实 JS `2.0.4` 双向消息、心跳、重新连接、错误 Token 拒绝与在线清理通过。复现独立的进程级验收：
+
+```sh
+uv sync --locked
+uv run python tests/product.py --server /absolute/path/to/wukongim \
+  --js-entry /absolute/path/to/WuKongEasySDK-JS/dist/cjs/index.js
+```
+
+该脚本仅启动临时本机集群，通过公开接口设置测试身份并检查在线清理，最后停止自己的进程。WSS、自动重连和队列边界使用独立协议测试；完整范围见 [Python 验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a/docs/VALIDATION.md)。

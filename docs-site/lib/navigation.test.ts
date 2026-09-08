@@ -230,6 +230,7 @@ describe('documentation navigation contract', () => {
       ['android/getting-started', 'v1.0.5'],
       ['flutter/getting-started', 'v1.1.0'],
       ['javascript/getting-started', 'v2.0.4'],
+      ['python/getting-started', '0.1.0'],
       ['csharp/getting-started', '1.0.0'],
     ]);
 
@@ -243,6 +244,7 @@ describe('documentation navigation contract', () => {
       ['rust/getting-started', 'published'],
       ['csharp/getting-started', 'published'],
       ['cpp/getting-started', 'published'],
+      ['python/getting-started', 'published'],
     ]);
     for (const page of easy?.children ?? []) {
       if (page.slug === 'examples') {
@@ -251,8 +253,8 @@ describe('documentation navigation contract', () => {
         continue;
       }
       if (page.slug === 'rust/getting-started') {
-        expect(page.description.zh).toContain('源码');
-        expect(page.description.en).toContain('source');
+        expect(page.description.zh).toContain('0.1.0 正式包');
+        expect(page.description.en).toContain('0.1.0');
         continue;
       }
       if (page.slug === 'cpp/getting-started') {
@@ -277,6 +279,7 @@ describe('documentation navigation contract', () => {
       '/en/sdk/easy/rust/getting-started',
       '/en/sdk/easy/csharp/getting-started',
       '/en/sdk/easy/cpp/getting-started',
+      '/en/sdk/easy/python/getting-started',
     ]) {
       expect(published).toContain(url);
     }
@@ -558,6 +561,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/easy/rust/getting-started`,
         `/${locale}/sdk/easy/csharp/getting-started`,
         `/${locale}/sdk/easy/cpp/getting-started`,
+        `/${locale}/sdk/easy/python/getting-started`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,
