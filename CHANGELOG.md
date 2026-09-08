@@ -37,6 +37,8 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Add C#/JavaScript EasySDK interoperability evidence for public NuGet and candidate source, including pinned dependencies, recovery scenarios, and Node/ws transport scope. / 补充 C#/JavaScript EasySDK 正式包与源码互通验证记录，明确固定依赖、故障恢复场景和 Node/ws 传输范围。
+
 - Add bilingual WuKongEasySDK-Python quickstarts, source installation, asyncio lifecycle guidance, and Python/JavaScript interoperability evidence. / 新增 WuKongEasySDK-Python 中英文接入教程、源码安装、asyncio 生命周期说明与 Python/JavaScript 互通验证记录。
 
 - Document the C++ EasySDK vcpkg Git registry with automatic dependency installation and a minimal CMake consumer. / 新增 C++ EasySDK vcpkg Git registry 接入文档，支持自动安装依赖和最小 CMake 消费端示例。
