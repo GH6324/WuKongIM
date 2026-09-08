@@ -2,6 +2,8 @@
 
 ## Internal
 
+- `WuKongIM/WuKongEasySDK-CSharp` is the independent .NET 8+ EasySDK repository. Its initial source version is `1.0.0`, uses PC device category `2` by default, and is documented at `/sdk/easy/csharp/getting-started` in both locales. Until a public NuGet release exists, installation uses a pinned project reference or local `.nupkg`; source validation must not inherit the other platforms' registry receipts.
+
 - `docs-site/examples/go-webhook` is a separate standard-library business callback example. Its pure marker rules handle raw UTF-8 and SDK `type=1` text JSON without storing idempotency state. Explicit denial returns HTTP 200 with a business reason; HTTP errors remain transport failures governed by the sender policy. The documentation `verify` gate runs its fast Go tests.
 
 - The product composition deliberately leaves person-directory admission out of synchronous SEND. UID memberships are projected after durable append, so SENDACK does not imply immediate history visibility. The JavaScript quickstart BFF retries an empty latest page within its finite projection budget; normal cursor pages and unrelated errors keep their original behavior.
