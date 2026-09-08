@@ -250,8 +250,16 @@ WSS 默认启用证书链和主机名验证，最低 TLS 1.2。私有 CA 可通�
 
 通过 `Event::CustomEvent` 接收 `id`、`type`、毫秒级 `timestamp` 和 `data`；JSON 字符串 data 会被解析。事件接收能力仍取决于服务端是否产生对应通知。
 
+## 正式包三节点验收
+
+公开的 `v0.1.0` Linux x64 和 macOS arm64 压缩包已通过独立消费端的 Debug/Release 验收，服务端固定为 WuKongIM `5f5003778ccee6786591ed9968a5185e9213ea55`：三节点集群、256 个 Hash Slot、12 个逻辑 Slot、三个 Slot 副本，开启 Token 鉴权。C++ 和真实 JS `2.0.4` SDK 经带临时可信证书的 WSS 分别连接不同节点，验证双向消息及 SENDACK/接收消息标识对应、回包丢失后的请求超时、断网后不自动重发 SEND、接入节点退出与重启、存活节点持续通信，以及退出后的在线路由清理。查看[精确版本、验收记录和复现方法](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/abba280187987195614e2e25c89089475dca1979/docs/CLUSTER_VALIDATION.md)及通过的 [Linux/macOS 工作流](https://github.com/WuKongIM/WuKongEasySDK-CPP/actions/runs/34202657379)。
+
+超时或连接错误**不代表消息没有送达**。故障测试中，接收方已收到消息，发送方却无法收到 SENDACK；应用应结合 `clientMsgNo` 和业务后端的历史记录核对不确定结果。重连会回到配置的 Gateway URL，不会自动发现替代地址或同步离线历史。
+
+本次是同一台主机上的三个进程和 TLS 终止代理的有界测试，不覆盖跨主机网络分区、生产 CA 配置、Windows 服务端行为、容量或长时间稳定性。
+
 ## 上线前检查
 
-本次证据覆盖固定源码、macOS 编译、协议与 WS/WSS 测试、内存与未定义行为检测、安装后的下游编译，以及真实单节点集群上的双向消息、重连、错误 Token 拒绝和在线清理。证据范围与跨平台 CI 见仓库验证记录；源码验收和预编译包验收分别记录，不能把源码测试归于其他二进制版本。
+早期源码验收另外覆盖协议与 WS/WSS 测试、内存与未定义行为检测、安装后的下游编译，以及真实单节点集群上的双向消息、重连、错误 Token 拒绝和在线清理。上面的正式包三节点验收单独记录产物和服务端版本，不能把源码测试归于其他二进制版本。
 
 继续验收实际目标系统、真实网络 WSS、代理路径、Token 轮换、重复投递、容量、监控与回滚。SDK 不提供离线恢复、会话、未读或推送；这些需求请使用完整版 SDK。回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续[上线检查](/zh/guide/integration/acceptance)。

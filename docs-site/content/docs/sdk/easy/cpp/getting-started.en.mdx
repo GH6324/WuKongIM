@@ -254,8 +254,16 @@ WSS verifies the certificate chain and hostname and requires TLS 1.2+. Use `Opti
 
 Receive `id`, `type`, millisecond-based `timestamp`, and `data` through `Event::CustomEvent`; JSON-string data is parsed. Event reception depends on the server producing that notification.
 
+## Released-package three-node verification
+
+The public `v0.1.0` Linux x64 and macOS arm64 archives have also passed an independent Debug/Release consumer test against WuKongIM `5f5003778ccee6786591ed9968a5185e9213ea55`: three nodes, 256 hash slots, 12 logical Slots, three Slot replicas and Token authentication enabled. C++ and the actual JS `2.0.4` SDK connect to different nodes through WSS with temporary trusted certificates. The harness checks bidirectional messaging and matching SENDACK/receive IDs, withheld-ACK timeouts, connection loss without automatic SEND replay, ingress-node crash/restart, continued traffic between surviving nodes, and online-route cleanup. See the [exact inputs, receipt and repeatable test](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/abba280187987195614e2e25c89089475dca1979/docs/CLUSTER_VALIDATION.md) and the successful [Linux/macOS workflow](https://github.com/WuKongIM/WuKongEasySDK-CPP/actions/runs/34202657379).
+
+A timeout or connection error does **not** prove that a message was not delivered. In the fault test, the receiver already has the message while the sender cannot receive its SENDACK. Reconcile uncertain outcomes using `clientMsgNo` and your backend's history policy. Reconnection returns to the configured Gateway URL; it does not automatically discover a replacement URL or synchronize offline history.
+
+This bounded test uses three processes on one host and a TLS termination proxy. It does not establish multi-host network-partition behavior, production CA configuration, Windows product-server behavior, capacity or long-duration stability.
+
 ## Before production
 
-The recorded evidence covers pinned source, macOS builds, protocol and WS/WSS tests, memory and undefined-behavior instrumentation, an installed downstream consumer, and real single-node-cluster messaging, reconnect, invalid-token rejection, and presence cleanup. See the repository validation record for scope and cross-platform CI. A source project version does not imply published binary packages.
+Earlier source validation separately covers protocol and WS/WSS tests, memory and undefined-behavior instrumentation, installed consumers, and real single-node-cluster messaging, reconnect, invalid-token rejection and presence cleanup. The released-package three-node evidence above names its own artifact and server revisions; source-only results must not be attributed to a different binary.
 
 Also validate the actual target system, real-network WSS, proxy path, Token rotation, duplicate delivery, capacity, monitoring, and rollback. This SDK does not provide offline recovery, conversations, unread counts, or push; choose a full SDK for those requirements. Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Release Checks](/en/guide/integration/acceptance).
