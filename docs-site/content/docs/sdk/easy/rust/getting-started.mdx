@@ -13,7 +13,7 @@ WuKongEasySDK-Rust 适合原生 Rust 程序、桌面应用和已有业务后端�
 
 ```toml
 [dependencies]
-wukong-easy-sdk = { git = "https://github.com/WuKongIM/WuKongEasySDK-Rust.git", rev = "f6ce7dc68277b53c5268a314bc02120c5c2eb1d9" }
+wukong-easy-sdk = { git = "https://github.com/WuKongIM/WuKongEasySDK-Rust.git", rev = "6c04759cab58e6d808b921069ac8c0fd0ad21a77" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde_json = "1"
 ```
@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Rust.git
 cd WuKongEasySDK-Rust
-git checkout f6ce7dc68277b53c5268a314bc02120c5c2eb1d9
+git checkout 6c04759cab58e6d808b921069ac8c0fd0ad21a77
 cargo test --locked
 ```
 
@@ -117,7 +117,7 @@ WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
   cargo run --locked --example roundtrip
 ```
 
-该 example 创建两个 Rust 客户端，核对 Unicode Payload 与发送结果，跨多个心跳周期检查连接，并手动重连后重复收发。JS 互通步骤见仓库 [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/f6ce7dc68277b53c5268a314bc02120c5c2eb1d9/README.md#development-and-live-verification)。
+该 example 创建两个 Rust 客户端，核对 Unicode Payload 与发送结果，跨多个心跳周期检查连接，并手动重连后重复收发。JS 互通步骤见仓库 [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/6c04759cab58e6d808b921069ac8c0fd0ad21a77/README.md#development-and-live-verification)。
 
 ## 5. 管理生命周期与资源
 
@@ -139,6 +139,21 @@ WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
 
 发送不会自动重放。超时、取消或断线时服务端是否接受可能未知；业务决定重试时保留 `SendOptions.client_msg_no` 并遵循服务端幂等约定。`SendOptions` 还支持 Header、Setting 和 Topic；`red_dot` 默认 true，尊重显式 false。群聊使用 `ChannelType::Group`，成员与权限由后端准备。
 
+## WSS 私有 CA
+
+使用私有 CA 时，将 DER 根证书字节加入 `Options.additional_root_certificates`。
+最多 16 张，每张不超过 64 KiB，不接收私钥；公共 WebPKI 根仍保留，域名与有效期校验始终启用。
+
+```rust
+let options = wukong_easy_sdk::Options {
+    additional_root_certificates: vec![std::fs::read("company-root.der")?],
+    ..Default::default()
+};
+```
+
+持续收发需要包含 [WebSocket 缓冲区修复](https://github.com/WuKongIM/WuKongIM/pull/901) 的服务端版本。
+验收固定 `27a39f15bf163b433f417b78ab6bfc6e589585e5`；旧版在连续收发时可能损坏入队报文并断开连接。
+
 ## 协议与上线前检查
 
 - 发送使用字符串请求 ID、camelCase 字段与 Base64 UTF-8 JSON；接收支持 JSON 对象及 Base64 JSON；结果兼容 camelCase、snake_case 及同时出现的两种拼写。
@@ -148,6 +163,10 @@ WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
 
 ## 验证记录
 
-2026-09-08，Rust 源码 `f6ce7dc68277b53c5268a314bc02120c5c2eb1d9` 在 macOS / Rust 1.86.0 上通过协议与生命周期测试、Clippy、示例构建和打包校验；连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 的 256 Hash Slot 单节点集群，在 `token_auth_on=true` 下通过 Rust/Rust 及 Rust/`easyjssdk@2.0.4` 在线双向 Unicode 收发、心跳、手动重连与清理，并验证错误 Token 被拒绝。
+2026-09-08，Rust 源码 `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` 通过 [跨平台 CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34188674153)：27 项协议、生命周期和 TLS 测试，以及 Clippy、API 文档和打包校验。覆盖 Linux Rust 1.86/stable、macOS 和 Windows stable。
 
-这是精确源码的运行证据，不是 crates.io 发布包验收；WSS 代理、物理设备、离线恢复、容量和长期稳定性不在这次验证范围内。返回 [WuKongEasySDK](/zh/sdk/easy) 查看其他平台。
+[真实服务端 CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34188674151) 使用 WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5` 的 256 Hash Slot 单节点集群，开启 Token 校验并拒绝错误 Token。Rust/Rust 验证通过后，与 npm `easyjssdk@2.0.4` 完成 120 秒 WSS 收发、1,608 次 Unicode 回显、三次断网恢复及清理，未观察到重复或事件丢失。五项 TLS 测试另行验证可信 CA、不可信 CA、错误域名、过期证书和无效配置。
+
+本页安装固定的 `6c04759cab58e6d808b921069ac8c0fd0ad21a77` 在上述源码上收紧了发布包文件范围与验收回执的版本绑定；Rust API 保持一致，文档代码已从该 Git 版本编译验证。旧服务端 `132e46209d98fa0425cc0f88e7a97080cdad044d` 仅通过早期短程验证，未通过持续收发，不应继承修复后服务端的验收结论。
+
+这是精确源码验证，不是 crates.io 发布包验收，也不代表物理设备、离线恢复、容量或多日稳定性。返回 [WuKongEasySDK](/zh/sdk/easy) 查看其他平台。

@@ -13,7 +13,7 @@ Official repository: [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/W
 
 ```toml
 [dependencies]
-wukong-easy-sdk = { git = "https://github.com/WuKongIM/WuKongEasySDK-Rust.git", rev = "f6ce7dc68277b53c5268a314bc02120c5c2eb1d9" }
+wukong-easy-sdk = { git = "https://github.com/WuKongIM/WuKongEasySDK-Rust.git", rev = "6c04759cab58e6d808b921069ac8c0fd0ad21a77" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde_json = "1"
 ```
@@ -91,7 +91,7 @@ For ongoing bidirectional communication, use the repository's terminal example:
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Rust.git
 cd WuKongEasySDK-Rust
-git checkout f6ce7dc68277b53c5268a314bc02120c5c2eb1d9
+git checkout 6c04759cab58e6d808b921069ac8c0fd0ad21a77
 cargo test --locked
 ```
 
@@ -117,7 +117,7 @@ WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
   cargo run --locked --example roundtrip
 ```
 
-It creates two Rust clients, checks Unicode payloads and send results, spans multiple heartbeat periods, then reconnects and repeats the exchange. JS interoperability instructions are in the repository [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/f6ce7dc68277b53c5268a314bc02120c5c2eb1d9/README.md#development-and-live-verification).
+It creates two Rust clients, checks Unicode payloads and send results, spans multiple heartbeat periods, then reconnects and repeats the exchange. JS interoperability instructions are in the repository [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/6c04759cab58e6d808b921069ac8c0fd0ad21a77/README.md#development-and-live-verification).
 
 ## 5. Manage lifecycle and resources
 
@@ -139,6 +139,22 @@ Automatic RECVACK confirms network receipt, not observer processing. Messages ar
 
 Sends are never replayed automatically. Timeout, cancellation or transport loss may leave acceptance unknown; preserve `SendOptions.client_msg_no` if your application retries under the server's idempotency contract. `SendOptions` also supports Header, Setting and Topic. SEND `red_dot` defaults to true and respects explicit false. Use `ChannelType::Group` for group messages after the backend prepares membership and permissions.
 
+## Private CA for WSS
+
+For private PKI, put DER root bytes in `Options.additional_root_certificates`.
+This accepts at most 16 certificates of 64 KiB each, never private keys. Public
+WebPKI roots remain trusted; hostname and expiry verification stay enabled.
+
+```rust
+let options = wukong_easy_sdk::Options {
+    additional_root_certificates: vec![std::fs::read("company-root.der")?],
+    ..Default::default()
+};
+```
+
+Sustained messaging requires a server containing the [WebSocket buffer fix](https://github.com/WuKongIM/WuKongIM/pull/901).
+Acceptance pins `27a39f15bf163b433f417b78ab6bfc6e589585e5`; the older server can corrupt queued frames and disconnect during repeated exchanges.
+
 ## Protocol and before production
 
 - Sends use string request IDs, camelCase metadata and Base64 UTF-8 JSON. Receive supports objects and Base64 JSON; results accept camelCase, snake_case and both spellings together.
@@ -148,6 +164,10 @@ Sends are never replayed automatically. Timeout, cancellation or transport loss 
 
 ## Verification record
 
-On 2026-09-08, Rust source `f6ce7dc68277b53c5268a314bc02120c5c2eb1d9` passed protocol/lifecycle tests, Clippy, example builds and package verification on macOS / Rust 1.86.0. Against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, a 256 Hash Slot single-node cluster with `token_auth_on=true`, Rust/Rust and Rust/`easyjssdk@2.0.4` passed online bidirectional Unicode messaging, heartbeat, manual reconnect and cleanup; an incorrect token was rejected.
+On 2026-09-08, Rust source `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` passed [cross-platform CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34188674153): 27 protocol, lifecycle and TLS tests, Clippy, API documentation and package verification on Linux Rust 1.86/stable, macOS stable and Windows stable.
 
-This is exact-source evidence, not crates.io package acceptance. WSS proxies, physical devices, offline recovery, capacity and long-term stability were outside that run. Return to [WuKongEasySDK](/en/sdk/easy) for other platforms.
+[Real-server CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34188674151) used WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, a 256 Hash Slot single-node cluster with Token validation and explicit incorrect-Token rejection. After Rust/Rust checks, Rust exchanged 1,608 Unicode echoes with npm `easyjssdk@2.0.4` over WSS for 120 seconds, recovered from three transport interruptions and cleaned up. No duplicate echoes or event loss were observed. Five separate TLS tests cover trusted CA, unknown CA, wrong hostname, expiry and invalid configuration.
+
+The installation pin `6c04759cab58e6d808b921069ac8c0fd0ad21a77` subsequently tightens crate file inclusion and receipt revision binding; the Rust API is unchanged, and the documentation snippets compile against this Git revision. Earlier server `132e46209d98fa0425cc0f88e7a97080cdad044d` passed only the initial short smoke and failed sustained messaging; it must not inherit the fixed server's acceptance results.
+
+This is exact-source verification, not crates.io package acceptance or evidence for physical devices, offline recovery, capacity or multi-day stability. Return to [WuKongEasySDK](/en/sdk/easy) for other platforms.
