@@ -8,7 +8,7 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
-- Use current node health and retain Channel repair scan progress across bounded ticks so dead leaders and later Slots/pages can recover after node loss. / 频道修复使用最新节点健康状态并保留跨轮扫描进度，避免失联 leader 和后续 Slot、分页长期得不到修复。
+- Use current health, retain fair Channel repair scan progress, and activate authoritative cold replicas for migration probes after node loss. / 频道修复使用最新健康状态、保留公平扫描进度，并在迁移探测时按权威元数据加载冷副本。
 
 - Document Rust EasySDK weak-network and resource-boundary acceptance, including SEND ambiguity, backpressure, observer lag and repeated cleanup. / 补充 Rust EasySDK 弱网与资源边界验收，覆盖发送结果未知、背压、监听器落后和反复清理。
 
