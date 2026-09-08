@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Preserve Channel repair scan progress across bounded ticks so later Slots and pages can recover after node loss. / 保留频道修复扫描的跨轮进度，避免节点退出后后续 Slot 和分页长期得不到修复。
+
 - Document Rust EasySDK weak-network and resource-boundary acceptance, including SEND ambiguity, backpressure, observer lag and repeated cleanup. / 补充 Rust EasySDK 弱网与资源边界验收，覆盖发送结果未知、背压、监听器落后和反复清理。
 
 - Document C++ EasySDK released-package three-node WSS recovery acceptance and clarify uncertain SEND outcomes and same-endpoint reconnect behavior. / 补充 C++ EasySDK 正式包三节点 WSS 恢复验收，明确 SEND 结果不确定性与原地址重连边界。
