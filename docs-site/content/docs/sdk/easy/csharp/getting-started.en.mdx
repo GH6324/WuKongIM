@@ -185,7 +185,15 @@ The independent [C#/JS interoperability CI](https://github.com/WuKongIM/WuKongEa
 
 Five scenario groups cover bidirectional Chinese/emoji and nested custom payloads, exact message IDs above JavaScript's safe integer range and matching SENDACK/RECV, invalid Token rejection, automatic network recovery, real server crash/restart, and manual disconnect with rejected offline SEND followed by explicit reconnect. This server omits `clientMsgNo` in SENDACK; RECV must preserve the supplied correlation value.
 
-Each PR and `main` update runs released and candidate lanes on Linux and retains dependency pins and scenario results. [Reproduction and scope](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/1db387c4f794a45bdb6f4e419d68dbe2bfef740f/docs/interoperability.md) explain the server build, dependency locks, and owned-process cleanup. The verified JS scope is Node with `ws`: Node 24.3 native WebSocket stalled during reconnect fault testing, so browsers and native transport are outside this passing scope. This short loopback test does not establish production WSS, multi-node capacity, or long-duration stability.
+The [earlier reproduction record](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/1db387c4f794a45bdb6f4e419d68dbe2bfef740f/docs/interoperability.md) covers Node with `ws`. The native Node reconnect stall observed there is addressed by the separately identified source repair and acceptance below.
+
+### Chromium/WSS and native Node recovery
+
+The [extended interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34195913516) tests both public NuGet `1.0.0` and candidate C# source with Node `24.3.0` native WebSocket and real Chromium driven by Playwright `1.62.1`. It retains server pin `734166e0ec30fc0f6f10fef6f6d1889d079ab636` and pins repaired JS source `5e5dfb727fb0ea08294939962ae799e998b7ca5c`. The repair settles handshake failures that emit `error` without a subsequent `close`, allowing bounded retries to continue. npm `easyjssdk 2.0.4` **does not contain this repair**.
+
+The browser opens a real HTTPS page and connects over WSS; C# uses its existing `ClientWebSocket`. A temporary CA and isolated browser NSS trust database preserve normal certificate validation. Both clients must reject untrusted CA and mismatched-host certificates without forwarding decrypted application requests to the server protocol. These controls precede the five bidirectional messaging, invalid Token, network recovery, server restart, and manual disconnect scenarios.
+
+Each PR and `main` update runs four Linux jobs, producing six released/candidate reports across npm/`ws`, repaired source/native Node, and repaired source/Chromium WSS. Reports retain dependency pins, actual harness commit, Chromium version, and certificate controls. See [reproduction and trust scope](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/0a6d3254ec8dd4e9da9ee36114af96ee2f657dac/docs/interoperability.md). This verifies the temporary CA, loopback TLS proxy, and Chromium; it does not establish every public CA, reverse proxy, Firefox/WebKit, multi-node capacity, or long-duration stability.
 
 ## Next
 
