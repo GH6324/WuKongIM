@@ -37,6 +37,8 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Document C++ SDK 0.1.0 prebuilt archives for Windows x64, macOS arm64 and Linux x64, including offline CMake integration, compatibility, checksums and upgrades. / 补充 C++ SDK 0.1.0 三平台预编译包的离线 CMake 接入、兼容要求、校验和升级说明。
+
 - Add C#/JavaScript EasySDK interoperability evidence for public NuGet and candidate source, including pinned dependencies, recovery scenarios, and Node/ws transport scope. / 补充 C#/JavaScript EasySDK 正式包与源码互通验证记录，明确固定依赖、故障恢复场景和 Node/ws 传输范围。
 
 - Add bilingual WuKongEasySDK-Python quickstarts, source installation, asyncio lifecycle guidance, and Python/JavaScript interoperability evidence. / 新增 WuKongEasySDK-Python 中英文接入教程、源码安装、asyncio 生命周期说明与 Python/JavaScript 互通验证记录。

@@ -5,8 +5,8 @@ description: Install WuKongEasySDK-CPP and its dependencies with vcpkg, then use
 
 [WuKongEasySDK-CPP](https://github.com/WuKongIM/WuKongEasySDK-CPP) follows JS `v2.0.4` for WebSocket JSON-RPC CONNECT, online messaging, automatic RECVACK, heartbeat, reconnect, and custom events. It uses C++17, Boost.Beast, OpenSSL, and nlohmann/json.
 
-<Callout type="info" title="vcpkg and pinned source integration">
-  This tutorial pins project `0.1.0` source `3e367a908f42385ab9306f9708b7456399cace7d`, available through the WuKongIM-maintained vcpkg Git registry or CMake source installation. There is no prebuilt SDK archive; this registry is not Microsoft’s curated catalog. This source connected to WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` with Token authentication enabled in a 256-hash-slot single-node cluster and completed C++/C++ and C++/JS bidirectional messaging. See the repository [validation record](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md) for the exact scope.
+<Callout type="info" title="Prebuilt, vcpkg and pinned source integration">
+  This tutorial pins project `0.1.0` source `3e367a908f42385ab9306f9708b7456399cace7d`, available through the WuKongIM-maintained vcpkg Git registry or CMake source installation. Version v0.1.0 also provides prebuilt SDK archives; this registry is not Microsoft’s curated catalog. This source connected to WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` with Token authentication enabled in a 256-hash-slot single-node cluster and completed C++/C++ and C++/JS bidirectional messaging. See the repository [validation record](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md) for the exact scope.
 </Callout>
 
 ## 1. Prepare Alice and Bob
@@ -85,6 +85,40 @@ Commit both JSON files to reproduce dependency selection. Existing projects
 should merge these entries into their manifests instead of overwriting them.
 
 [Independent consumer example](https://github.com/WuKongIM/WuKongEasySDK-CPP/tree/main/examples/vcpkg-consumer) · [Registry maintenance](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/main/docs/VCPKG.md)
+
+## Alternative: download and extract a prebuilt SDK
+
+To skip dependency compilation, download the matching ZIP and `SHA256SUMS` from [C++ SDK v0.1.0 Release](https://github.com/WuKongIM/WuKongEasySDK-CPP/releases/tag/v0.1.0), verify its SHA-256 and extract it. You only need CMake 3.20+ and a compatible C++ development environment; no separate vcpkg installation is required.
+
+| Archive suffix | Consumer environment |
+| --- | --- |
+| `linux-x64-gcc13.zip` | Ubuntu 24.04 x64, GCC 13, libstdc++ C++11 ABI, glibc 2.39+ |
+| `macos-arm64-appleclang.zip` | macOS 14+ arm64, Apple Clang, libc++ |
+| `windows-x64-msvc143-md.zip` | Windows x64, Visual Studio 2022 v143; Release `/MD`, Debug `/MDd` |
+
+Names start with `WuKongEasySDK-CPP-0.1.0-`. Each archive includes Debug/Release static SDK libraries, Boost/JSON headers, OpenSSL libraries, licenses and a minimal example. From the extracted directory:
+
+```sh
+# Linux / macOS
+cmake -S example -B build -DCMAKE_TOOLCHAIN_FILE="$PWD/wukong-sdk.cmake" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+```
+
+```powershell
+# Windows / Visual Studio 2022
+cmake -S example -B build -A x64 -DCMAKE_TOOLCHAIN_FILE="$PWD/wukong-sdk.cmake"
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+```
+
+`wukong_example` verifies initialization and destruction; `wukong_chat` supports interactive messaging with the Alice/Bob credentials below. For your application, retain the `find_package` and `target_link_libraries` above and point CMake's toolchain option to the extracted `wukong-sdk.cmake`.
+
+OpenSSL is static on Unix and uses bundled DLLs on Windows. Deploy Windows applications with the DLLs CMake copies beside the executable and a compatible Visual C++ Redistributable. Debug runtimes are for development only. **For WSS with prebuilt packages, supply a maintained CA bundle explicitly via `Options::caFile` (`WKIM_CA_FILE` in the chat example)**; do not depend on OpenSSL's build-machine default certificate path.
+
+`BUILD_INFO.json` identifies the SDK source, registry and packaging commits; `FILES.sha256.json` verifies extracted content. Upgrade into a separate directory, check hashes, rebuild in a new build directory and rerun acceptance. Update the application and dependencies together and retain the previous version for rollback. Use vcpkg/source for other compilers, architectures, CRTs or dependency combinations; binary dependencies cannot be mixed arbitrarily.
+
+Fresh jobs download each platform's ZIP and compile Debug/Release consumers at a different path, running lifecycle checks and 26 WS/WSS scenarios per configuration. Linux/macOS also use the pinned WuKongIM server to verify bidirectional messaging, reconnect and presence cleanup. Windows evidence uses the protocol fixture, not a Windows server. See [prebuilt package documentation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/v0.1.0/docs/PREBUILT.md) for compatibility and release acceptance.
 
 ## Alternative: fetch and build pinned source
 

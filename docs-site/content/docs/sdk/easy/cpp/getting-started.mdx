@@ -5,8 +5,8 @@ description: 通过 vcpkg 自动安装 WuKongEasySDK-CPP 及依赖，使用 CMak
 
 [WuKongEasySDK-CPP](https://github.com/WuKongIM/WuKongEasySDK-CPP) 参考 JS `v2.0.4` 实现 WebSocket JSON-RPC CONNECT、在线收发、自动 RECVACK、心跳、重连和自定义事件。使用 C++17、Boost.Beast、OpenSSL 与 nlohmann/json。
 
-<Callout type="info" title="vcpkg 与固定源码接入">
-  本文固定工程 `0.1.0` 的源码 `3e367a908f42385ab9306f9708b7456399cace7d`，支持本仓库维护的 vcpkg Git registry 和 CMake 源码安装，没有预编译 SDK 压缩包；该 registry 不属于微软默认目录。该源码已连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`，在开启 Token 鉴权的 256 hash slots 单节点集群中完成 C++/C++ 和 C++/JS 双向消息。完整范围见仓库的 [验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。
+<Callout type="info" title="预编译包、vcpkg 与固定源码接入">
+  本文固定工程 `0.1.0` 的源码 `3e367a908f42385ab9306f9708b7456399cace7d`，支持本仓库维护的 vcpkg Git registry 、CMake 源码安装及 v0.1.0 预编译 SDK 压缩包；该 registry 不属于微软默认目录。该源码已连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`，在开启 Token 鉴权的 256 hash slots 单节点集群中完成 C++/C++ 和 C++/JS 双向消息。完整范围见仓库的 [验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。
 </Callout>
 
 ## 1. 先准备 Alice 和 Bob
@@ -81,6 +81,40 @@ SDK port 为静态库；Windows 使用 `x64-windows` 时，分发应用需要携
 将两个 JSON 文件提交到应用仓库；已有 manifest 的项目应合并字段，不要覆盖原有依赖。
 
 [独立消费端示例](https://github.com/WuKongIM/WuKongEasySDK-CPP/tree/main/examples/vcpkg-consumer) · [Registry 维护说明](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/main/docs/VCPKG.md)
+
+## 备选：下载预编译包，解压接入
+
+希望跳过依赖编译时，从 [C++ SDK v0.1.0 Release](https://github.com/WuKongIM/WuKongEasySDK-CPP/releases/tag/v0.1.0) 下载匹配的 ZIP 和 `SHA256SUMS`，验证 SHA-256 后解压。只需准备 CMake 3.20+ 和匹配的 C++ 开发环境，无需另装 vcpkg。
+
+| 压缩包后缀 | 对应环境 |
+| --- | --- |
+| `linux-x64-gcc13.zip` | Ubuntu 24.04 x64、GCC 13、libstdc++ C++11 ABI、glibc 2.39+ |
+| `macos-arm64-appleclang.zip` | macOS 14+ arm64、Apple Clang、libc++ |
+| `windows-x64-msvc143-md.zip` | Windows x64、Visual Studio 2022 v143；Release `/MD`、Debug `/MDd` |
+
+包名统一以 `WuKongEasySDK-CPP-0.1.0-` 开头。包内包含 Debug/Release 静态 SDK、Boost/JSON 头文件、OpenSSL 库、许可文件和最小示例。在解压目录执行：
+
+```sh
+# Linux / macOS
+cmake -S example -B build -DCMAKE_TOOLCHAIN_FILE="$PWD/wukong-sdk.cmake" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+```
+
+```powershell
+# Windows / Visual Studio 2022
+cmake -S example -B build -A x64 -DCMAKE_TOOLCHAIN_FILE="$PWD/wukong-sdk.cmake"
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+```
+
+`wukong_example` 验证初始化和销毁；`wukong_chat` 可使用下节的 Alice/Bob 凭据交互收发。接入自己的应用时，保持上面的 `find_package` 和 `target_link_libraries`，将 CMake 的 toolchain 指向解压目录中的 `wukong-sdk.cmake`。
+
+Unix 的 OpenSSL 为静态库；Windows 使用包内 DLL，发布应用时携带 CMake 复制到可执行文件旁的 DLL，并安装匹配的 Visual C++ Redistributable。Debug 运行库只用于开发。**预编译包使用 WSS 时，通过 `Options::caFile`（交互示例为 `WKIM_CA_FILE`）显式提供受维护的 CA 证书包**，不要依赖 OpenSSL 构建机的默认证书路径。
+
+`BUILD_INFO.json` 记录 SDK 源码、registry 和打包提交；`FILES.sha256.json` 校验解压内容。升级时下载到新目录、校验哈希、使用新的 build 目录重新构建和验收，将应用与依赖一起更新，保留旧版本以便回滚。其他编译器、架构、CRT 或依赖组合使用 vcpkg/源码方式，不能任意混用二进制依赖。
+
+三个平台的独立任务下载 ZIP 后，在新的目录编译 Debug/Release 消费端并运行生命周期与 26 项 WS/WSS 场景；Linux/macOS 另以固定 WuKongIM 服务端验收双向消息、重连和在线清理。Windows 的证据为协议夹具，未运行 Windows 服务端。完整兼容范围和发布验收见 [预编译包说明](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/v0.1.0/docs/PREBUILT.md)。
 
 ## 备选：获取和编译固定源码
 
@@ -216,6 +250,6 @@ WSS 默认启用证书链和主机名验证，最低 TLS 1.2。私有 CA 可通�
 
 ## 上线前检查
 
-本次证据覆盖固定源码、macOS 编译、协议与 WS/WSS 测试、内存与未定义行为检测、安装后的下游编译，以及真实单节点集群上的双向消息、重连、错误 Token 拒绝和在线清理。证据范围与跨平台 CI 见仓库验证记录；源码工程版本不代表已发布二进制包。
+本次证据覆盖固定源码、macOS 编译、协议与 WS/WSS 测试、内存与未定义行为检测、安装后的下游编译，以及真实单节点集群上的双向消息、重连、错误 Token 拒绝和在线清理。证据范围与跨平台 CI 见仓库验证记录；源码验收和预编译包验收分别记录，不能把源码测试归于其他二进制版本。
 
 继续验收实际目标系统、真实网络 WSS、代理路径、Token 轮换、重复投递、容量、监控与回滚。SDK 不提供离线恢复、会话、未读或推送；这些需求请使用完整版 SDK。回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续[上线检查](/zh/guide/integration/acceptance)。
