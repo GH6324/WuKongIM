@@ -185,3 +185,22 @@ Send success, peer realtime receipt, peer display, and product handling are four
 ## Next step
 
 Continue with the [iOS](/en/sdk/easy/ios/getting-started), [Android](/en/sdk/easy/android/getting-started), [Flutter](/en/sdk/easy/flutter/getting-started), or [Web](/en/sdk/easy/javascript/getting-started) quickstart, then use the [Release Checks](/en/guide/integration/acceptance) to close WSS, physical-device, offline, capacity, and rollback evidence.
+
+## C++ source example
+
+C++ project `0.1.0` is consumed as source through CMake, separately from the four-platform historical released-package acceptance above. Each terminal supplies its own backend-issued Token through `WKIM_TOKEN`.
+
+```sh
+git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
+cd WuKongEasySDK-CPP
+git checkout 8a3218cd5c9465f06df371f040a3641188bd4900
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+./build/wukong_chat ws://127.0.0.1:5200 alice bob
+./build/wukong_chat ws://127.0.0.1:5200 bob alice
+```
+
+After both connect, send in both directions, observe `SEND completed` and peer `Message`, then enter `/quit`. The default device category is Desktop `2` and must match the backend Token record. The default development listener uses `/`. For dependencies, Windows, private CAs, and thread ownership, see [C++ quickstart](/en/sdk/easy/cpp/getting-started).
+
+The 2026-09-08 source acceptance used WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, Token authentication and 256 hash slots for C++/C++, C++/JS messaging, reconnect, invalid-token rejection, and presence cleanup. For environment and WS/WSS evidence, see [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/8a3218cd5c9465f06df371f040a3641188bd4900/docs/VALIDATION.md).
