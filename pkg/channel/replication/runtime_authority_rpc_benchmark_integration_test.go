@@ -112,7 +112,7 @@ func benchmarkThreeNodeChannelAppendAuthorityRPCWithGatewayDeliveryPressure1000Q
 	cluster.transportObserver.report(b)
 	cluster.exchangeObserver.report(b)
 	reportChannelAppendAuthorityRPCWindows(b, latencies)
-	reportDurableQuorumBenchmark(b, "authority-rpc", latencies, cluster.commitObserver.snapshot())
+	reportDurableQuorumBenchmark(b, "authority-rpc", latencies, cluster.commitObserver.snapshot(), threeNodeBenchmarkRate)
 }
 
 func reportChannelAppendAuthorityRPCWindows(b *testing.B, latencies []time.Duration) {
