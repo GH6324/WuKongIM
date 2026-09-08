@@ -6,7 +6,7 @@ description: 使用 WuKongEasySDK-CPP 的固定源码和 CMake，完成 C++17 �
 [WuKongEasySDK-CPP](https://github.com/WuKongIM/WuKongEasySDK-CPP) 参考 JS `v2.0.4` 实现 WebSocket JSON-RPC CONNECT、在线收发、自动 RECVACK、心跳、重连和自定义事件。使用 C++17、Boost.Beast、OpenSSL 与 nlohmann/json。
 
 <Callout type="info" title="固定源码接入">
-  本文固定工程 `0.1.0` 的源码 `8a3218cd5c9465f06df371f040a3641188bd4900`，通过 CMake 编译和安装。当前分发为源码，没有预编译包或 Registry 发布。该源码已连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`，在开启 Token 鉴权的 256 hash slots 单节点集群中完成 C++/C++ 和 C++/JS 双向消息。完整范围见仓库的 [验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/8a3218cd5c9465f06df371f040a3641188bd4900/docs/VALIDATION.md)。
+  本文固定工程 `0.1.0` 的源码 `3e367a908f42385ab9306f9708b7456399cace7d`，通过 CMake 编译和安装。当前分发为源码，没有预编译包或 Registry 发布。该源码已连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`，在开启 Token 鉴权的 256 hash slots 单节点集群中完成 C++/C++ 和 C++/JS 双向消息。完整范围见仓库的 [验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。
 </Callout>
 
 ## 1. 先准备 Alice 和 Bob
@@ -22,7 +22,7 @@ description: 使用 WuKongEasySDK-CPP 的固定源码和 CMake，完成 C++17 �
 ```sh
 git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
 cd WuKongEasySDK-CPP
-git checkout 8a3218cd5c9465f06df371f040a3641188bd4900
+git checkout 3e367a908f42385ab9306f9708b7456399cace7d
 
 # macOS
 brew install cmake boost openssl@3 nlohmann-json

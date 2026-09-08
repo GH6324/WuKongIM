@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { getNavigationEntry, getIndexedNavigationEntries } from './navigation';
 
 const root = new URL('../content/docs/sdk/easy/', import.meta.url);
-const revision = '8a3218cd5c9465f06df371f040a3641188bd4900';
+const revision = '3e367a908f42385ab9306f9708b7456399cace7d';
 const repository = 'https://github.com/WuKongIM/WuKongEasySDK-CPP';
 
 describe('C++ EasySDK source tutorial', () => {

@@ -210,7 +210,7 @@ C++ project `0.1.0` is consumed as source through CMake, separately from the fou
 ```sh
 git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
 cd WuKongEasySDK-CPP
-git checkout 8a3218cd5c9465f06df371f040a3641188bd4900
+git checkout 3e367a908f42385ab9306f9708b7456399cace7d
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 2
 ctest --test-dir build -C Release --output-on-failure
@@ -220,4 +220,4 @@ ctest --test-dir build -C Release --output-on-failure
 
 After both connect, send in both directions, observe `SEND completed` and peer `Message`, then enter `/quit`. The default device category is Desktop `2` and must match the backend Token record. The default development listener uses `/`. For dependencies, Windows, private CAs, and thread ownership, see [C++ quickstart](/en/sdk/easy/cpp/getting-started).
 
-The 2026-09-08 source acceptance used WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, Token authentication and 256 hash slots for C++/C++, C++/JS messaging, reconnect, invalid-token rejection, and presence cleanup. For environment and WS/WSS evidence, see [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/8a3218cd5c9465f06df371f040a3641188bd4900/docs/VALIDATION.md).
+The 2026-09-08 source acceptance used WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, Token authentication and 256 hash slots for C++/C++, C++/JS messaging, reconnect, invalid-token rejection, and presence cleanup. For environment and WS/WSS evidence, see [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md).

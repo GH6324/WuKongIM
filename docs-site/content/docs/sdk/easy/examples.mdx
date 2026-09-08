@@ -210,7 +210,7 @@ C++ 工程版本 `0.1.0` 通过源码和 CMake 使用，独立于上面的四端
 ```sh
 git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
 cd WuKongEasySDK-CPP
-git checkout 8a3218cd5c9465f06df371f040a3641188bd4900
+git checkout 3e367a908f42385ab9306f9708b7456399cace7d
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 2
 ctest --test-dir build -C Release --output-on-failure
@@ -220,4 +220,4 @@ ctest --test-dir build -C Release --output-on-failure
 
 两端都连接后双向输入文本，分别观察 `SEND completed` 和对端 `Message`，输入 `/quit` 清理。默认设备类别为 Desktop `2`，后端 Token 必须对应相同类别；默认开发配置使用 `/` 路径。依赖、Windows 命令、私有 CA 和线程约束见 [C++ quickstart](/zh/sdk/easy/cpp/getting-started).
 
-2026-09-08 的源码验收使用 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`、Token 鉴权及 256 hash slots，完成 C++/C++、C++/JS 消息、重连、错误 Token 拒绝和在线清理。完整环境与 WS/WSS 证据见 [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/8a3218cd5c9465f06df371f040a3641188bd4900/docs/VALIDATION.md).
+2026-09-08 的源码验收使用 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`、Token 鉴权及 256 hash slots，完成 C++/C++、C++/JS 消息、重连、错误 Token 拒绝和在线清理。完整环境与 WS/WSS 证据见 [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md).
