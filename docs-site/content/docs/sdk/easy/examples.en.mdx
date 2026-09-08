@@ -209,7 +209,9 @@ The Rust repository is [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM
 
 Verified source `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b` passed Linux CI against WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, which fixes WebSocket buffer ownership: Rust/Rust checks, 120 seconds of Rust/`easyjssdk@2.0.4` WSS Unicode echoes, three transport interruptions, invalid-Token rejection and cleanup. JS uses WEB `1`; the server is a 256 Hash Slot single-node cluster. The public package separately passed empty-cache download, archive checksum comparison and tutorial compilation; see the [Rust verification record](/en/sdk/easy/rust/getting-started#verification-record). These source results are separate from the four registry receipts above and do not establish capacity or multi-day stability.
 
-## C++ vcpkg and source examples
+## C++ prebuilt, vcpkg and source examples
+
+After downloading a [v0.1.0 prebuilt archive](https://github.com/WuKongIM/WuKongEasySDK-CPP/releases/tag/v0.1.0), compile its `example` using the [C++ quickstart](/en/sdk/easy/cpp/getting-started), without installing vcpkg. Its `wukong_chat` uses the same Token and command-line arguments.
 
 For C++ project `0.1.0`, [vcpkg integration](/en/sdk/easy/cpp/getting-started) installs the SDK and its dependencies automatically. The source-based interactive example below is retained, separately from the four-platform historical released-package acceptance above. Each terminal supplies its own backend-issued Token through `WKIM_TOKEN`.
 

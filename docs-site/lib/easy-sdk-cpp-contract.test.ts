@@ -22,7 +22,14 @@ describe('C++ EasySDK vcpkg and source tutorial', () => {
       for (const content of [overview, examples]) {
         expect(content).toContain(`/${locale}/sdk/easy/cpp/getting-started`);
       }
-      expect(page).toMatch(/没有预编译 SDK 压缩包|no prebuilt SDK archive/);
+      expect(page).toContain(`${repository}/releases/tag/v0.1.0`);
+      for (const platform of ['linux-x64-gcc13.zip', 'macos-arm64-appleclang.zip', 'windows-x64-msvc143-md.zip']) {
+        expect(page).toContain(platform);
+      }
+      for (const contract of ['wukong-sdk.cmake', 'SHA256SUMS', 'BUILD_INFO.json', '/MDd', 'WKIM_CA_FILE']) {
+        expect(page).toContain(contract);
+      }
+      expect(page).not.toMatch(/没有预编译 SDK 压缩包|no prebuilt SDK archive/);
       expect(page).toMatch(/不属于微软默认目录|not Microsoft’s curated catalog/);
       const manifests = [...page.matchAll(/```json\n([\s\S]*?)\n```/g)]
         .map((match) => JSON.parse(match[1]));
