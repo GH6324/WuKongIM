@@ -181,7 +181,7 @@ The independent [NuGet `1.0.0` release verification](https://github.com/WuKongIM
 
 ### C# / JavaScript interoperability
 
-The independent [C#/JS interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34191886039) tests both public NuGet `WuKongEasySDK 1.0.0` restored into an empty package cache and candidate C# source. It pins npm `easyjssdk 2.0.4`, Node 24 with `ws 8.21.3`, and server `v3.0.0-beta.9` / `734166e0ec30fc0f6f10fef6f6d1889d079ab636`. Harness source `1db387c4f794a45bdb6f4e419d68dbe2bfef740f` is recorded separately from the NuGet package source.
+The earlier independent [C#/JS interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34191886039) tests both public NuGet `WuKongEasySDK 1.0.0` restored into an empty package cache and candidate C# source. It pins npm `easyjssdk 2.0.4`, Node 24 with `ws 8.21.3`, and server `v3.0.0-beta.9` / `734166e0ec30fc0f6f10fef6f6d1889d079ab636`. Harness source `1db387c4f794a45bdb6f4e419d68dbe2bfef740f` is recorded separately from the NuGet package source.
 
 Five scenario groups cover bidirectional Chinese/emoji and nested custom payloads, exact message IDs above JavaScript's safe integer range and matching SENDACK/RECV, invalid Token rejection, automatic network recovery, real server crash/restart, and manual disconnect with rejected offline SEND followed by explicit reconnect. This server omits `clientMsgNo` in SENDACK; RECV must preserve the supplied correlation value.
 
@@ -189,11 +189,13 @@ The [earlier reproduction record](https://github.com/WuKongIM/WuKongEasySDK-CSha
 
 ### Chromium/WSS and native Node recovery
 
-The [extended interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34195913516) tests both public NuGet `1.0.0` and candidate C# source with Node `24.3.0` native WebSocket and real Chromium driven by Playwright `1.62.1`. It retains server pin `734166e0ec30fc0f6f10fef6f6d1889d079ab636` and pins repaired JS source `5e5dfb727fb0ea08294939962ae799e998b7ca5c`. The repair settles handshake failures that emit `error` without a subsequent `close`, allowing bounded retries to continue. npm `easyjssdk 2.0.4` **does not contain this repair**.
+The [earlier extended interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34195913516) tests both public NuGet `1.0.0` and candidate C# source with Node `24.3.0` native WebSocket and real Chromium driven by Playwright `1.62.1`. It retains server pin `734166e0ec30fc0f6f10fef6f6d1889d079ab636` and pins repaired JS source `5e5dfb727fb0ea08294939962ae799e998b7ca5c`. The repair settles handshake failures that emit `error` without a subsequent `close`, allowing bounded retries to continue. npm `easyjssdk 2.0.4` **does not contain this repair**.
 
 The browser opens a real HTTPS page and connects over WSS; C# uses its existing `ClientWebSocket`. A temporary CA and isolated browser NSS trust database preserve normal certificate validation. Both clients must reject untrusted CA and mismatched-host certificates without forwarding decrypted application requests to the server protocol. These controls precede the five bidirectional messaging, invalid Token, network recovery, server restart, and manual disconnect scenarios.
 
-Each PR and `main` update runs four Linux jobs, producing six released/candidate reports across npm/`ws`, repaired source/native Node, and repaired source/Chromium WSS. Reports retain dependency pins, actual harness commit, Chromium version, and certificate controls. See [reproduction and trust scope](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/0a6d3254ec8dd4e9da9ee36114af96ee2f657dac/docs/interoperability.md). This verifies the temporary CA, loopback TLS proxy, and Chromium; it does not establish every public CA, reverse proxy, Firefox/WebKit, multi-node capacity, or long-duration stability.
+The JS repair is now published in [npm `easyjssdk 2.0.5`](https://www.npmjs.com/package/easyjssdk/v/2.0.5), from source `b6d0bbe822b9c5b6f95a10d55b593d30184414f6`. The [public-package interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34198683155) installs that exact npm package into an empty cache. All six combinations of released NuGet / candidate C# with `ws`, native Node, and Chromium WSS passed, including the certificate rejection controls above.
+
+Each PR and `main` update runs four Linux jobs, producing six reports that retain the npm tarball URL and SHA-512 integrity, actual harness commit, Chromium version, and certificate controls. See [reproduction and trust scope](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/c143be832d6439295a213176274faf2ffb4b9868/docs/interoperability.md). This verifies the temporary CA, loopback TLS proxy, and Chromium; it does not establish every public CA, reverse proxy, Firefox/WebKit, multi-node capacity, or long-duration stability.
 
 ## Next
 
