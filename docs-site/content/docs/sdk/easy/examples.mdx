@@ -169,6 +169,8 @@ dotnet run --project examples/ConsoleChat -- bob
 
 C# 源码在 macOS arm64 / .NET `8.0.424` 通过 35 项测试和本地 NuGet 打包，并对 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 完成启用 Token 认证的单节点集群双向消息、重连、心跳、错误 Token 拒绝与清理。可使用 `WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py` 复现；脚本仅操作自己启动的回环地址测试进程。该记录不代表公共 NuGet 下载或生产 WSS 验证。
 
+三节点 WS 验收、应用切换入口与服务器修复源码的边界见 [C# 集群恢复说明](/zh/sdk/easy/csharp/getting-started#三节点集群与应用切换地址)。
+
 ## 4. 重跑正式包自动验收
 
 仓库中的 `Safety Automation - EasySDK Released Package Acceptance` 会从四个 Registry 解析精确版本，构建当前 WuKongIM，再用正式 npm 包作为 Bob，分别在 Android API 34 与两个 iOS Simulator 任务中完成双向消息。需要重跑时可手动触发：

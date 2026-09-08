@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Document C# EasySDK three-node WS acceptance, application endpoint replacement, and exact server recovery prerequisites. / 补充 C# EasySDK 三节点 WS 验收、应用切换入口及精确服务端恢复前提。
+
 ### 🔧 Improvements / 改进
 
 - Document Python EasySDK group examples and installed-package membership/permission acceptance, including the required server cache fix. / 补充 Python EasySDK 群聊示例、正式包成员与权限验收，以及所需的服务端缓存修复说明。

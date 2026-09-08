@@ -195,7 +195,21 @@ NuGet `1.0.0` 的[独立发布验证](https://github.com/WuKongIM/WuKongEasySDK-
 
 JS 修复已随 [npm `easyjssdk 2.0.5`](https://www.npmjs.com/package/easyjssdk/v/2.0.5) 正式发布，对应源码 `b6d0bbe822b9c5b6f95a10d55b593d30184414f6`。[公共包互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34198683155) 从空缓存安装该固定 npm 包，六组正式 NuGet / C# 候选源码与 `ws`、原生 Node、Chromium WSS 的组合均通过，包含上述证书拒绝控制。
 
-每次 PR 和 `main` 更新运行四条 Linux 任务，产生六份报告，记录 npm 下载地址及 SHA-512、实际测试提交、Chromium 版本和证书控制结果；[复现与信任范围](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/c143be832d6439295a213176274faf2ffb4b9868/docs/interoperability.md)说明运行方法。这里验证的是临时 CA、回环 TLS 代理和 Chromium，不代表所有公网 CA、反向代理、Firefox/WebKit、多节点容量或长期稳定性。
+该单节点矩阵运行四条 Linux 任务，产生六份报告，记录 npm 下载地址及 SHA-512、实际测试提交、Chromium 版本和证书控制结果；[复现与信任范围](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/c143be832d6439295a213176274faf2ffb4b9868/docs/interoperability.md)说明运行方法。这里验证的是临时 CA、回环 TLS 代理和 Chromium，不代表所有公网 CA、反向代理、Firefox/WebKit、多节点容量或长期稳定性。
+
+### 三节点集群与应用切换地址
+
+三节点验收固定使用公共 NuGet `WuKongEasySDK 1.0.0`、npm `easyjssdk 2.0.5` 和 Node `24.3.0` 原生 WebSocket，并分别测试正式 C# 包与候选源码。服务端固定为修复源码 `c3dc526de3bc3f91461f32618ebdee7997984058`，测试工具为 `dc99c0fc91f3cd905de30b6a8535953639db611f`；这份源码验证不能归入已发布的 `v3.0.0-beta.9`。
+
+三个回环进程共用 256 Hash Slots、10 个逻辑 Slot、三份 Slot 投票副本和三份 Channel 副本，启用 Token 认证与消息投递。先验证三个入口之间的双向单聊和 C#/JS 群消息向另外两名成员投递，再依次强制关闭 C# 所连的节点 1、JS 所连的节点 2。测试要求客户端报告断线、拒绝离线 SEND；Slot 重新选主、Channel 迁移写入栅栏解除，并且全部存活入口连续一秒查到三名用户在线后（最多等待 45 秒），由应用切换入口，验证原节点仍停止时的收发，最后用原数据重启节点并再次验证。
+
+**地址切换由应用负责。** 一个 SDK 实例只有一个固定地址，自动重连仍访问该地址。业务后端选择存活入口并取得其 `/route`，客户端等待旧实例 `DisposeAsync` 完成，再用新的地址与原有凭据创建实例；不要同时保留旧实例的重连任务。
+
+该服务端默认保留 90 秒在线路由租期。原节点停止后，同账号登录可能暂时得到系统错误 `15`，因为冲突处理仍尝试通知旧节点。验收只对这一已复现的登录错误做最多 110 秒的应用重试，每次释放失败实例并记录耗时；错误凭据和其他失败直接终止。这是有上限的最终恢复，不是立即切换承诺，也不是对所有系统错误或 SEND 重试的建议。中断中的 SEND 仍可能结果未知。Slot 权威变化可能让仍连接着的接收方暂时不可见，直到心跳/touch 重建路由；此窗口内得到 ACK 不代表在线投递。验收在发送前等待公共在线状态恢复，并记录耗时。
+
+验收显式使用 100 ms 的 Channel 迁移扫描、每轮最多 10 页和四个任务，覆盖本场景全部 Slot。当前扫描器每轮从首个本节点主 Slot 开始，默认一页预算可能使后续 Slot 饥饿；这份测试不证明默认预算可以恢复所有频道。所有单聊频道都在故障前建立，测试不覆盖少一节点时新建三副本频道。
+
+[三节点复现方法与报告字段](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/dc99c0fc91f3cd905de30b6a8535953639db611f/docs/cluster-acceptance.md)说明如何构建精确服务端并运行 `python3 scripts/interop.py --transport native --topology three-node`，候选源码增加 `--candidate`。两个三节点任务与原有四个单节点任务一起产生八份报告，分别保留包完整性、源码身份、ACK/RECV、连接错误与进程清理记录。该范围是同主机三节点 WS，不包含多主机分区、多节点 WSS、大群容量、离线同步或长期稳定性。
 
 ## 下一步
 
