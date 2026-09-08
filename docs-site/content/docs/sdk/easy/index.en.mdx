@@ -1,6 +1,6 @@
 ---
 title: WuKongEasySDK
-description: Choose an iOS, Android, Flutter, or Web quickstart and use a pinned release to complete an online Alice/Bob messaging loop.
+description: Choose an iOS, Android, Flutter, Web, C#, or C++ quickstart with pinned versions or source for Alice/Bob online messaging.
 ---
 
 WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and online-messaging API. It fits applications that already have a product backend and own their UI and product state.
@@ -13,6 +13,8 @@ WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and o
   <Card title="Android quickstart" description="Install exactly 1.0.5 and complete the loop around the process singleton and Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
   <Card title="Flutter quickstart" description="Install exactly 1.1.0, retain listener references, and release them from dispose." href="/en/sdk/easy/flutter/getting-started" />
   <Card title="Web quickstart" description="Install exactly easyjssdk 2.0.4 and obtain connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
+  <Card title="C# quickstart" description="Use pinned .NET 8 source, async APIs, independent clients, and await using for messaging." href="/en/sdk/easy/csharp/getting-started" />
+  <Card title="C++ quickstart" description="Pinned source and CMake for C++17 connections, online messaging, and thread cleanup." href="/en/sdk/easy/cpp/getting-started" />
 </Cards>
 
 After the platform tutorial, Alice and Bob will connect separately, exchange a text JSON payload in a person Channel, then remove listeners and connections on exit.
@@ -50,7 +52,7 @@ Complete [Authentication & Tokens](/en/guide/integration/authentication) first. 
 
 ## Alice/Bob acceptance loop
 
-All four platforms follow the same minimal path:
+All platforms follow the same minimal path:
 
 1. Obtain separate `uid`, short-lived `token`, and `websocketUrl` values for Alice and Bob.
 2. Create the clients in two independent devices, processes, or browser contexts by following the platform quickstart.
@@ -65,14 +67,16 @@ To validate the environment first, follow [Run the Official Examples](/en/sdk/ea
 
 ## Lifecycle differences across platforms
 
-| Task | iOS | Android | Flutter | Web |
-| --- | --- | --- | --- | --- |
-| Create and initialize | Application-owned `WuKongEasySDK` instance | Process singleton via `getInstance()` + `init` | Application-owned singleton + `init` | One `WKIM` instance per identity or browser context |
-| Listener ownership | Retain each `EventListener` token | Retain the same listener object | Retain the same callback reference | Pass the same function reference to `on` and `off` |
-| Allow send | After `onConnect` | After `CONNECT` | After the `connect` event | After the `Connect` event |
-| Account exit | Remove tokens and `disconnect` | Remove listeners and disconnect; account switching must handle the singleton limit | Remove listeners, `disconnect`, then `dispose` | `off`, then `destroy` |
+| Task | iOS | Android | Flutter | Web | C# |
+| --- | --- | --- | --- | --- | --- |
+| Create and initialize | Application-owned `WuKongEasySDK` instance | Process singleton via `getInstance()` + `init` | Application-owned singleton + `init` | One `WKIM` instance per identity or browser context | Independent `WKIM` instance |
+| Listener ownership | Retain each `EventListener` token | Retain the same listener object | Retain the same callback reference | Pass the same function reference to `on` and `off` | Use the same delegate with `+=` / `-=` |
+| Allow send | After `onConnect` | After `CONNECT` | After the `connect` event | After the `Connect` event | After `ConnectAsync` succeeds |
+| Account exit | Remove tokens and `disconnect` | Remove listeners and disconnect; account switching must handle the singleton limit | Remove listeners, `disconnect`, then `dispose` | `off`, then `destroy` | Await `DisposeAsync` / `await using` |
 
 A view may subscribe to connection state, but rebuilding the view must not create a second connection. Each platform's complete minimal example shows the correct owner and cleanup point.
+
+C++ uses an independent `WKIM` instance and I/O thread. Retain `ListenerId` values, remove listeners at exit, and wait for `disconnect()` / `destroy()` to finish. Callbacks must never wait on SDK futures; dispatch UI and slow work to the application executor. See the [C++ quickstart](/en/sdk/easy/cpp/getting-started).
 
 ## Complete before production
 
@@ -129,6 +133,16 @@ Application dependencies use only these exact versions—never `latest` or a bro
 | Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) · `3ebf505734c5b6764b30eac011f0b7a5024c89e8` |
 
 The task sequence was calibrated from the legacy [EasySDK overview](https://wukong.mintlify.app/en/sdk/easy/overview), [iOS](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started), [Android](https://wukong.mintlify.app/en/sdk/easy/android/getting-started), [Flutter](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started), and [Web](https://wukong.mintlify.app/en/sdk/easy/javascript/getting-started) pages. The released source and distributions above remain authoritative for APIs, versions, and security boundaries.
+
+## C# source integration
+
+[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) provides an independent .NET 8+ client at source version `1.0.0`. Create it with `new WKIM` / `WKIM.Init`, authenticate with `ConnectAsync`, send with `SendAsync`, manage events with `+=` / `-=`, and await `DisposeAsync` or use `await using` on exit. Its default device category is PC `2`.
+
+C# has not been published to nuget.org. Follow the [C# quickstart](/en/sdk/easy/csharp/getting-started) for a pinned project reference or local NuGet package. Its real-process verification uses WuKongIM `132e46209` and remains separate from the four historical registry-package receipts above.
+
+## C++ pinned source
+
+The [C++ repository](https://github.com/WuKongIM/WuKongEasySDK-CPP) has project version `0.1.0`. This tutorial pins source `3e367a908f42385ab9306f9708b7456399cace7d`, built and installed with CMake; there is no prebuilt package or registry release. It follows JS `v2.0.4` and completed C++/C++ and C++/JS online bidirectional messaging, reconnect, invalid-token rejection, and presence cleanup against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, plus separate WS/WSS protocol tests. See the [C++ validation record](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md) for environment and scope. This source evidence is separate from the historical four-platform released-package acceptance above.
 
 ## Next
 

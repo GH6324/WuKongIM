@@ -573,6 +573,11 @@ func (e *Engine) ReadReverse(channelKey channel.ChannelKey, fromOffset uint64, l
 	return readOffsetRecordsRaw(db, ChannelKey(channelKey), fromOffset, limit, maxBytes, true)
 }
 
+// NormalizeCommitCoordinatorConfig exposes the pure defaults used when opening a message database.
+func NormalizeCommitCoordinatorConfig(cfg CommitCoordinatorConfig) CommitCoordinatorConfig {
+	return effectiveCommitCoordinatorConfig(cfg)
+}
+
 func effectiveCommitCoordinatorConfig(cfg CommitCoordinatorConfig) CommitCoordinatorConfig {
 	if cfg.FlushWindow == 0 {
 		cfg.FlushWindow = defaultCommitCoordinatorFlushWindow

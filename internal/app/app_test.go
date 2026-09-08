@@ -2160,6 +2160,9 @@ func TestNewRegistersManagerNodeConfigRPC(t *testing.T) {
 	if _, ok := cluster.registeredHandlers[accessnode.ManagerNodeConfigRPCServiceID]; !ok {
 		t.Fatalf("manager node config rpc handler not registered")
 	}
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerNodeConfigDocumentRPCServiceID]; !ok {
+		t.Fatal("TOML document RPC handler not registered")
+	}
 }
 
 func TestNewRegistersManagerChannelRPCWhenClusterSupportsChannelScans(t *testing.T) {

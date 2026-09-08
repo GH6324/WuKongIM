@@ -97,7 +97,7 @@ describe('operations HTTP surface', () => {
 });
 
 describe('Manager private surface', () => {
-  test('matches all 108 registered method and path pairs', async () => {
+  test('matches all 109 registered method and path pairs', async () => {
     const [server, backups, restore] = await Promise.all([
       source('../../internal/access/manager/server.go'),
       source('../../internal/access/manager/backups.go'),
@@ -133,8 +133,8 @@ describe('Manager private surface', () => {
       ...parseGinCalls(restore, { restore: '/manager/backups' }),
     ].filter((route) => route === 'ANY /mcp' || route.includes(' /manager'));
 
-    expect(managerRoutes).toHaveLength(108);
-    expect(new Set(managerRoutes.map(({ method, path }) => routeKey(method, path))).size).toBe(108);
+    expect(managerRoutes).toHaveLength(109);
+    expect(new Set(managerRoutes.map(({ method, path }) => routeKey(method, path))).size).toBe(109);
     expect(sorted(actual)).toEqual(
       sorted(managerRoutes.map(({ method, path }) => routeKey(method, path))),
     );
@@ -182,7 +182,7 @@ describe('cluster transport catalog', () => {
       }
     }
 
-    expect(nodeTransportServices).toHaveLength(57);
+    expect(nodeTransportServices).toHaveLength(58);
     expect(parsed.sort((a, b) => a.id - b.id)).toEqual(
       nodeTransportServices
         .map(({ id, symbol }) => ({ id, symbol }))

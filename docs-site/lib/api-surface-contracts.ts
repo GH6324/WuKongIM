@@ -162,6 +162,7 @@ export const managerRouteGroups: readonly ManagerRouteGroup[] = [
     ['GET', '/manager/nodes'],
     ['GET', '/manager/nodes/:node_id'],
     ['GET', '/manager/nodes/:node_id/config'],
+    ['GET', '/manager/nodes/:node_id/config/toml'],
     ['GET', '/manager/runtime/workqueues'],
     ['GET', '/manager/realtime-monitor'],
     ['GET', '/manager/nodes/:node_id/onboarding/status'],
@@ -392,6 +393,7 @@ export const nodeTransportServices: readonly NodeTransportService[] = [
   nodeService(85, 'RPCSlotPermissionMetadataBatch', 'slot_permission_metadata_batch'),
   nodeService(86, 'RPCChannelQuorumExchange', 'channel_quorum_exchange'),
   nodeService(87, 'RPCSlotIdentityMetadata', 'slot_identity_metadata'),
+  nodeService(88, 'RPCManagerNodeConfigDocument', 'manager_node_config_document'),
 ];
 
 export const nodeTransportBoundary =

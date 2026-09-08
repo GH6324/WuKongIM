@@ -152,6 +152,23 @@ flutter run -d <device-id>
 
 当前 Web、Android 与 iOS 发布提交只在已验证源码之上修改版本、变更日志或发布说明，example 行为源码保持不变；Flutter 发布源码与先前验证 revision 相同。若要核对 8 月 31 日的精确源码凭据，使用上方“官方源码 example”表中的 revision。
 
+### C# / .NET 源码示例
+
+新增的 [WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) 使用 .NET 8，源码版本为 `1.0.0`，尚未发布到 nuget.org。它不属于上面四端的历史正式包记录。
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
+cd WuKongEasySDK-CSharp
+git checkout d365a354f5e0f25fbd7f83bb59aa365ba43e899f
+dotnet build -c Release
+dotnet test -c Release
+dotnet run --project examples/ConsoleChat -- bob
+```
+
+运行前设置 `WUKONGIM_WS_URL`、`WUKONGIM_UID`、`WUKONGIM_TOKEN`；两个终端分别使用 Alice/Bob 的凭据。后端准备 Token 时将 `device_flag` 设为 `2`，与 C# 默认 `DeviceFlag.Desktop` 一致。完整示例见 [C# 快速接入](/zh/sdk/easy/csharp/getting-started)。
+
+C# 源码在 macOS arm64 / .NET `8.0.424` 通过 35 项测试和本地 NuGet 打包，并对 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 完成启用 Token 认证的单节点集群双向消息、重连、心跳、错误 Token 拒绝与清理。可使用 `WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py` 复现；脚本仅操作自己启动的回环地址测试进程。该记录不代表公共 NuGet 下载或生产 WSS 验证。
+
 ## 4. 重跑正式包自动验收
 
 仓库中的 `Safety Automation - EasySDK Released Package Acceptance` 会从四个 Registry 解析精确版本，构建当前 WuKongIM，再用正式 npm 包作为 Bob，分别在 Android API 34 与两个 iOS Simulator 任务中完成双向消息。需要重跑时可手动触发：
@@ -185,3 +202,22 @@ gh workflow run easysdk-release-acceptance.yml --ref main
 ## 下一步
 
 根据目标平台继续阅读 [iOS](/zh/sdk/easy/ios/getting-started)、[Android](/zh/sdk/easy/android/getting-started)、[Flutter](/zh/sdk/easy/flutter/getting-started) 或 [Web](/zh/sdk/easy/javascript/getting-started) 快速接入，再用[上线验收](/zh/guide/integration/acceptance)补齐 WSS、真机、离线、容量与回滚证据。
+
+## C++ 源码示例
+
+C++ 工程版本 `0.1.0` 通过源码和 CMake 使用，独立于上面的四端历史正式包验收。两个终端分别通过 `WKIM_TOKEN` 提供业务后端签发的本人 Token。
+
+```sh
+git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
+cd WuKongEasySDK-CPP
+git checkout 3e367a908f42385ab9306f9708b7456399cace7d
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+./build/wukong_chat ws://127.0.0.1:5200 alice bob
+./build/wukong_chat ws://127.0.0.1:5200 bob alice
+```
+
+两端都连接后双向输入文本，分别观察 `SEND completed` 和对端 `Message`，输入 `/quit` 清理。默认设备类别为 Desktop `2`，后端 Token 必须对应相同类别；默认开发配置使用 `/` 路径。依赖、Windows 命令、私有 CA 和线程约束见 [C++ quickstart](/zh/sdk/easy/cpp/getting-started).
+
+2026-09-08 的源码验收使用 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`、Token 鉴权及 256 hash slots，完成 C++/C++、C++/JS 消息、重连、错误 Token 拒绝和在线清理。完整环境与 WS/WSS 证据见 [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md).

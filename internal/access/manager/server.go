@@ -461,6 +461,7 @@ func (s *Server) registerRoutes() {
 	nodes.GET("/nodes", s.handleNodes)
 	nodes.GET("/nodes/:node_id", s.handleNode)
 	nodes.GET("/nodes/:node_id/config", s.handleNodeConfig)
+	nodes.GET("/nodes/:node_id/config/toml", s.handleNodeConfigDocument)
 	nodes.GET("/runtime/workqueues", s.handleRuntimeWorkqueues)
 	nodes.GET("/realtime-monitor", s.handleRealtimeMonitor)
 

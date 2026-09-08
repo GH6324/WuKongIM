@@ -38,7 +38,10 @@ var (
 	ErrTerminalFenceRequired = errors.New("internal/access/gateway: terminal fence controller required")
 )
 
-const defaultSendTimeout = 5 * time.Second
+// DefaultSendTimeout is the SEND request budget used when no positive override is configured.
+const DefaultSendTimeout = 5 * time.Second
+
+const defaultSendTimeout = DefaultSendTimeout
 
 var fallbackTraceIDCounter uint64
 

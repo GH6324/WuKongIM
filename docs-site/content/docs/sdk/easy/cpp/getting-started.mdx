@@ -1,0 +1,154 @@
+---
+title: C++ 快速接入
+description: 使用 WuKongEasySDK-CPP 的固定源码和 CMake，完成 C++17 在线消息、重连与线程生命周期管理。
+---
+
+[WuKongEasySDK-CPP](https://github.com/WuKongIM/WuKongEasySDK-CPP) 参考 JS `v2.0.4` 实现 WebSocket JSON-RPC CONNECT、在线收发、自动 RECVACK、心跳、重连和自定义事件。使用 C++17、Boost.Beast、OpenSSL 与 nlohmann/json。
+
+<Callout type="info" title="固定源码接入">
+  本文固定工程 `0.1.0` 的源码 `3e367a908f42385ab9306f9708b7456399cace7d`，通过 CMake 编译和安装。当前分发为源码，没有预编译包或 Registry 发布。该源码已连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`，在开启 Token 鉴权的 256 hash slots 单节点集群中完成 C++/C++ 和 C++/JS 双向消息。完整范围见仓库的 [验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。
+</Callout>
+
+## 1. 先准备 Alice 和 Bob
+
+按[认证与 Token](/zh/guide/integration/authentication)让受信业务后端分别提供两人的 `uid`、`token` 和 `websocketUrl`。客户端只连接 Gateway，不调用 Product HTTP 管理接口。设备线路值为 APP `0`、WEB `1`、PC/Desktop `2`；C++ 默认 Desktop，后端保存 Token 时必须使用相同设备类别。
+
+开发机默认示例地址为 `ws://127.0.0.1:5200`，路径是 `/`。如果 listener 或代理配置了 `/ws`，才使用 `ws://127.0.0.1:5200/ws`。跨机器时用客户端实际可达地址，生产使用 `wss://`。通用环境步骤见[运行官方示例](/zh/sdk/easy/examples)。
+
+## 2. 获取和编译固定源码
+
+要求 CMake 3.20+、C++17 编译器、Boost 1.74+、OpenSSL 1.1.1+、nlohmann/json 3.11+。实际产品应选择仍受维护并包含安全修复的版本。
+
+```sh
+git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
+cd WuKongEasySDK-CPP
+git checkout 3e367a908f42385ab9306f9708b7456399cace7d
+
+# macOS
+brew install cmake boost openssl@3 nlohmann-json
+# Ubuntu / Debian
+sudo apt-get install g++ cmake libboost-dev libssl-dev nlohmann-json3-dev
+
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+```
+
+只执行与你的平台匹配的依赖安装命令。缺少 JSON 系统包时 CMake 获取固定的上游 3.11.3 commit；离线构建请预装依赖并设置 `WUKONG_FETCH_JSON=OFF`。
+
+Windows 使用 Visual Studio 2022 和 vcpkg，仓库 `vcpkg.json` 固定 baseline：
+
+```powershell
+git -C "$env:VCPKG_ROOT" fetch origin 04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+```
+
+在应用 CMake 中接入源码：
+
+```cmake
+add_subdirectory(external/WuKongEasySDK-CPP)
+target_link_libraries(my_app PRIVATE WuKongEasySDK::WuKongEasySDK)
+```
+
+也可执行 `cmake --install build --config Release --prefix /path/to/sdk-prefix`，在下游用 `find_package(WuKongEasySDK 0.1 CONFIG REQUIRED)`，并将 `CMAKE_PREFIX_PATH` 指向安装目录。静态库导出保留第三方依赖；Windows 分发需要携带所用的动态依赖。
+
+## 3. 先运行交互示例
+
+两个终端分别通过环境变量 `WKIM_TOKEN` 提供各自后端签发的 Token，然后运行：
+
+```sh
+# Alice 的终端
+./build/wukong_chat ws://127.0.0.1:5200 alice bob
+# Bob 的终端
+./build/wukong_chat ws://127.0.0.1:5200 bob alice
+```
+
+两端都显示 `Connected` 后输入文本，观察对端的 `Message`，再反向发送。`SEND completed` 代表 SENDACK 成功。输入 `/quit` 断开并释放资源。Windows 可执行文件位于 `build/Release/wukong_chat.exe`。
+
+示例主动展示业务消息内容；SDK 自身不输出日志。不要把示例终端内容直接接入生产日志采集。
+
+## 4. 在应用中连接、监听和发送
+
+下面代码从环境取得 Alice 的 Token，发送一条消息，等待按 Enter 后退出。Bob 必须已经在线。
+
+```cpp
+#include <wukong/wkim.hpp>
+#include <cstdlib>
+#include <iostream>
+
+int main() {
+    const char* token = std::getenv("WKIM_TOKEN");
+    if (!token) return 2;
+    try {
+        wukong::Options options;
+        options.connectionTimeout = std::chrono::seconds(10);
+        options.requestTimeout = std::chrono::seconds(15);
+        wukong::WKIM im("ws://127.0.0.1:5200", {"alice", token}, options);
+
+        auto messageListener = im.on(wukong::WKIMEvent::Message,
+            [](const wukong::Json& message) {
+                // Copy message.at("payload") into your application's UI/event queue.
+                // This callback runs on the SDK I/O thread.
+                (void)message;
+            });
+        auto errorListener = im.on(wukong::WKIMEvent::Error,
+            [](const wukong::Json&) {
+                // Dispatch a sanitized failure state to the application.
+            });
+
+        im.connect().get();
+        wukong::SendOptions sendOptions;
+        // Supply a stable clientMsgNo when the application needs reconciliation.
+        auto ack = im.send("bob", wukong::WKIMChannelType::Person,
+                          {{"type", 1}, {"content", "Hello from C++!"}},
+                          sendOptions).get();
+        if (ack.reasonCode == 1) std::cout << "SEND completed\n";
+        std::cin.get();
+
+        im.off(messageListener);
+        im.off(errorListener);
+        im.disconnect().get();
+        im.destroy().get();
+    } catch (const wukong::Error&) {
+        std::cerr << "EasySDK operation failed\n";
+        return 1;
+    }
+}
+```
+
+`connect()` 只在鉴权完成后成功。群聊使用 `WKIMChannelType::Group`，由业务后端预先建立 Channel 和成员关系。Payload 接受 JSON 对象或数组，按 UTF-8 JSON 编码为 Base64；接收兼容对象、JSON 文本和 Base64 JSON。消息 ID 保持字符串，避免 64 位整数精度损失。
+
+发送结果包括 `messageId`、`messageSeq` 和 `reasonCode`。接收事件还包含 `header`、秒级 `timestamp`、`channelId`、`channelType`、`fromUid` 和 `payload`。自动 RECVACK 携带 `messageId` 与 `messageSeq`；这是传输确认，不能代替业务已读。发送成功、对端接收和业务处理的区别见[消息收发](/zh/guide/integration/messaging)。
+
+## 5. 管理线程与账号生命周期
+
+每个实例拥有一个身份和一条 I/O 线程，没有全局单例。公共操作支持应用线程并发调用；事件在 I/O 线程串行分发。回调可以发起异步操作，但**不能在回调中等待 SDK future**。将 UI 更新和耗时工作交给应用自己的执行器。
+
+| 操作 | 语义 |
+| --- | --- |
+| `on(...)` / `off(listenerId)` | 保存并移除监听 ID；已经开始分发的回调仍可能结束执行 |
+| `connect()` | 并发连接调用共享同一次鉴权；已连接时返回当前结果 |
+| `disconnect()` | 取消待处理请求、socket、心跳与重连；随后可重新连接 |
+| `destroy()` | 终结实例，后续操作拒绝，可重复调用 |
+| 析构 | 发起清理并等待线程；回调内析构会在回调结束后完成线程退出 |
+| 更换账号、Token 或地址 | 关闭旧实例，再创建新实例 |
+
+回调捕获的数据应活到客户端关闭之后。捕获 SDK 自身时使用 `weak_ptr` 防止引用环。移除监听后仍需完成关闭，才能释放被捕获的应用状态。SDK 直接取消 socket，清理不等待对端的 close 握手。
+
+## 6. 心跳、重连、错误与 WSS
+
+默认连接总超时 10 秒，请求超时 15 秒，心跳间隔 25 秒，Pong 超时 10 秒。同 ID 的 `result: null` 满足心跳确认。曾成功鉴权的连接意外断开后最多重试 5 次，指数退避从 1 秒增长到最多 30 秒并加入抖动。首次连接失败交还调用方；鉴权失败、服务端主动断开、畸形协议和手动退出停止自动重试。
+
+默认最多 1,024 个待处理请求，命令队列和 WebSocket 写队列分别限制为 4 MiB，单条线路消息限制为 1 MiB。容量不足返回 `ErrorCode::QueueFull`；本地错误使用负数，服务端原因码保留在 `Error::code()`。超时和断线可能导致发送结果未知，应按 `clientMsgNo` 对账。SDK 不离线排队或自动重发。
+
+WSS 默认启用证书链和主机名验证，最低 TLS 1.2。私有 CA 可通过 `Options::caFile` 指定 PEM 文件；控制台读取 `WKIM_CA_FILE`。没有跳过证书校验的配置。SDK 默认静默，不记录 Token、Payload、URL、原始帧、服务端响应文本或底层异常对象。
+
+通过 `Event::CustomEvent` 接收 `id`、`type`、毫秒级 `timestamp` 和 `data`；JSON 字符串 data 会被解析。事件接收能力仍取决于服务端是否产生对应通知。
+
+## 上线前检查
+
+本次证据覆盖固定源码、macOS 编译、协议与 WS/WSS 测试、内存与未定义行为检测、安装后的下游编译，以及真实单节点集群上的双向消息、重连、错误 Token 拒绝和在线清理。证据范围与跨平台 CI 见仓库验证记录；源码工程版本不代表已发布二进制包。
+
+继续验收实际目标系统、真实网络 WSS、代理路径、Token 轮换、重复投递、容量、监控与回滚。SDK 不提供离线恢复、会话、未读或推送；这些需求请使用完整版 SDK。回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续[上线检查](/zh/guide/integration/acceptance)。

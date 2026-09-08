@@ -152,6 +152,23 @@ Run every target you intend to ship. An iOS Simulator result cannot stand in for
 
 The current Web, Android, and iOS release commits change only version, changelog, or release-documentation metadata above the verified sources; their example behavior source is unchanged. Flutter's release source is the previously verified revision. Use the “Official source examples” table above when reproducing the exact August 31 source receipts.
 
+### C# / .NET source example
+
+The new [WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) targets .NET 8 at source version `1.0.0` and has not been published to nuget.org. It is separate from the four historical released-package receipts above.
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
+cd WuKongEasySDK-CSharp
+git checkout d365a354f5e0f25fbd7f83bb59aa365ba43e899f
+dotnet build -c Release
+dotnet test -c Release
+dotnet run --project examples/ConsoleChat -- bob
+```
+
+Set `WUKONGIM_WS_URL`, `WUKONGIM_UID`, and `WUKONGIM_TOKEN` first, using Alice and Bob's own credentials in separate terminals. Prepare backend tokens with `device_flag` set to `2`, matching the C# default `DeviceFlag.Desktop`. See the complete [C# quickstart](/en/sdk/easy/csharp/getting-started).
+
+The C# source passed 35 tests and local NuGet packing on macOS arm64 / .NET `8.0.424`. Against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, a token-authenticated single-node cluster passed bidirectional messaging, reconnect, heartbeat, invalid-token rejection, and cleanup. Reproduce with `WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py`; the script owns only its loopback test processes. This is not public NuGet download or production WSS evidence.
+
 ## 4. Rerun released-package automation
 
 `Safety Automation - EasySDK Released Package Acceptance` resolves the exact four registry versions, builds the current WuKongIM, then uses the released npm package as Bob while Android API 34 and two iOS Simulator jobs complete bidirectional messaging. Trigger a rerun with:
@@ -185,3 +202,22 @@ Send success, peer realtime receipt, peer display, and product handling are four
 ## Next step
 
 Continue with the [iOS](/en/sdk/easy/ios/getting-started), [Android](/en/sdk/easy/android/getting-started), [Flutter](/en/sdk/easy/flutter/getting-started), or [Web](/en/sdk/easy/javascript/getting-started) quickstart, then use the [Release Checks](/en/guide/integration/acceptance) to close WSS, physical-device, offline, capacity, and rollback evidence.
+
+## C++ source example
+
+C++ project `0.1.0` is consumed as source through CMake, separately from the four-platform historical released-package acceptance above. Each terminal supplies its own backend-issued Token through `WKIM_TOKEN`.
+
+```sh
+git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
+cd WuKongEasySDK-CPP
+git checkout 3e367a908f42385ab9306f9708b7456399cace7d
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+./build/wukong_chat ws://127.0.0.1:5200 alice bob
+./build/wukong_chat ws://127.0.0.1:5200 bob alice
+```
+
+After both connect, send in both directions, observe `SEND completed` and peer `Message`, then enter `/quit`. The default device category is Desktop `2` and must match the backend Token record. The default development listener uses `/`. For dependencies, Windows, private CAs, and thread ownership, see [C++ quickstart](/en/sdk/easy/cpp/getting-started).
+
+The 2026-09-08 source acceptance used WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, Token authentication and 256 hash slots for C++/C++, C++/JS messaging, reconnect, invalid-token rejection, and presence cleanup. For environment and WS/WSS evidence, see [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md).

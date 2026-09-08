@@ -7,18 +7,15 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 
 ## Responsibility
 
-`docs-site` is the standalone Fumadocs application for public WuKongIM v3 docs
-under `/zh` and `/en`. It owns navigation, MDX, search, SEO, machine-readable
-output, SDK and API references, and runnable JavaScript/Web and Go Webhook
-examples. It documents runtime contracts but does not define them.
+`docs-site` owns the bilingual Fumadocs v3 site, navigation, references, runnable
+examples, search, SEO, and machine-readable output. Runtime contracts are defined elsewhere.
 
 ## Boundaries
 
 - Repository `docs/` is the engineering knowledge base. Legacy docs aid topic
   discovery only; current code and released SDKs decide API facts.
 - `lib/navigation.ts` is the shared bilingual publication registry.
-- `SDK_DOCUMENTATION_SPEC.md` owns maintained WuKongIMSDK versions, learning
-  order, and reader contract. WuKongEasySDK remains a separate path.
+- `SDK_DOCUMENTATION_SPEC.md` owns full-SDK versions and learning order; EasySDK stays separate.
 - `.github/workflows/docs-pages.yml` deploys the export, verifies the direct Pages
   data plane, and may refresh a CDN when `DOCS_CDN_ENABLED=true`. It also accepts
   a successful binary-release `workflow_run` after authenticating the immutable
@@ -40,10 +37,9 @@ examples. It documents runtime contracts but does not define them.
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. The separate EasySDK path keeps released package pins distinct from exact
-   repository-example receipts. Its shared runbook starts one server revision,
-   maps host addresses for browser, emulators, and devices, and reproduces the
-   four maintained examples before platform-specific integration.
+4. EasySDK separates exact C# source and C++ source/CMake pins from four
+   registry-package receipts. Its runbook maps reachable endpoints and reproduces
+   maintained examples, each with its recorded server revision.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.

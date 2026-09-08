@@ -1,0 +1,175 @@
+---
+title: C# 快速接入
+description: 使用 WuKongEasySDK-CSharp 固定源码接入 .NET 8，完成认证、在线消息、自动重连和异步释放。
+---
+
+[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) 参考 JavaScript EasySDK 的 WebSocket JSON-RPC 协议，提供符合 C# 习惯的异步 API 和强类型事件。运行时不依赖第三方包。
+
+<Callout type="info" title="当前安装方式：固定源码或本地 NuGet 包">
+  初始源码版本为 `1.0.0`，本页固定到 `d365a354f5e0f25fbd7f83bb59aa365ba43e899f`。尚未发布到 nuget.org，请使用下文的项目引用或自行打包后的本地源。源码测试和本地 `.nupkg` 验证不等于公共 NuGet 发布。
+</Callout>
+
+## 开始前
+
+- 准备 .NET 8 或更新版本，以及 Windows、Linux 或 macOS 开发环境。当前目标框架为 `net8.0`，不包含 Unity、.NET Framework 和浏览器 WebAssembly 支持。
+- 启动 `/readyz` 健康的 WuKongIM 单节点集群或多节点集群，确认客户端可以访问 WebSocket Gateway。单节点集群同样遵循集群语义，默认使用 256 Hash Slots。
+- 业务后端为 Alice 和 Bob 分别返回 `uid`、`token` 和 `websocketUrl`。客户端不调用 `/user/token` 或 `/route` 等 Product HTTP 管理接口。
+- C# 默认使用 PC/Desktop `2`。后端签发 Token 的 `device_flag` 必须与客户端一致；APP 为 `0`，Web 为 `1`。
+
+先阅读 [身份与 Token](/zh/guide/integration/authentication)。生产环境使用 HTTPS/WSS，不关闭证书验证，不把 Token 放入 URL、日志或源码。
+
+## 1. 安装固定源码
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
+git -C WuKongEasySDK-CSharp checkout d365a354f5e0f25fbd7f83bb59aa365ba43e899f
+dotnet new console -n MyChat --framework net8.0
+dotnet add MyChat/MyChat.csproj reference WuKongEasySDK-CSharp/src/WuKongEasySDK/WuKongEasySDK.csproj
+```
+
+两个目录处于同一级。将确切源码 revision 记录到构建配置，或通过固定 commit 的子模块维护引用。
+
+如需本地 NuGet 安装，先在这个固定 checkout 中生成包：
+
+```bash
+cd WuKongEasySDK-CSharp
+dotnet pack src/WuKongEasySDK -c Release -o artifacts
+dotnet add ../MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source ./artifacts
+```
+
+项目引用和本地包二选一，不要同时引用。此处的 `--source ./artifacts` 指向你刚生成的本地源。
+
+## 2. 由业务后端提供连接材料
+
+登录业务系统后，通过受保护的业务接口取得：
+
+```json
+{
+  "uid": "alice",
+  "token": "backend-issued-desktop-token",
+  "websocketUrl": "wss://im.example.com/ws"
+}
+```
+
+下面的控制台示例从 `WUKONGIM_WS_URL`、`WUKONGIM_UID`、`WUKONGIM_TOKEN` 环境变量读取这些值；桌面应用可以改为读取登录响应。它们是本示例的变量，不是服务端的 `WK_` 配置项。
+
+## 3. 连接、监听并发送
+
+用下面代码替换 `MyChat/Program.cs`。启动前设置当前账号的三个环境变量，通过命令行参数传入对方 UID。
+
+```csharp
+using WuKongEasySDK;
+
+static string Required(string name) =>
+    Environment.GetEnvironmentVariable(name)
+    ?? throw new InvalidOperationException($"Missing {name}");
+
+if (args.Length != 1)
+    throw new ArgumentException("Pass the peer UID as the first argument.");
+
+await using var im = new WKIM(Required("WUKONGIM_WS_URL"), new AuthOptions
+{
+    Uid = Required("WUKONGIM_UID"),
+    Token = Required("WUKONGIM_TOKEN"),
+    DeviceFlag = DeviceFlag.Desktop
+}, new WKIMOptions
+{
+    ConnectTimeout = TimeSpan.FromSeconds(10),
+    RequestTimeout = TimeSpan.FromSeconds(15)
+});
+
+Action<RecvMessage> onMessage = message =>
+{
+    // 按 MessageId 去重，并把 Payload 交给应用状态。
+    // WinForms/WPF 等 UI 需切回 UI 线程；不要打印完整消息。
+    Console.WriteLine("Message received.");
+};
+im.Message += onMessage;
+im.Connected += _ => Console.WriteLine("Connected.");
+im.Disconnected += _ => Console.WriteLine("Disconnected.");
+im.Error += _ => Console.WriteLine("SDK operation failed.");
+im.CustomEvent += notification =>
+{
+    // 按 notification.Type 分发 notification.Data。
+};
+
+try
+{
+    await im.ConnectAsync();
+    Console.WriteLine("Start the peer, then press Enter to send.");
+    Console.ReadLine();
+    var result = await im.SendAsync(args[0], ChannelType.Person,
+        new { type = 1, content = "Hello from C# 👋" });
+    if (!result.IsSuccess)
+        Console.WriteLine($"SEND rejected: {(int)result.ReasonCode}");
+    else
+        Console.WriteLine("Server accepted SEND.");
+    Console.WriteLine("Press Enter after checking both directions to exit.");
+    Console.ReadLine();
+}
+finally
+{
+    im.Message -= onMessage;
+    await im.DisconnectAsync();
+}
+```
+
+两个终端分别使用 Alice/Bob 的连接材料，运行 `dotnet run --project MyChat -- bob` 和 `dotnet run --project MyChat -- alice`。异常会通过异步方法返回给调用者，后台错误也会触发 `Error`；应用应为认证失败、超时和业务拒绝分别提供处理界面。
+
+库默认没有日志。只有显式设置 `WKIMOptions.DebugLogger` 才输出固定运行状态文本，不包含 Token、Payload、原始帧或服务端错误正文。
+
+## 4. 群聊、发送结果与接收数据
+
+群聊使用 `ChannelType.Group` 和业务后端管理的群 ID；成员关系和权限仍由服务端判定。可传入 `SendOptions` 设置 `ClientMsgNo`、`Header`、`Setting` 和 `Topic`。默认 Header 为 `RedDot = true`，显式传入的 Header 不会被 SDK 覆盖。
+
+`ReasonCode.Success` 为 **1**。`SendResult.IsSuccess` 表示服务端接受了发送，不代表 Bob 已收到、已展示或已读。`128–255` 等业务拒绝码保留在结果中；JSON-RPC 错误抛出 `WKIMRpcException`，通过数字 `Code` 判定。
+
+消息 ID 使用 `string`，数字形式的 ID 不经过浮点转换。`MessageSeq` 与 `NodeId` 为 `ulong`。消息 `Timestamp` 单位为 Unix **秒**，自定义事件 `Timestamp` 为 Unix **毫秒**。
+
+`RecvMessage.Payload` 和 `EventNotification.Data` 为拥有独立生命周期的 `JsonElement`。接收 Payload 支持 JSON 对象和 Base64 JSON；无法解码的字符串保留原值。自定义事件的 JSON 字符串会解析为 JSON 值，普通字符串保持不变。
+
+## 5. 重连、取消与释放
+
+| 行为 | C# SDK 约定 |
+| --- | --- |
+| 实例所有权 | `new WKIM` / `WKIM.Init` 创建独立实例，无隐式全局单例 |
+| 并发连接 | 多个 `ConnectAsync` 共享尝试；取消某个调用只停止其等待 |
+| 停止共享连接 | 等待 `DisconnectAsync` 后才再次连接 |
+| 初次失败 | 建连与认证共用 10 秒预算，失败直接返回 |
+| 已连接后断线 | 默认最多重试 5 次，间隔 1、2、4、8、16 秒；成功后重置 |
+| 停止自动重连 | 认证拒绝、服务端断开/踢下线、主动断开或释放 |
+| 最终清理 | 在应用生命周期代码中等待 `DisposeAsync`，或使用 `await using` |
+
+Token 更新或账号切换时，释放旧实例，再使用新的业务凭据创建客户端。需要跨进程保留设备 ID 时显式设置 `AuthOptions.DeviceId`。
+
+事件在后台按顺序派发，回调必须尽快返回，不应阻塞等待 SDK 的异步操作或在回调内等待释放。单个监听器抛异常不会中断其他监听器和自动 ACK。已经入队的回调可能在移除监听或断开后继续执行；`DisposeAsync` 会等待它们结束。
+
+RECVACK 表示消息进入 SDK 接收队列，不是业务处理确认。默认最多保留 256 个待完成请求、128 个待派发事件，单个完整 JSON-RPC 帧上限为 1 MiB。请求超限抛出 `WKIMBackpressureException`；事件队列满会关闭连接，不确认无法入队的消息。应用可以通过 `WKIMOptions` 调整这些边界。
+
+SDK 不缓存离线消息，也不自动重发 SEND。请求超时、取消或断线时，发送可能已经成功。应用应先核对业务状态，需要重试同一条逻辑消息时复用 `SendOptions.ClientMsgNo`。离线恢复、会话、未读数、推送与业务回执由应用自行维护。
+
+## 6. 运行官方示例和验收
+
+在固定源码目录执行：
+
+```bash
+dotnet build -c Release
+dotnet test -c Release
+dotnet run --project examples/ConsoleChat -- bob
+```
+
+控制台示例使用同样的环境变量，输入文本发送，`/quit` 或 Ctrl+C 退出。它把正文显示为聊天界面内容，不输出完整协议对象。
+
+已有服务端二进制时，还可运行自动化真实进程测试：
+
+```bash
+WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py
+```
+
+该脚本只启动和清理自己拥有的回环地址单节点集群，使用 256 Hash Slots 并启用 Token 认证。它自动准备两个测试账号，检查双向 Unicode 消息的 SENDACK/RECV 一致性、重连、心跳和错误 Token 拒绝。
+
+本页源码在 macOS arm64、.NET SDK `8.0.424` / runtime `8.0.30` 通过 35 项测试、Release 构建与本地 NuGet 打包，并对 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 完成上述真实进程验证。自定义事件与故障重连由回环 WebSocket 测试覆盖。此记录不包含公共 NuGet 下载、生产 WSS、离线恢复、多节点容量或长期稳定性验证。
+
+## 下一步
+
+查看 [运行官方示例](/zh/sdk/easy/examples) 和 [SDK 验证记录](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/d365a354f5e0f25fbd7f83bb59aa365ba43e899f/docs/validation.md)，或回到 [WuKongEasySDK](/zh/sdk/easy) 比较平台。生产接入继续参考 [消息收发](/zh/guide/integration/messaging) 与 [集成验收](/zh/guide/integration/acceptance)。
