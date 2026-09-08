@@ -25,7 +25,7 @@ Important semantics:
 - The sender generates and retains `client_msg_no` for request correlation and retry tracking.
 - The sender must inspect the SENDACK or HTTP `reason`; transport success alone is insufficient.
 - For default persistent messages, online delivery and other post-commit effects do not extend an already-completed durable acknowledgement.
-- Plain non-command `NoPersist` returns compatibility success without delivery; only command-style `NoPersist` enters transient online delivery. Neither can recover from durable history; see [Message Flags](/en/api/dictionaries/message-flags).
+- Ordinary and command-style `NoPersist` enter transient online delivery with a message ID and sequence zero. Neither supports durable history or offline recovery; see [Message Flags](/en/api/dictionaries/message-flags).
 
 ## Server-side send
 

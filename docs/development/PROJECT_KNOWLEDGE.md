@@ -265,7 +265,7 @@
 - Durable message send route selection lives in `internal/runtime/channelplane`; `message.App` only builds durable batches and applies committed side effects, it no longer owns slot/channel leader refresh or remote redirect.
 - `RouteGeneration` is the authoritative route identity for channel runtime metadata and peer RPC fencing; stale route records must be treated as a different append route even if the channel ID is unchanged.
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
-- `NoPersist` sends still pass validation and send permissions, then skip durable append/committed events and return success with zero message ID/seq.
+- `NoPersist` sends pass validation and send permissions, resolve Channel authority, allocate a transient message ID, and enter online delivery with zero sequence. They skip durable append, PersistAfter, offline effects, and membership mutation; ordinary sends keep the source Channel and command-style sends keep the command Channel.
 - In internal, persistent `SyncOnce`/CMD sends use the separate command Channel log and never consume ordinary sequence space or mutate either membership directory.
 - `/message/send` request-scoped `subscribers` 要求 `sync_once=1` 且 `channel_id` 为空；`channel_type` 被忽略，内部派生 temp `____cmd` channel。
 - Durable request-scoped subscriber sends write the derived temp cmd channel and carry exact `MessageScopedUIDs`; NoPersist request-scoped sends use a transient message ID and realtime delivery.
@@ -506,9 +506,9 @@
 - Phase 9 public guide foundations keep product capability claims
   workload-qualified and define stable user-facing vocabulary for clusters,
   physical hash slots, logical Slot Raft Groups, Channels, messages, users,
-  devices, and UID-owned conversations. Plain non-command `NoPersist` is a
-  compatibility success without realtime delivery; command-style `NoPersist`
-  alone enters transient delivery. Plugins are node-local `.wkp` processes:
+  devices, and UID-owned conversations. Ordinary and command-style `NoPersist`
+  enter transient online delivery without durable sequence or offline recovery.
+  Plugins are node-local `.wkp` processes:
   Send hooks are synchronous and fail closed by default, while Receive and
   PersistAfter are post-commit effects; Slot-owned UID bindings do not prove a
   compatible plugin is running on every node.
