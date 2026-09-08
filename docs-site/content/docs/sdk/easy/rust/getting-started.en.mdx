@@ -268,6 +268,17 @@ completion requires all clients destroyed, an empty online-status response for a
 all owned server processes, proxy streams and tasks stopped. Package, harness and
 server identities remain separate in the receipt.
 
+The [600-second registry cluster receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-cluster-0.1.0-macos-600s.json)
+binds clean harness `6b533a25ff0c61548a3f90dd36fa2562118f8f21` to the exact
+0.1.0 public package and the merged server revision above. `workload_seconds`
+includes the midpoint fault and route observation; `fault_to_reconnected_ms`
+measures socket recovery, while `fault_to_stable_routes_ms` also includes the
+50-second route observation. `application_sends` must equal `wire_sends`;
+`deliveries` counts all expected recipients, so group fanout makes it a different
+total. A passing result requires at least 600 uninterrupted workload seconds,
+both crash phases and complete cleanup. Interrupted candidate runs are not added
+to this duration. The existing 0.1.0 crate is unchanged.
+
 ## Verification record
 
 On 2026-09-08, crates.io `wukong-easy-sdk 0.1.0` was published from source `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`. An independent consumer with an empty Cargo cache downloaded the public registry package and compiled this tutorial's Chinese and English connection/messaging and private CA examples. The downloaded archive SHA-256 is `0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719`, matching the [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/tag/v0.1.0) attachment.

@@ -245,6 +245,15 @@ CI 分别对源码和正式包运行 60 秒工作负载，手动运行可选择 
 只有所有客户端完成销毁、查询四个用户得到空的在线状态列表，且所有自有服务端进程、
 代理连接和任务完成清理，才算通过。回执分别记录正式包、验收脚本和服务端身份。
 
+[600 秒正式包三节点回执](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-cluster-0.1.0-macos-600s.json)
+分别记录干净验收工具提交 `6b533a25ff0c61548a3f90dd36fa2562118f8f21`、
+精确的 0.1.0 正式包和上述已合并的服务端提交。
+`workload_seconds` 包含中途故障与路由观察；`fault_to_reconnected_ms`
+记录连接恢复时间，`fault_to_stable_routes_ms` 还包含 50 秒的路由观察窗口。
+`application_sends` 必须等于 `wire_sends`；`deliveries` 按所有预期接收者计数，
+群聊多接收者投递会使其与发送次数不同。通过必须完成至少连续 600 秒工作负载、
+两次故障阶段和全部清理，中断的候选版本运行不会拼接计入。现有 0.1.0 包不变。
+
 ## 验证记录
 
 2026-09-08，crates.io `wukong-easy-sdk 0.1.0` 发布自源码 `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`。独立空缓存消费者从公共 registry 下载正式包，编译通过本页中英文的连接收发和私有 CA 示例。下载包 SHA-256 为 `0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719`，与 [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/tag/v0.1.0) 附件一致。
