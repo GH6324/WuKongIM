@@ -392,8 +392,8 @@ function publishedEasySDKGroup(): NavigationGroup {
     'easy',
     'WuKongEasySDK',
     'WuKongEasySDK',
-    '选择 iOS、Android、Flutter 或 Web 快速接入，并用已验证的正式发布包与源码 example 完成在线双向消息。',
-    'Choose an iOS, Android, Flutter, or Web quickstart and use verified released packages and source examples for online bidirectional messaging.',
+    '选择 iOS、Android、Flutter、Web 或 Rust，通过固定发布包或源码完成在线双向消息。',
+    'Choose iOS, Android, Flutter, Web, or Rust and exchange online messages using pinned packages or source revisions.',
     [
       publishedPage(
         'examples',
@@ -429,6 +429,13 @@ function publishedEasySDKGroup(): NavigationGroup {
         'Web quickstart',
         '精确安装 easyjssdk v2.0.4，在真实浏览器与正式包对端中完成 Alice/Bob 在线消息。',
         'Install exactly easyjssdk v2.0.4 for Alice/Bob online messaging in a real browser and released-package peer runs.',
+      ),
+      publishedPage(
+        'rust/getting-started',
+        'Rust 快速接入',
+        'Rust quickstart',
+        '固定 WuKongEasySDK-Rust 源码，使用 Tokio 完成在线消息、有限重连和清理。',
+        'Pin WuKongEasySDK-Rust source for Tokio online messaging, bounded reconnect, and cleanup.',
       ),
     ],
   );

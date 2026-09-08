@@ -1,0 +1,153 @@
+---
+title: Rust quickstart
+description: Connect users with WuKongEasySDK-Rust and Tokio, exchange online messages, and manage bounded reconnect and cleanup.
+---
+
+WuKongEasySDK-Rust serves native Rust programs, desktop applications and communication clients with an existing application backend. It follows [WuKongEasySDK-JS 2.0.4](https://github.com/WuKongIM/WuKongEasySDK-JS/tree/9c03c98c725982fac224cd1d3b52456eae983975), authenticating through WebSocket JSON-RPC CONNECT before exchanging online messages.
+
+The current Product Gateway supports this online bidirectional messaging path. The SDK does not provide a local message store, conversations/unread state, offline recovery or push. Read [SDK selection](/en/sdk) when you need those capabilities.
+
+## 1. Install a pinned source version
+
+Official repository: [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust). The source package version is `0.1.0`, requiring Rust **1.86+** and Tokio. This version is distributed through Git and has not been published to crates.io; use the exact revision below:
+
+```toml
+[dependencies]
+wukong-easy-sdk = { git = "https://github.com/WuKongIM/WuKongEasySDK-Rust.git", rev = "f6ce7dc68277b53c5268a314bc02120c5c2eb1d9" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde_json = "1"
+```
+
+The package name is `wukong-easy-sdk`; the Rust import name is `wukong_easy_sdk`. Commit your application's `Cargo.lock` to retain resolved dependencies. This implementation supports native TCP/TLS; WSS uses rustls and WebPKI roots. Browser/WASM is not supported.
+
+## 2. Obtain connection credentials
+
+Your backend returns the current user's `uid`, short-lived `token` and `websocketUrl`. Protect registration and rotation as described in [authentication and tokens](/en/guide/integration/authentication). Clients must not call Product HTTP management endpoints directly.
+
+`Auth::new` defaults to **PC/Desktop `2`**. Wire values are APP `0`, WEB `1`, PC `2`; register the token under the same device category. If your native host uses APP, set `auth.device_flag = DeviceFlag::App` and match the backend registration.
+
+`Auth::new` generates a `device_id` retained across that client's reconnects. Set your own persistent device ID when identity must survive process restarts. Create a `Client` per identity; `clone()` shares its connection across Tokio tasks.
+
+## 3. Connect, send and clean up
+
+This complete program subscribes first, connects, sends one message to Bob and cleans up. Set the environment variables from your backend. Alice and Bob must have different UIDs, and Bob must already be online.
+
+```rust
+use serde_json::json;
+use wukong_easy_sdk::{Auth, ChannelType, Client, Event, Options};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new(
+        std::env::var("WK_WS_URL")?,
+        Auth::new(std::env::var("WK_UID")?, std::env::var("WK_TOKEN")?),
+        Options::default(),
+    )?;
+    let mut events = client.subscribe();
+    let listener = tokio::spawn(async move {
+        loop {
+            match events.recv().await {
+                Ok(Event::Message(message)) => {
+                    // Render/store message.payload in your UI; do not log its body.
+                    let _ = &message.payload;
+                }
+                Ok(Event::CustomEvent(event)) => {
+                    // Your application defines event.event_type and event.data.
+                    let _ = (&event.event_type, &event.data);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    // Events were lost; reconcile through your application backend.
+                    break;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                _ => {}
+            }
+        }
+    });
+    let result = async {
+        client.connect().await?;
+        let ack = client.send(
+            "bob", ChannelType::Person,
+            json!({"type": 1, "content": "Hello, Rust 🦀"}),
+        ).await?;
+        // ack is server acceptance, not Bob reading or processing the message.
+        let _ = ack;
+        Ok::<_, wukong_easy_sdk::Error>(())
+    }.await;
+    client.destroy().await;
+    listener.abort();
+    let _ = listener.await;
+    result?;
+    Ok(())
+}
+```
+
+A successful `send` returns `SendResult`, including string `message_id`, `u64` `message_seq` and `reason_code`. Business errors return `Error::Server { code }`, preserving the numeric code. SENDACK does not imply receipt, display or application completion; see [messaging](/en/guide/integration/messaging).
+
+## 4. Run Alice and Bob
+
+For ongoing bidirectional communication, use the repository's terminal example:
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Rust.git
+cd WuKongEasySDK-Rust
+git checkout f6ce7dc68277b53c5268a314bc02120c5c2eb1d9
+cargo test --locked
+```
+
+From a trusted development terminal, follow [Run Official Examples](/en/sdk/easy/examples) to prepare credentials, setting both Alice and Bob's `device_flag` to `2`. Run these commands in separate terminals:
+
+```bash
+# Alice
+WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
+  WK_PEER_UID=bob cargo run --locked --example chat
+
+# Bob
+WK_WS_URL=ws://127.0.0.1:5200 WK_UID=bob WK_TOKEN=bob-token \
+  WK_PEER_UID=alice cargo run --locked --example chat
+```
+
+Wait for both connections before typing messages. The example reports server acceptance, receipt and connection state without logging message bodies. Your application can read `from_uid`, Channel and Payload from `Event::Message`. Enter `/quit` or use Ctrl-C to clean up.
+
+Use `roundtrip` for unattended bidirectional checks:
+
+```bash
+WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
+  WK_PEER_UID=bob WK_PEER_TOKEN=bob-token \
+  cargo run --locked --example roundtrip
+```
+
+It creates two Rust clients, checks Unicode payloads and send results, spans multiple heartbeat periods, then reconnects and repeats the exchange. JS interoperability instructions are in the repository [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/f6ce7dc68277b53c5268a314bc02120c5c2eb1d9/README.md#development-and-live-verification).
+
+## 5. Manage lifecycle and resources
+
+| Task | Rust API and behavior |
+| --- | --- |
+| Subscribe/unsubscribe | `subscribe()` returns a Tokio broadcast receiver; drop it to unsubscribe |
+| Concurrent connection | `connect().await` joins the current attempt; cancelling one future does not cancel it |
+| Initial failure | Returns an error; the application decides whether to retry |
+| Network reconnect | An established connection's failure gets at most 5 exponential retries with jitter |
+| Manual disconnect | `disconnect().await` cancels authentication, I/O and retries; later connect is allowed |
+| Account exit | `destroy().await` permanently closes every clone; also stop subscriber tasks |
+| Last handle dropped | Cancels the worker; explicitly await shutdown when completion matters |
+
+Authentication rejection, server `disconnect` and manual shutdown do not reconnect. Defaults are a 25-second heartbeat interval, 10-second pong deadline, 5-second connection timeout, 15-second total SEND timeout and 5-second write timeout.
+
+Queued and pending SENDs share a default limit of 256; excess calls return `Backpressure`. Events retain 256 entries; slow observers get `RecvError::Lagged`. The default maximum complete JSON-RPC message is 1 MiB including Base64 overhead. Adjust `Options` for your measured workload.
+
+Automatic RECVACK confirms network receipt, not observer processing. Messages are acknowledged even without observers or when an observer falls behind. EasySDK has no durable inbox; reliable recovery requires application storage, deduplication and reconciliation. Do not ignore `Lagged`.
+
+Sends are never replayed automatically. Timeout, cancellation or transport loss may leave acceptance unknown; preserve `SendOptions.client_msg_no` if your application retries under the server's idempotency contract. `SendOptions` also supports Header, Setting and Topic. SEND `red_dot` defaults to true and respects explicit false. Use `ChannelType::Group` for group messages after the backend prepares membership and permissions.
+
+## Protocol and before production
+
+- Sends use string request IDs, camelCase metadata and Base64 UTF-8 JSON. Receive supports objects and Base64 JSON; results accept camelCase, snake_case and both spellings together.
+- The SDK is default-silent. Auth Debug and SDK errors omit tokens, URLs, raw frames and raw server error text. Complete events contain application data and must not be logged wholesale.
+- Custom events expose `id`, `event_type`, `timestamp` and `data`. Parser support does not imply a deployment produces particular event types.
+- Before production, validate WSS certificates, proxy Upgrade, token revocation/rotation, target OS, packet loss, queue bounds and shutdown. One online run does not establish capacity or long-term stability.
+
+## Verification record
+
+On 2026-09-08, Rust source `f6ce7dc68277b53c5268a314bc02120c5c2eb1d9` passed protocol/lifecycle tests, Clippy, example builds and package verification on macOS / Rust 1.86.0. Against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, a 256 Hash Slot single-node cluster with `token_auth_on=true`, Rust/Rust and Rust/`easyjssdk@2.0.4` passed online bidirectional Unicode messaging, heartbeat, manual reconnect and cleanup; an incorrect token was rejected.
+
+This is exact-source evidence, not crates.io package acceptance. WSS proxies, physical devices, offline recovery, capacity and long-term stability were outside that run. Return to [WuKongEasySDK](/en/sdk/easy) for other platforms.

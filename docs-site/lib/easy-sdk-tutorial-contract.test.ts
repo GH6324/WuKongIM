@@ -422,3 +422,30 @@ describe('EasySDK tutorial content contract', () => {
     }
   });
 });
+
+
+describe('Rust EasySDK source distribution', () => {
+  test('pins bilingual source installs and makes resource/lifecycle boundaries explicit', async () => {
+    const revisions: string[] = [];
+    for (const suffix of ['', '.en']) {
+      const page = await content(`rust/getting-started${suffix}.mdx`);
+      const revision = page.match(/rev = "([a-f0-9]{40})"/u)?.[1];
+      expect(revision).toBeDefined();
+      revisions.push(revision!);
+      expect(page).toContain('https://github.com/WuKongIM/WuKongEasySDK-Rust');
+      expect(page).toContain('wukong-easy-sdk');
+      expect(page).toContain('wukong_easy_sdk');
+      expect(page).toContain('1.86+');
+      expect(page).toContain('crates.io');
+      expect(page).toContain('PC/Desktop `2`');
+      expect(page).toContain('RecvError::Lagged');
+      expect(page).toContain('Backpressure');
+      expect(page).toContain('client.destroy().await');
+      expect(page).toContain('listener.abort()');
+      expect(page).toContain('cargo run --locked --example roundtrip');
+      expect(page).toContain('132e46209d98fa0425cc0f88e7a97080cdad044d');
+      expect(page).not.toMatch(/wukong-easy-sdk\s*=\s*"[~^=0-9]/u);
+    }
+    expect(revisions[0]).toBe(revisions[1]);
+  });
+});

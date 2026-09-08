@@ -239,6 +239,7 @@ describe('documentation navigation contract', () => {
       ['android/getting-started', 'published'],
       ['flutter/getting-started', 'published'],
       ['javascript/getting-started', 'published'],
+      ['rust/getting-started', 'published'],
     ]);
     for (const page of easy?.children ?? []) {
       if (page.slug === 'examples') {
@@ -246,13 +247,18 @@ describe('documentation navigation contract', () => {
         expect(page.description.en).toContain('four released packages');
         continue;
       }
+      if (page.slug === 'rust/getting-started') {
+        expect(page.description.zh).toContain('源码');
+        expect(page.description.en).toContain('source');
+        continue;
+      }
       const snapshot = snapshots.get(page.slug);
       expect(snapshot).toBeDefined();
       expect(page.description.zh).toContain(snapshot!);
       expect(page.description.en).toContain(snapshot!);
     }
-    expect(easy?.description.zh).toContain('已验证的正式发布包');
-    expect(easy?.description.en).toContain('verified released packages');
+    expect(easy?.description.zh).toContain('固定发布包或源码');
+    expect(easy?.description.en).toContain('pinned packages or source revisions');
     for (const url of [
       '/en/sdk/easy',
       '/en/sdk/easy/examples',
@@ -260,6 +266,7 @@ describe('documentation navigation contract', () => {
       '/en/sdk/easy/android/getting-started',
       '/en/sdk/easy/flutter/getting-started',
       '/en/sdk/easy/javascript/getting-started',
+      '/en/sdk/easy/rust/getting-started',
     ]) {
       expect(published).toContain(url);
     }
@@ -538,6 +545,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/easy/android/getting-started`,
         `/${locale}/sdk/easy/flutter/getting-started`,
         `/${locale}/sdk/easy/javascript/getting-started`,
+        `/${locale}/sdk/easy/rust/getting-started`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,

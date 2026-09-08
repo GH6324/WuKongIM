@@ -185,3 +185,9 @@ gh workflow run easysdk-release-acceptance.yml --ref main
 ## 下一步
 
 根据目标平台继续阅读 [iOS](/zh/sdk/easy/ios/getting-started)、[Android](/zh/sdk/easy/android/getting-started)、[Flutter](/zh/sdk/easy/flutter/getting-started) 或 [Web](/zh/sdk/easy/javascript/getting-started) 快速接入，再用[上线验收](/zh/guide/integration/acceptance)补齐 WSS、真机、离线、容量与回滚证据。
+
+## Rust 源码示例（2026-09-08）
+
+Rust 仓库为 [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust)，源码包版本 `0.1.0`，尚未发布到 crates.io。按 [Rust 快速接入](/zh/sdk/easy/rust/getting-started) 使用固定 revision `f6ce7dc68277b53c5268a314bc02120c5c2eb1d9`，运行 `cargo run --locked --example chat` 或 `cargo run --locked --example roundtrip`；两组 Rust 身份的 `device_flag` 均为 PC `2`。
+
+该源码已在 macOS / Rust 1.86.0 上连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 的 256 Hash Slot 单节点集群，保持 Token 鉴权开启，通过 Rust/Rust、Rust/`easyjssdk@2.0.4` 双向 Unicode 消息、心跳、手动重连和清理，并验证错误 Token 被拒绝。JS 对端使用 WEB `1`。这份 Rust 源码运行独立于上方四端正式包凭据，不覆盖 WSS、容量或长期稳定性。

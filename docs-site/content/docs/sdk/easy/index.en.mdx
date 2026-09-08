@@ -1,6 +1,6 @@
 ---
 title: WuKongEasySDK
-description: Choose an iOS, Android, Flutter, or Web quickstart and use a pinned release to complete an online Alice/Bob messaging loop.
+description: Choose an iOS, Android, Flutter, Web, or Rust quickstart and use a pinned package or source revision to complete an online Alice/Bob messaging loop.
 ---
 
 WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and online-messaging API. It fits applications that already have a product backend and own their UI and product state.
@@ -13,6 +13,7 @@ WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and o
   <Card title="Android quickstart" description="Install exactly 1.0.5 and complete the loop around the process singleton and Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
   <Card title="Flutter quickstart" description="Install exactly 1.1.0, retain listener references, and release them from dispose." href="/en/sdk/easy/flutter/getting-started" />
   <Card title="Web quickstart" description="Install exactly easyjssdk 2.0.4 and obtain connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
+  <Card title="Rust quickstart" description="Pin Git source and use Tokio for messaging, bounded reconnect and cleanup." href="/en/sdk/easy/rust/getting-started" />
 </Cards>
 
 After the platform tutorial, Alice and Bob will connect separately, exchange a text JSON payload in a person Channel, then remove listeners and connections on exit.
@@ -27,6 +28,8 @@ After the platform tutorial, Alice and Bob will connect separately, exchange a t
 | Product-owned UI, persistence, and receipts | More client message state owned by the SDK |
 
 EasySDK is neither a chat UI nor a complete product backend. A successful `send` means the server returned a send result; it does not mean the peer received, displayed, or processed the message. If you need the broader feature set, return to [SDK selection](/en/sdk).
+
+Rust uses one `Client` per identity; clones share the socket. `subscribe()` returns a bounded receiver, `disconnect().await` permits later connection, and `destroy().await` closes permanently. The default device category is PC `2`. See the [Rust quickstart](/en/sdk/easy/rust/getting-started) for installation and lifecycle.
 
 ## Before you begin: get connection material from your backend
 
@@ -50,7 +53,7 @@ Complete [Authentication & Tokens](/en/guide/integration/authentication) first. 
 
 ## Alice/Bob acceptance loop
 
-All four platforms follow the same minimal path:
+All platforms follow the same minimal path:
 
 1. Obtain separate `uid`, short-lived `token`, and `websocketUrl` values for Alice and Bob.
 2. Create the clients in two independent devices, processes, or browser contexts by following the platform quickstart.

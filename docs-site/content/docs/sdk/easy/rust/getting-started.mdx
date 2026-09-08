@@ -1,0 +1,153 @@
+---
+title: Rust 快速接入
+description: 通过 WuKongEasySDK-Rust 和 Tokio 连接用户，完成在线收发、有限重连和连接清理。
+---
+
+WuKongEasySDK-Rust 适合原生 Rust 程序、桌面应用和已有业务后端的通信客户端。它参考 [WuKongEasySDK-JS 2.0.4](https://github.com/WuKongIM/WuKongEasySDK-JS/tree/9c03c98c725982fac224cd1d3b52456eae983975)，使用 WebSocket JSON-RPC CONNECT 完成鉴权，再收发在线消息。
+
+当前 Product Gateway 支持这条在线双向收发路径。SDK 不提供本地消息库、会话/未读、离线恢复或推送；需要这些能力时先阅读 [SDK 选择](/zh/sdk)。
+
+## 1. 安装固定源码版本
+
+官方仓库：[WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust)。当前源码包版本为 `0.1.0`，需要 Rust **1.86+** 和 Tokio。此版本通过 Git 分发，尚未发布到 crates.io；使用以下精确 revision，不要使用浮动分支代替版本：
+
+```toml
+[dependencies]
+wukong-easy-sdk = { git = "https://github.com/WuKongIM/WuKongEasySDK-Rust.git", rev = "f6ce7dc68277b53c5268a314bc02120c5c2eb1d9" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde_json = "1"
+```
+
+包名是 `wukong-easy-sdk`，Rust 导入名是 `wukong_easy_sdk`。提交应用的 `Cargo.lock`，让后续构建复用已解析的依赖。当前实现支持原生 TCP/TLS，WSS 使用 rustls 与 WebPKI 根证书；不支持浏览器/WASM。
+
+## 2. 获取连接材料
+
+业务后端返回当前用户的 `uid`、短期 `token` 和 `websocketUrl`。按[认证与 Token](/zh/guide/integration/authentication)保护注册和轮换流程；客户端不应直接调用 Product HTTP 管理接口。
+
+`Auth::new` 默认设备类别是 **PC/Desktop `2`**。协议值为 APP `0`、WEB `1`、PC `2`，Token 必须按同一设备类别保存。若你的原生宿主使用 APP 类别，显式设置 `auth.device_flag = DeviceFlag::App`，并同步后端注册类别。
+
+`Auth::new` 生成的 `device_id` 在同一个客户端重连时保持不变；需要跨进程保留设备身份时，由应用读取并设置自己的稳定设备 ID。每个身份创建一个 `Client`；`clone()` 共享同一条连接，适合在 Tokio 任务之间传递。
+
+## 3. 连接、发送并清理
+
+这个完整程序先订阅事件，再连接并向 Bob 发一条消息，随后清理。把环境变量换成业务后端提供的材料。Alice 和 Bob 必须是不同 UID，且 Bob 已在线。
+
+```rust
+use serde_json::json;
+use wukong_easy_sdk::{Auth, ChannelType, Client, Event, Options};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new(
+        std::env::var("WK_WS_URL")?,
+        Auth::new(std::env::var("WK_UID")?, std::env::var("WK_TOKEN")?),
+        Options::default(),
+    )?;
+    let mut events = client.subscribe();
+    let listener = tokio::spawn(async move {
+        loop {
+            match events.recv().await {
+                Ok(Event::Message(message)) => {
+                    // 在应用 UI 中展示或保存 message.payload，不记录完整正文。
+                    let _ = &message.payload;
+                }
+                Ok(Event::CustomEvent(event)) => {
+                    // event.event_type 和 event.data 由业务协议定义。
+                    let _ = (&event.event_type, &event.data);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    // 已丢失事件；通知应用通过业务后端补偿状态。
+                    break;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                _ => {}
+            }
+        }
+    });
+    let result = async {
+        client.connect().await?;
+        let ack = client.send(
+            "bob", ChannelType::Person,
+            json!({"type": 1, "content": "你好，Rust 🦀"}),
+        ).await?;
+        // ack 是服务端发送结果，不是 Bob 已读或业务处理完成。
+        let _ = ack;
+        Ok::<_, wukong_easy_sdk::Error>(())
+    }.await;
+    client.destroy().await;
+    listener.abort();
+    let _ = listener.await;
+    result?;
+    Ok(())
+}
+```
+
+成功的 `send` 返回 `SendResult`，包括字符串 `message_id`、`u64` 类型的 `message_seq` 和 `reason_code`。业务错误返回 `Error::Server { code }`，保留服务端数值，不把失败响应当成功。不要将 SENDACK 等同于接收、展示或业务完成，详见[消息收发](/zh/guide/integration/messaging)。
+
+## 4. 跑通 Alice 与 Bob
+
+要验证持续双向通信，运行仓库里的终端 example，而不是上面发送后立即退出的程序：
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Rust.git
+cd WuKongEasySDK-Rust
+git checkout f6ce7dc68277b53c5268a314bc02120c5c2eb1d9
+cargo test --locked
+```
+
+由受信开发终端按[运行官方示例](/zh/sdk/easy/examples)准备两组 Token，将 Alice 与 Bob 的 `device_flag` 都设为 `2`。在两个终端分别运行：
+
+```bash
+# Alice
+WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
+  WK_PEER_UID=bob cargo run --locked --example chat
+
+# Bob
+WK_WS_URL=ws://127.0.0.1:5200 WK_UID=bob WK_TOKEN=bob-token \
+  WK_PEER_UID=alice cargo run --locked --example chat
+```
+
+两端都显示连接成功后再输入内容。示例会报告服务端接受发送、收到消息和连接状态，避免把消息正文写入日志；应用可以从 `Event::Message` 中读取 `from_uid`、Channel 和 Payload。输入 `/quit` 或 Ctrl-C 清理退出。
+
+无人值守的双向校验可使用 `roundtrip`：
+
+```bash
+WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
+  WK_PEER_UID=bob WK_PEER_TOKEN=bob-token \
+  cargo run --locked --example roundtrip
+```
+
+该 example 创建两个 Rust 客户端，核对 Unicode Payload 与发送结果，跨多个心跳周期检查连接，并手动重连后重复收发。JS 互通步骤见仓库 [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/f6ce7dc68277b53c5268a314bc02120c5c2eb1d9/README.md#development-and-live-verification)。
+
+## 5. 管理生命周期与资源
+
+| 任务 | Rust API 与语义 |
+| --- | --- |
+| 订阅/取消订阅 | `subscribe()` 返回 Tokio broadcast 接收器；drop 接收器取消订阅 |
+| 并发连接 | `connect().await` 共享当前尝试；取消一个 Future 不会取消共享连接 |
+| 首次失败 | 返回错误，由应用决定是否再次连接 |
+| 网络重连 | 已建立的连接异常断开后，默认最多 5 次指数退避重连，包含抖动 |
+| 手动断开 | `disconnect().await` 取消鉴权、I/O 和重连；之后可再次 connect |
+| 账号退出 | `destroy().await` 永久关闭所有 clone，并结束订阅任务 |
+| 最后一个句柄 drop | 取消后台连接；需要确认清理完成时显式 await |
+
+鉴权拒绝、服务端 `disconnect` 和手动退出不会自动重连。默认心跳间隔 25 秒，等待 pong 10 秒；连接超时 5 秒，发送总超时 15 秒，写入超时 5 秒。
+
+默认在队列中和等待响应的 SEND 总数不超过 256，超限返回 `Backpressure`；事件保留 256 条，慢监听器收到 `RecvError::Lagged`。单个完整 JSON-RPC 报文默认限制 1 MiB，包含 Base64 膨胀。通过 `Options` 按实际负载调整。
+
+自动 RECVACK 表示网络接收，不表示监听器已处理。即使没有监听器或监听器落后，也会确认接收；EasySDK 没有持久收件箱，需要可靠恢复时由业务层提供存储、去重和补偿。不要忽略 `Lagged`。
+
+发送不会自动重放。超时、取消或断线时服务端是否接受可能未知；业务决定重试时保留 `SendOptions.client_msg_no` 并遵循服务端幂等约定。`SendOptions` 还支持 Header、Setting 和 Topic；`red_dot` 默认 true，尊重显式 false。群聊使用 `ChannelType::Group`，成员与权限由后端准备。
+
+## 协议与上线前检查
+
+- 发送使用字符串请求 ID、camelCase 字段与 Base64 UTF-8 JSON；接收支持 JSON 对象及 Base64 JSON；结果兼容 camelCase、snake_case 及同时出现的两种拼写。
+- SDK 默认静默；Auth 的 Debug 和 SDK 错误不包含 Token、URL、原始帧或服务端错误正文。完整事件包含业务数据，不应直接打印。
+- 自定义事件暴露 `id`、`event_type`、`timestamp` 和 `data`；支持解析不意味着服务端部署一定产生某类事件。
+- 上线前检查 WSS 证书、代理 Upgrade、Token 撤销/轮换、目标操作系统、丢包、队列上限和退出；单次在线验收不代替长期稳定性和容量测试。
+
+## 验证记录
+
+2026-09-08，Rust 源码 `f6ce7dc68277b53c5268a314bc02120c5c2eb1d9` 在 macOS / Rust 1.86.0 上通过协议与生命周期测试、Clippy、示例构建和打包校验；连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 的 256 Hash Slot 单节点集群，在 `token_auth_on=true` 下通过 Rust/Rust 及 Rust/`easyjssdk@2.0.4` 在线双向 Unicode 收发、心跳、手动重连与清理，并验证错误 Token 被拒绝。
+
+这是精确源码的运行证据，不是 crates.io 发布包验收；WSS 代理、物理设备、离线恢复、容量和长期稳定性不在这次验证范围内。返回 [WuKongEasySDK](/zh/sdk/easy) 查看其他平台。
