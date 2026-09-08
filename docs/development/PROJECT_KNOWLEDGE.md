@@ -2,6 +2,14 @@
 
 ## Internal
 
+- Chat Demo existing-token login must not call `/user/token`. Its per-tab session
+  persists connection credentials only; account changes and resynchronization
+  rebuild the SDK singleton. Prepending history requires stable message keys
+  and reactive content selection; otherwise Vue can display another message's
+  order card under the correct ClientMsgNo. The 2026-09-08 real Demo acceptance
+  also found a separate three-node/three-replica availability failure during a
+  bounded node pause; see the [client report](../superpowers/reports/2026-09-08-v2-migration-demo-client.md).
+
 - Legacy StreamNo is not a synonym for ClientMsgNo. Protocol v5 omits the old wire stream identifiers, while old protocol/plugin surfaces can still use them. A retained legacy stream parent may have an empty body and no event projection; excluding old Stream/StreamMeta rows never authorizes fabricating payloads or terminal events, clearing parent fields, or bypassing native replication checks. Any archive-only parent-field conversion needs an explicit plan policy and verification.
 
 - Migration must honor the existing v3 durable schema, proposal version 1,

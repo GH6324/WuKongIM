@@ -5,13 +5,14 @@ import Text from './Text.vue'
 import CustomMessage from './CustomMessage.vue'
 import { orderMessage } from './CustomMessage'
 import Stream from './Stream.vue';
+import { computed } from 'vue';
 
 const props = defineProps<{
     message: any
 }>()
 
-const contentType = props.message.content.contentType
-const streamOn = props.message.setting.streamOn
+const contentType = computed(() => props.message.content.contentType)
+const streamOn = computed(() => props.message.setting.streamOn)
 
 
 </script>

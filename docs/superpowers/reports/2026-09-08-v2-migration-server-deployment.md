@@ -4,6 +4,10 @@
 `/root/wukongim_v2_bak` 的 v2 数据迁入 `/root/wukongim` 的 v3 环境。
 本次已完成目标目录的测试切换，并保留迁入后的三节点集群运行。
 
+后续实际 Demo 验收、最终嵌入页面程序摘要及新发现的单节点故障未通过项，见
+[Chat Demo 验收报告](2026-09-08-v2-migration-demo-client.md)。下文记录 deployment-57
+当时结果，不能覆盖后续高可用失败观察。
+
 ## 数据来源与部署
 
 本次复用 visibility-49 生成、verify-55 已完整独立校验、从未启动的初始产物，
