@@ -1,21 +1,18 @@
 ---
 title: Python 快速接入
-description: 安装 WuKongEasySDK-Python 固定源码，用 asyncio 完成在线收发、心跳、重连和资源清理。
+description: 安装 WuKongEasySDK-Python 固定 PyPI 版本，用 asyncio 完成在线收发、心跳、重连和资源清理。
 ---
 
 [WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) 参考 JS `v2.0.4`，使用 Python 3.11+、`asyncio` 与 `websockets`，提供 WebSocket JSON-RPC CONNECT、在线收发、自动 RECVACK、心跳、重连和自定义事件。
 
-## 1. 安装固定源码
+## 1. 安装固定版本
 
-本文固定工程版本 `0.1.0`、源码 `c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a`。当前通过源码安装，尚未发布到 PyPI；分发名是 `wukong-easy-sdk`，导入名是 `wukong_easy_sdk`。
+本文使用 [PyPI `wukong-easy-sdk==0.1.0`](https://pypi.org/project/wukong-easy-sdk/0.1.0/)，要求 Python 3.11+。分发名是 `wukong-easy-sdk`，导入名是 `wukong_easy_sdk`。
 
 ```sh
-git clone https://github.com/WuKongIM/WuKongEasySDK-Python.git
-cd WuKongEasySDK-Python
-git checkout c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install .
+python -m pip install --index-url https://pypi.org/simple "wukong-easy-sdk==0.1.0"
 ```
 
 Windows PowerShell 将激活命令替换为 `.venv\Scripts\Activate.ps1`。运行依赖为 `websockets>=15.0.1,<18`，仓库 `uv.lock` 固定开发与验证依赖。
@@ -26,10 +23,16 @@ Windows PowerShell 将激活命令替换为 `.venv\Scripts\Activate.ps1`。运�
 
 设备类别是 APP `0`、WEB `1`、PC/Desktop `2`。**Python 默认 Desktop `2`**，后端保存 Token 时必须使用相同设备类别。开发地址通常为 `ws://127.0.0.1:5200`；仅当 listener 或代理配置了 `/ws` 时使用 `ws://127.0.0.1:5200/ws`。生产使用 `wss://`，跨机器时使用客户端实际可达地址。
 
+下载与安装包一致的示例源码，继续使用当前虚拟环境：
+
+```sh
+git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Python.git
+```
+
 两个终端分别设置自己的 `WKIM_UID`、`WKIM_TOKEN`、`WKIM_PEER` 和可选的 `WKIM_URL`，运行：
 
 ```sh
-python examples/chat.py
+python WuKongEasySDK-Python/examples/chat.py
 ```
 
 例如 Alice 的 `WKIM_UID=alice`、`WKIM_PEER=bob`；Bob 相反。Token 通过各自受信环境提供。两端都显示 `Connected` 后输入消息，再反向发送，输入 `/quit` 清理退出。示例主动展示聊天内容，SDK 自身默认静默。
@@ -109,6 +112,6 @@ WSS 默认验证证书链与主机名，最低 TLS 1.2。私有 CA 使用 `WKIMO
 
 默认不输出日志；`WKIMOptions(debug_logging=True)` 只启用固定生命周期元数据，不记录 Token、Payload、URL、原始帧、服务端响应文本或底层异常对象。
 
-该源码在 WuKongIM `0348c0539bbee420a859439695acdac911afa854`、开启 Token 鉴权的 256 Hash Slot 单节点集群上完成 Python/Python 与真实 JS `2.0.4` 双向消息、Ping、手动重新连接、错误 Token 拒绝和在线清理。独立 WS/WSS 测试覆盖自动重连、请求取消、队列边界和证书拒绝。完整环境及复现命令见[验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a/docs/VALIDATION.md)。这些是源码与本地构建证据，不代表 PyPI 正式包验收。
+PyPI `0.1.0` 来自发布源码 `ec2c62c73eca29be99ac15ba76ff7466c13617d5`。公开 wheel 与 sdist 的 SHA-256 均与发布工作流产物一致。从 PyPI 新安装的 Python `3.11.12` / websockets `15.0.1` 和 Python `3.14.7` / websockets `17.1` 两种环境，各通过 64 项测试，并在 WuKongIM `0348c0539bbee420a859439695acdac911afa854`、开启 Token 鉴权的 256 Hash Slot 单节点集群上完成 Python/Python 与真实 JS `2.0.4` 双向消息、Ping、手动重新连接、错误 Token 拒绝和在线清理。JS 来自固定源码构建。独立 WS/WSS 测试覆盖自动重连、请求取消、队列边界和证书拒绝。完整哈希、安装回执、版本与复现命令见 [PyPI 正式包验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/90018a9ac53bdef4cb15dadb169ff835cbfcb2a6/docs/PYPI_VALIDATION.md)。
 
 不提供离线同步、会话、未读或推送；这些需求请使用完整版 SDK。继续验证实际部署的 WSS 代理、Token 轮换、重复投递和容量，或回到 [WuKongEasySDK 概览](/zh/sdk/easy)与[运行官方示例](/zh/sdk/easy/examples)。
