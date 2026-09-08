@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"reflect"
 	"strconv"
 	"testing"
@@ -174,4 +175,43 @@ func recoveryMutationAfter(t *testing.T, key ch.ChannelKey, id ch.ChannelID, mar
 		t.Fatalf("SealProposalManifest(marker=%d) failed", marker)
 	}
 	return Mutation{ChannelKey: key, ChannelID: id, Manifest: manifest, Records: []ch.Record{record}}, entries[0]
+}
+
+func TestRepairQuorumPrefixWaitsForSuffixProofAndResumesWithoutLosingDurableTail(t *testing.T) {
+	key := ch.ChannelKey("1:recovery-rejoin")
+	id := ch.ChannelID{ID: "recovery-rejoin", Type: 1}
+	first, firstTail := recoveryMutationAfter(t, key, id, 1, 0, ch.EntryIdentity{})
+	first.Committed = 1
+	second, secondTail := recoveryMutationAfter(t, key, id, 2, 1, firstTail)
+	adapter, err := NewStoreAdapter(StoreAdapterConfig{Factory: channelstore.NewMemoryFactory(), MaxBatchItems: 4, MaxBatchBytes: 64 << 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range adapter.Sync(context.Background(), []Mutation{first, second}) {
+		if !result.Outcome.Durable() || result.Err != nil {
+			t.Fatalf("seed=%+v", result)
+		}
+	}
+	local := ReplicaState{LEO: 2, Committed: 1, Manifest: second.Manifest, TailIdentity: secondTail}
+	behind := ReplicaState{LEO: 1, Committed: 1, Manifest: first.Manifest, TailIdentity: firstTail}
+	request := recoveryRepairRequest{ChannelKey: key, ChannelID: id, Leader: 1, Local: 1, Voters: []ch.NodeID{1, 2, 3}, Quorum: 2, Timeout: time.Second, MaxPageBytes: 32 << 10,
+		Selection: recoverySelection{Index: 1, Identity: firstTail, CertifiedCommitted: 1, CertifiedIdentity: firstTail, Supporters: []recoverySupporter{{Voter: 1, State: local}, {Voter: 2, State: behind}}}}
+	dispatcher := &scriptedRecoveryFetchDispatcher{}
+	if _, err := repairQuorumPrefix(context.Background(), request, dispatcher, adapter); !errors.Is(err, ch.ErrNotReady) {
+		t.Fatalf("incomplete suffix proof error=%v, want retryable not ready", err)
+	}
+	loaded, err := loadRecoveryReplicaState(context.Background(), adapter, key, id, nil)
+	if err != nil || loaded.State != local || len(dispatcher.queries) != 0 {
+		t.Fatalf("uncertain durable tail changed: %+v err=%v fetches=%d", loaded, err, len(dispatcher.queries))
+	}
+	// The second durable supporter returns after the next fault/rejoin. Its
+	// complete prefix proof permits normal repair without replaying the SEND.
+	request.Selection.Index = 2
+	request.Selection.Identity = secondTail
+	request.Selection.Supporters = []recoverySupporter{{Voter: 1, State: local}, {Voter: 3, State: local}}
+	dispatcher.result = FetchResult{State: local, Proposals: []RecoveryProposal{{Manifest: second.Manifest, Records: second.Records}}}
+	got, err := repairQuorumPrefix(context.Background(), request, dispatcher, adapter)
+	if err != nil || got.LEO != 2 || got.Committed != 2 || got.TailIdentity != secondTail {
+		t.Fatalf("resumed recovery=%+v error=%v", got, err)
+	}
 }

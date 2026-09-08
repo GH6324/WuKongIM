@@ -42,3 +42,5 @@ This domain covers black-box message and conversation behavior for
   same change.
 - Keep one-off helpers inside the scenario directory first. Only promote them
   to `test/e2e/suite` after real multi-scenario reuse appears.
+
+- The Channel failover fixture uses 256 Hash Slots and explicitly disables Token authentication for its existing tokenless readiness client. SDK acceptance keeps Token authentication enabled.

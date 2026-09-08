@@ -80,6 +80,14 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 	if local.LEO == selection.Index && local.TailIdentity == selection.Identity && local.Committed == selection.Index {
 		return local, nil
 	}
+	if local.Committed == selection.Index && local.LEO > selection.Index {
+		// A surviving voter can retain a write acknowledged with a currently
+		// unavailable voter while the other survivor trails. The shorter proof
+		// establishes no conflicting content and cannot authorize truncating
+		// that durable suffix. Keep admission closed until a later Install has
+		// enough prefix evidence; this is readiness, not a proven log conflict.
+		return ReplicaState{}, ch.ErrNotReady
+	}
 
 	current := local
 	from := keepThrough + 1

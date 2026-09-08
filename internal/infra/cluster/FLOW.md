@@ -40,7 +40,10 @@ and bounded operations observations.
    reread from the Slot leader per routed batch; only person metadata is cached.
    First person SENDs prepare coalesced UID membership/runtime metadata and
    publish directory-ready only after every prepare proposal joins.
-2. Presence and recipient adapters resolve exact fenced targets, group work by
+2. Presence reconstruction queries bounded active-owner pages, validates each
+   owner boot identity, and rechecks current membership and Slot authority before
+   publishing a complete result. Unknown or unavailable proof remains explicit.
+3. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
 3. Management and operations adapters receive policy-validated requests,
    select node-local or peer execution, and return bounded, redacted read

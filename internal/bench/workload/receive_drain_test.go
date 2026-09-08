@@ -138,6 +138,25 @@ func TestAutoRecvAckSnapshotCountsSuccessfulProtocolRecvACKOnce(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("background RECVACK did not complete")
 	}
+	// The raw client signals before RecvAck returns. Join the matching
+	// client's completion publication before asserting its protocol counters.
+	matching := wrapped.(*matchingPersonClient)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	for {
+		matching.mu.Lock()
+		completed := matching.recvACKSuccesses != 0 || matching.recvACKFailures != 0
+		notify := matching.notifyLocked()
+		matching.mu.Unlock()
+		if completed {
+			break
+		}
+		select {
+		case <-notify:
+		case <-ctx.Done():
+			t.Fatal("background RECVACK outcome was not published")
+		}
+	}
 	if snapshot := handle.Snapshot(); snapshot.RecvACKSuccesses != 1 {
 		t.Fatalf("successful RECVACKs = %d, want 1", snapshot.RecvACKSuccesses)
 	}

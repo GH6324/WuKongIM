@@ -57,6 +57,8 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
   Exact manifests and closed durable/already-durable/absent/conflict/unknown
   outcomes make ambiguous commits safely retryable after cancellation or
   restart; caller cancellation cannot revoke admitted durability.
+- A local durable suffix beyond the selected committed prefix remains intact
+  and recovery stays retryable until sufficient matching evidence returns.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
   Install selects a quorum-identical hash-chain prefix, repairs bounded pages,

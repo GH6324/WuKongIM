@@ -10,8 +10,7 @@ summary: Composes product and Agent runtimes and owns their dependency-safe life
 This package is the only composition root under `internal`. It converts
 validated configuration into product access adapters, use cases, node-local
 runtimes, infrastructure adapters, cluster/gateway services, observability,
-and lifecycle ownership. Issue Agent, Review Agent, Cloud Analysis, and Cloud
-View composition roots do not start the product cluster.
+and lifecycle ownership. Agent/Analysis/View roots do not start the product cluster.
 
 ## Boundaries
 
@@ -73,6 +72,8 @@ Stop or startup rollback
   dependencies alive so a later `Stop` can continue the same drain.
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
+- Presence wiring shares one owner boot identity between session activation and
+  recovery replies, and installs bounded UID reconstruction before lookups.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.
 - Restore maintenance keeps Manager reachable while product traffic is fenced;
@@ -87,7 +88,6 @@ Stop or startup rollback
 - Issue/Review Agent composition keeps read, verification, signed-state, and
   publication credentials separated and never joins the product cluster.
 ## Read First
-
 - [app.go](app.go)
 - [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)
 - [backup.go](backup.go)

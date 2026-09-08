@@ -25,7 +25,10 @@ this node. It stores virtual gateway-owner routes, never concrete sessions.
 2. Registration activates conflict-free routes or stages a pending candidate;
    commit removes only acknowledged conflicts, while abort removes only the
    candidate. Owner sequences and unregister tombstones fence stale activity.
-3. Touch refreshes or safely recreates exact active routes; TTL expiry pops due
+3. Production lookups require bounded per-UID owner reconstruction after authority
+   changes; exact-target completion retains tombstones and caches both present
+   and absent UID proofs in a bounded FIFO. Eviction requires a new proof.
+4. Touch refreshes or safely recreates exact active routes; TTL expiry pops due
    activity buckets from per-authority indexes without scanning all routes.
 
 ## Invariants and Failure Semantics

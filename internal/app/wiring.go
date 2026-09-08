@@ -383,21 +383,28 @@ func (a *App) wireConversations(conversationReadStore *clusterinfra.Conversation
 func (a *App) wirePresence() {
 	if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
 		observer := presenceMetricsObserver{metrics: a.metrics}
-		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
+		recoveryNode, canRecover := a.cluster.(clusterinfra.PresenceRecoveryNode)
+		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID(), RequireRecovery: canRecover})
 		a.presenceDirectory = directory
 		authority := clusterinfra.NewPresenceDirectoryAuthority(directory)
 		ownerActions := presenceOwnerActions{local: a.online}
+		ownerBootID := newOwnerBootID()
+		ownerReader := presence.NewOwnerRecovery(a.online, presenceNode.NodeID(), ownerBootID, func(target presence.RouteTarget) error {
+			return clusterinfra.ValidatePresenceTarget(presenceNode, target)
+		})
+		if canRecover {
+			authority.SetRecovery(presence.NewAuthorityRecovery(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader)))
+		}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
 		if a.metrics != nil {
 			client.SetEndpointLookupObserver(observer)
 		}
 		a.presenceAuthorityClient = client
-		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, Logger: a.logger.Named("node")})
+		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, OwnerRoutes: ownerReader, Logger: a.logger.Named("node")})
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
 		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
 		if a.presence == nil {
-			ownerBootID := newOwnerBootID()
 			a.presence = presence.New(presence.Options{
 				Local:                a.online,
 				Authority:            client,

@@ -6,6 +6,13 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### Fixed / 修复
+
+- Reconstruct online routes from current gateway owners after Slot authority changes, preventing an empty rebuilding directory from skipping acknowledged messages. / Slot 权威切换后按连接所属节点重建在线路由，避免空目录将已确认消息的在线接收者误判为离线。
+- Preserve uncertain durable Channel suffixes and report retryable recovery readiness until matching quorum evidence returns. / 保留尚缺 quorum 证明的持久化日志尾部，并返回可重试的恢复未就绪状态。
+- Synchronize benchmark RECVACK counter assertions with completed accounting under race instrumentation. / 修复 race 模式下 RECVACK 计数测试过早断言的问题。
+
+
 ### 🔧 Improvements / 改进
 
 - Use current health, retain fair Channel repair scan progress, and activate authoritative cold replicas from consistent durable frontiers for migration probes after node loss; allow fenced leader recovery while keeping business writes closed. / 频道修复使用最新健康状态、保留公平扫描进度，并按权威元数据和一致持久化状态加载冷副本；写入栅栏内可完成新 leader 恢复，业务写入仍保持关闭。
