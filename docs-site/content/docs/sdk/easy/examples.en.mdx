@@ -246,3 +246,5 @@ python WuKongEasySDK-Python/tests/product.py --server /absolute/path/to/wukongim
 ```
 
 The script starts a temporary local cluster, provisions test identities and checks online cleanup through public endpoints, then stops its own processes. Independent protocol tests cover WSS, automatic reconnect, and queue bounds. See the [Python validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/90018a9ac53bdef4cb15dadb169ff835cbfcb2a6/docs/PYPI_VALIDATION.md) for the full scope.
+
+See the [separate acceptance record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/a9be49e69f4b7155a9a6244ef63f9cb6baf00cb9/docs/CLUSTER_VALIDATION.md) for the subsequent three-node WSS 30-minute run and fault recovery of the same PyPI package; it distinguishes the long run, short CI and their exact versions.
