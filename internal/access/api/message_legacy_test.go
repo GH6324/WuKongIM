@@ -19,7 +19,7 @@ func TestSendMessageMapsCompatibleRequestToMessageUsecase(t *testing.T) {
 	srv := New(Options{Messages: messages})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"u1","channel_id":"u2","channel_type":1,"client_msg_no":"c1","payload":"aGk=","header":{"no_persist":1},"sync_once":1,"setting":9,"topic":"topic-a","expire":3600}`))
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"u1","channel_id":"u2","channel_type":1,"client_msg_no":"c1","payload":"aGk=","header":{"no_persist":1,"red_dot":1},"sync_once":1,"setting":9,"topic":"topic-a","expire":3600}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-WK-Trace-ID", "ABCDEF0123456789ABCDEF0123456789")
 
@@ -38,7 +38,7 @@ func TestSendMessageMapsCompatibleRequestToMessageUsecase(t *testing.T) {
 	if cmd.FromUID != "u1" || cmd.ChannelID != "u2" || cmd.ChannelType != frame.ChannelTypePerson || cmd.ClientMsgNo != "c1" {
 		t.Fatalf("send command identity = %#v, want mapped request", cmd)
 	}
-	if string(cmd.Payload) != "hi" || !cmd.NoPersist || !cmd.SyncOnce || !cmd.NormalizePersonChannel || cmd.ProtocolVersion != frame.LatestVersion {
+	if string(cmd.Payload) != "hi" || !cmd.NoPersist || !cmd.SyncOnce || !cmd.RedDot || !cmd.NormalizePersonChannel || cmd.ProtocolVersion != frame.LatestVersion {
 		t.Fatalf("send command flags = %#v, want payload, flags, and protocol", cmd)
 	}
 	if cmd.Setting != 9 || cmd.Topic != "topic-a" || cmd.Expire != 3600 {

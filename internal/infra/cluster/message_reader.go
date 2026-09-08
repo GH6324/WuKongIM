@@ -93,7 +93,7 @@ func committedMessagesFromChannel(in []channelruntime.Message) []message.SyncedM
 	out := make([]message.SyncedMessage, len(in))
 	for index, msg := range in {
 		out[index] = message.SyncedMessage{
-			Flags:     message.MessageFlags{SyncOnce: msg.SyncOnce},
+			Flags:     message.MessageFlags{SyncOnce: msg.SyncOnce, RedDot: msg.RedDot},
 			MessageID: msg.MessageID, MessageSeq: msg.MessageSeq,
 			ChannelID: msg.ChannelID, ChannelType: msg.ChannelType,
 			Setting: msg.Setting, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo,

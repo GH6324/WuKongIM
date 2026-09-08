@@ -28,6 +28,12 @@ func (l *quorumLog) convergeRecoverySuffix(ctx context.Context, authority Author
 	first := donor.Result.State.LEO
 	for _, report := range reports {
 		state := report.Result.State
+		if state.LEO > 0 {
+			tail := state.TailIdentity
+			if compareAuthorityID(AuthorityID{ChannelEpoch: tail.ChannelEpoch, LeaderTerm: tail.LeaderTerm, FenceVersion: tail.FenceVersion}, authority.ID) > 0 {
+				return ch.ErrStaleMeta
+			}
+		}
 		if state.LEO > donor.Result.State.LEO {
 			donor = report
 		}
@@ -48,6 +54,9 @@ func (l *quorumLog) convergeRecoverySuffix(ctx context.Context, authority Author
 		stableVoters[i] = report.Voter
 	}
 	request.Voters = stableVoters
+	// Every previously observed tail participates in this proof. A fast quorum
+	// must not turn a still-pending observed voter into an incomplete recheck.
+	request.Quorum = len(stableVoters)
 	proved, err := collectRecoveryProbeRound(ctx, request, indexes, l.cfg.Recovery)
 	if err != nil {
 		return err

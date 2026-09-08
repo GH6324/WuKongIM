@@ -47,7 +47,16 @@ func TestRecoveryConvergenceRejectsDivergentSurvivorWithoutChangingAnyLog(t *tes
 	first.Committed = 1
 	a, _ := recoveryMutationAfter(t, key, id, 2, 1, tail)
 	b, _ := recoveryMutationAfter(t, key, id, 3, 1, tail)
-	runtimes, stores, _ := newRecoveryConvergenceCluster(t, map[ch.NodeID][]Mutation{1: {first}, 2: {first, a}, 3: {first, b}}, []ch.NodeID{1, 2, 3})
+	// Synchronous probes ensure every conflicting survivor is actually observed;
+	// a fast quorum is not required to wait for an unobserved third voter.
+	h, log, _ := convergenceFixture(t)
+	h.unavailable = 0
+	for voter, rows := range map[ch.NodeID][]Mutation{1: {first}, 2: {first, a}, 3: {first, b}} {
+		for _, row := range rows {
+			writeRecoveryFixture(t, h, voter, row)
+		}
+	}
+	stores := h.stores
 	before := make(map[ch.NodeID]ReplicaState)
 	for node, store := range stores {
 		got, err := loadRecoveryReplicaState(context.Background(), store, key, id, nil)
@@ -55,7 +64,7 @@ func TestRecoveryConvergenceRejectsDivergentSurvivorWithoutChangingAnyLog(t *tes
 		before[node] = got.State
 	}
 	authority := Authority{Key: key, ChannelID: id, ID: AuthorityID{ChannelEpoch: 3, LeaderTerm: 6, FenceVersion: 8}, Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2}
-	_, err := runtimes[1].Log().Install(context.Background(), authority)
+	_, err := log.Install(context.Background(), authority)
 	require.ErrorIs(t, err, ch.ErrNotReady)
 	for node, store := range stores {
 		got, err := loadRecoveryReplicaState(context.Background(), store, key, id, nil)

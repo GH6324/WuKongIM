@@ -265,7 +265,10 @@ func (s *migrationRuntimeChannelService) DrainChannel(_ context.Context, req cha
 	return s.drain, nil
 }
 
-func (s *migrationRuntimeChannelService) ApplyMeta(meta channelruntime.Meta) error {
+func (s *migrationRuntimeChannelService) ApplyMetaContext(ctx context.Context, meta channelruntime.Meta) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.applied = append(s.applied, meta)
 	return nil
 }

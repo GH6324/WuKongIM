@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -445,6 +446,9 @@ func TestChannelAppenderMapsTypedErrors(t *testing.T) {
 		{name: "backpressured", err: channelruntime.ErrBackpressured, want: channelappend.ErrBackpressured},
 		{name: "cluster route not ready", err: cluster.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "cluster no slot leader", err: cluster.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
+		{name: "forwarded authority unavailable", err: fmt.Errorf("%w: connection refused", transport.ErrDialFailed), want: channelappend.ErrRouteNotReady},
+		{name: "authority transport stopped", err: transport.ErrStopped, want: channelappend.ErrRouteNotReady},
+		{name: "authority node absent", err: transport.ErrNodeNotFound, want: channelappend.ErrRouteNotReady},
 		{name: "channelruntime not ready", err: channelruntime.ErrNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "channelruntime write fenced", err: channelruntime.ErrWriteFenced, want: channelappend.ErrRouteNotReady},
 		{name: "channelruntime placement candidates unavailable", err: fmt.Errorf("%w: channel replica candidates 2 below replica count 3", channelruntime.ErrInvalidConfig), want: channelappend.ErrRouteNotReady},

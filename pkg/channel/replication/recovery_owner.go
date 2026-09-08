@@ -508,6 +508,10 @@ func recoveryIdentitySupporters(reports []recoveryProbeReport, position int, ide
 
 func collectRecoveryProbeRound(ctx context.Context, request recoveryProbeRequest, indexes []uint64, dispatcher recoveryProbeDispatcher) ([]recoveryProbeReport, error) {
 	completions := make(chan recoveryProbeCompletion, len(request.Voters))
+	localPending := false
+	for _, voter := range request.Voters {
+		localPending = localPending || voter == request.Leader
+	}
 	for _, voter := range request.Voters {
 		voter := voter
 		query := recoveryProbeQuery{
@@ -524,18 +528,37 @@ func collectRecoveryProbeRound(ctx context.Context, request recoveryProbeRequest
 
 	reports := make([]recoveryProbeReport, 0, len(request.Voters))
 	for pending := len(request.Voters); pending > 0; pending-- {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case completion := <-completions:
-			if completion.err != nil {
-				continue
+		var completion recoveryProbeCompletion
+		// Consume every already-arrived observation, including conflicting or
+		// longer tails. Once a configured quorum has answered, an outstanding
+		// remote voter need not delay this read proof. Observe the local result
+		// first so convergence never mistakes a fast remote quorum for missing
+		// local evidence. Subsequent identity pages retain
+		// only stable supporters, and repair still refuses to overwrite any
+		// existing local suffix before the durable current-authority barrier.
+		if len(reports) >= request.Quorum && !localPending {
+			select {
+			case completion = <-completions:
+			default:
+				return reports, nil
 			}
-			if !validRecoveryProbeResult(completion.result) || !sameRecoveryProbeIndexes(indexes, completion.result.Entries) {
-				return nil, ch.ErrLogConflict
+		} else {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case completion = <-completions:
 			}
-			reports = append(reports, recoveryProbeReport{Voter: completion.voter, Result: completion.result})
 		}
+		if completion.voter == request.Leader {
+			localPending = false
+		}
+		if completion.err != nil {
+			continue
+		}
+		if !validRecoveryProbeResult(completion.result) || !sameRecoveryProbeIndexes(indexes, completion.result.Entries) {
+			return nil, ch.ErrLogConflict
+		}
+		reports = append(reports, recoveryProbeReport{Voter: completion.voter, Result: completion.result})
 	}
 	return reports, nil
 }

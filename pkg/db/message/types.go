@@ -47,6 +47,8 @@ type Message struct {
 	ChannelID string
 	// ChannelType identifies the channel namespace.
 	ChannelType uint8
+	// RedDot is the unread-badge flag decoded from the existing message header.
+	RedDot bool
 	// ClientMsgNo is the optional client-provided message number.
 	ClientMsgNo string
 	// FromUID is the optional sender UID used with ClientMsgNo for idempotency.

@@ -12,6 +12,10 @@ import (
 
 const defaultMigrationExecutorTaskLimit = 1
 
+// A stalled peer must yield the shared repair supervisor within a bounded tick.
+const defaultMigrationExecutorTimeout = 5 * time.Second
+const maxMigrationExecutorPhases = 8
+
 // MigrationTaskSource lists active migration work currently runnable by this executor.
 type MigrationTaskSource interface {
 	ListRunnableMigrationTasks(ctx context.Context, localNode uint64, limit int) ([]metadb.ChannelMigrationTask, error)
@@ -27,6 +31,12 @@ type MigrationTaskStore interface {
 	AddLearner(ctx context.Context, task metadb.ChannelMigrationTask) error
 	PromoteLearnerAndRemoveSource(ctx context.Context, task metadb.ChannelMigrationTask) error
 	ClearWriteFence(ctx context.Context, task metadb.ChannelMigrationTask) error
+}
+
+// MigrationTaskProgressReader rereads the exact selected task after a successful
+// durable step; runtime caches and speculative phase changes are not progress.
+type MigrationTaskProgressReader interface {
+	Get(context.Context, ch.ChannelID, string) (metadb.ChannelMigrationTask, bool, error)
 }
 
 // MigrationRuntime reads remote/local Channel runtime proof for migration phases.
@@ -64,18 +74,23 @@ type MigrationExecutorConfig struct {
 	Clock func() time.Time
 	// TaskLimit bounds tasks inspected per RunOnce tick. Zero uses one task.
 	TaskLimit int
+	// FailoverPhaseLimit bounds automatic failover steps per tick. Zero uses one; the maximum is eight.
+	// Planned transfers and replica replacement retain one-step asynchronous boundaries.
+	FailoverPhaseLimit int
 }
 
-// MigrationExecutor advances bounded Channel migration tasks one durable phase per tick.
+// MigrationExecutor advances one selected task through a bounded number of durable steps per tick.
 type MigrationExecutor struct {
-	localNode uint64
-	source    MigrationTaskSource
-	store     MigrationTaskStore
-	runtime   MigrationRuntime
-	meta      RuntimeMetaReader
-	observer  MigrationObserver
-	clock     func() time.Time
-	taskLimit int
+	localNode      uint64
+	source         MigrationTaskSource
+	store          MigrationTaskStore
+	runtime        MigrationRuntime
+	meta           RuntimeMetaReader
+	observer       MigrationObserver
+	clock          func() time.Time
+	taskLimit      int
+	phaseLimit     int
+	progressReader MigrationTaskProgressReader
 }
 
 // NewMigrationExecutor creates a migration executor.
@@ -88,57 +103,126 @@ func NewMigrationExecutor(cfg MigrationExecutorConfig) *MigrationExecutor {
 	if limit <= 0 {
 		limit = defaultMigrationExecutorTaskLimit
 	}
+	phaseLimit := cfg.FailoverPhaseLimit
+	if phaseLimit <= 0 {
+		phaseLimit = 1
+	}
+	if phaseLimit > maxMigrationExecutorPhases {
+		phaseLimit = maxMigrationExecutorPhases
+	}
+	reader, _ := cfg.Store.(MigrationTaskProgressReader)
 	return &MigrationExecutor{
-		localNode: cfg.LocalNode,
-		source:    cfg.Source,
-		store:     cfg.Store,
-		runtime:   cfg.Runtime,
-		meta:      cfg.Meta,
-		observer:  cfg.Observer,
-		clock:     clock,
-		taskLimit: limit,
+		localNode:      cfg.LocalNode,
+		source:         cfg.Source,
+		store:          cfg.Store,
+		runtime:        cfg.Runtime,
+		meta:           cfg.Meta,
+		observer:       cfg.Observer,
+		clock:          clock,
+		taskLimit:      limit,
+		phaseLimit:     phaseLimit,
+		progressReader: reader,
 	}
 }
 
-// RunOnce advances one phase per task in a bounded page. A waiting or failed
-// recovery never prevents independent tasks in that page from running.
+// RunOnce advances a bounded task page within one time budget. Failover tasks
+// may take several durable steps; waiting or failed tasks yield to their peers.
 func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	if e == nil || e.localNode == 0 || e.source == nil || e.store == nil || e.runtime == nil || e.meta == nil {
+	if e == nil || e.localNode == 0 || e.source == nil || e.store == nil || e.runtime == nil || e.meta == nil || (e.phaseLimit > 1 && e.progressReader == nil) {
 		return fmt.Errorf("%w: migration executor is not fully configured", ch.ErrInvalidConfig)
 	}
-	tasks, err := e.source.ListRunnableMigrationTasks(ctx, e.localNode, e.taskLimit)
-	if err != nil {
-		return err
-	}
-	e.observeMigrationTaskCounts(tasks)
+	ctx, cancel := context.WithTimeout(ctx, defaultMigrationExecutorTimeout)
+	defer cancel()
 	var firstErr error
-	for _, task := range tasks[:min(len(tasks), e.taskLimit)] {
+	type taskIdentity struct {
+		channelID   string
+		channelType int64
+		taskID      string
+	}
+	seen := make(map[taskIdentity]struct{}, e.taskLimit)
+	for inspected := 0; inspected < e.taskLimit; inspected++ {
 		if err := ctxErr(ctx); err != nil {
 			return err
 		}
-		if err := e.runTask(ctx, task); err != nil && !isMigrationVersionConflict(err) && firstErr == nil {
+		// Advance the source cursor only for work about to be attempted. A slow
+		// task cannot skip its unstarted peers, and each lookup rechecks Slot ownership.
+		tasks, err := e.source.ListRunnableMigrationTasks(ctx, e.localNode, 1)
+		if err != nil {
+			return err
+		}
+		if len(tasks) == 0 {
+			break
+		}
+		e.observeMigrationTaskCounts(tasks[:1])
+		task := tasks[0]
+		identity := taskIdentity{task.ChannelID, task.ChannelType, task.TaskID}
+		if _, duplicate := seen[identity]; duplicate {
+			break
+		}
+		seen[identity] = struct{}{}
+		if task.IsTerminal() || task.Status == metadb.ChannelMigrationStatusBlocked {
+			continue
+		}
+		if task.OwnerNodeID != e.localNode && task.OwnerNodeID != 0 && task.OwnerLeaseUntilMS > e.clock().UnixMilli() {
+			continue
+		}
+		if err := e.advanceSelectedTask(ctx, task); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
 	return firstErr
 }
 
-// runTask preserves the persisted owner lease and phase guards for each attempt.
-func (e *MigrationExecutor) runTask(ctx context.Context, task metadb.ChannelMigrationTask) error {
-	if task.IsTerminal() || task.Status == metadb.ChannelMigrationStatusBlocked {
-		return nil
+// advanceSelectedTask follows only a fresh durable version of the same identity.
+// An unchanged asynchronous phase yields; it cannot spin or consume another task.
+func (e *MigrationExecutor) advanceSelectedTask(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	phaseLimit := e.phaseLimit
+	// Only automatic failover has no planned catch-up boundary between these steps.
+	if task.Kind != metadb.ChannelMigrationKindLeaderFailover {
+		phaseLimit = 1
 	}
-	nowMS := e.clock().UnixMilli()
-	if task.OwnerNodeID != e.localNode {
-		if task.OwnerNodeID != 0 && task.OwnerLeaseUntilMS > nowMS {
+	for step := 0; step < phaseLimit; step++ {
+		if err := ctxErr(ctx); err != nil {
+			return err
+		}
+		err := e.runSelectedStep(ctx, task)
+		if isMigrationVersionConflict(err) {
 			return nil
 		}
-		return e.store.Claim(ctx, task, task.UpdatedAtMS)
+		if err != nil {
+			return err
+		}
+		if step+1 == phaseLimit {
+			return nil
+		}
+		id, err := migrationChannelIDFromTask(task)
+		if err != nil {
+			return err
+		}
+		latest, ok, err := e.progressReader.Get(ctx, id, task.TaskID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		if latest.TaskID != task.TaskID || latest.ChannelID != task.ChannelID || latest.ChannelType != task.ChannelType {
+			return fmt.Errorf("%w: migration task progress identity changed", ch.ErrInvalidConfig)
+		}
+		if latest.IsTerminal() || latest.Status == metadb.ChannelMigrationStatusBlocked || latest.UpdatedAtMS <= task.UpdatedAtMS || latest.OwnerNodeID != e.localNode {
+			return nil
+		}
+		task = latest
 	}
-	if task.OwnerLeaseUntilMS <= nowMS {
+	return nil
+}
+
+func (e *MigrationExecutor) runSelectedStep(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	nowMS := e.clock().UnixMilli()
+	if task.OwnerNodeID != e.localNode || task.OwnerLeaseUntilMS <= nowMS {
 		return e.store.Claim(ctx, task, task.UpdatedAtMS)
 	}
 	if shouldRenewMigrationFence(task, nowMS) {

@@ -229,6 +229,9 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+	if err := validateOfflineImportConfig(cfg); err != nil {
+		return nil, err
+	}
 	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0), messageEventFinishCoalescer: newMessageEventFinishCoalescer(defaultMessageEventFinishCoalesceWindow)}
 	for _, opt := range opts {
 		if opt != nil {

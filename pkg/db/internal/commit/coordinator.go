@@ -122,6 +122,11 @@ type Request struct {
 	Bytes int
 	// Build stages writes into the physical batch.
 	Build func(batch *engine.Batch) error
+	// RebuildOnGroupAbort allows one isolated rebuild when another request
+	// rejects the shared batch before physical commit. Build must reset all
+	// staged overlays and have no external side effects; resources remain owned
+	// until the single terminal Finalize. Physical commit errors are never retried.
+	RebuildOnGroupAbort bool
 	// Publish runs after the physical commit succeeds.
 	Publish func() error
 	// Finalize releases request-scoped resources after the request reaches one terminal state.
@@ -521,7 +526,7 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 	batch := c.db.NewBatch()
 	defer batch.Close()
 	buildStarted := time.Now()
-	for _, req := range reqs.requests {
+	for index, req := range reqs.requests {
 		if err := req.Build(batch); err != nil {
 			buildDuration := time.Since(buildStarted)
 			c.observeBatch(BatchEvent{
@@ -533,7 +538,17 @@ func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
 				TotalDuration:   collectDuration + buildDuration,
 				Err:             err,
 			})
-			reqs.completeAll(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: err})
+			// Discard every staged write before rebuilding any independent
+			// request. A logical rejection must never be attributed to a
+			// different request that opted into isolated reconstruction.
+			_ = batch.Close()
+			for position, candidate := range reqs.requests {
+				if position != index && candidate.RebuildOnGroupAbort && len(reqs.requests) > 1 {
+					c.commit(requestBatch{requests: []pendingRequest{candidate}, closed: c.stopped()}, 0)
+				} else {
+					candidate.complete(SubmitResult{Outcome: OutcomeDefinitelyNotCommitted, Err: err})
+				}
+			}
 			return
 		}
 	}

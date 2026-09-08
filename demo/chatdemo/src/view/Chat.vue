@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, toRefs, unref } from 'vue';
 import APIClient from '../services/APIClient'
+import { clearSession, loadSession } from '../services/session'
 import { t } from '../i18n'
 import { useRouter } from "vue-router";
 import { WKSDK, Message, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, PullMode, MessageContent, ConnectionInfo, WKEventManager, WKEvent, MessageContentType, WKEventListener } from "wukongimjssdk";
@@ -54,8 +55,10 @@ const streamNo = ref<string>() // 流消息序号
 
 const messages = ref<Message[]>(new Array<Message>())
 
-const uid = router.currentRoute.value.query.uid as string || undefined;
-const token = router.currentRoute.value.query.token as string || "token111";
+const session = loadSession(window.sessionStorage)
+const uid = session?.uid
+const token = session?.token
+if (session) APIClient.shared.config.apiURL = session.apiURL
 type MessageAvatarSource = { fromUID: string, send: boolean }
 const messageAvatarCache = new WeakMap<MessageAvatarSource, { uid: string, url: string }>()
 
@@ -100,13 +103,14 @@ let eventListener!: WKEventListener // 事件监听
 onMounted(() => {
 
 
-    if (!APIClient.shared.config.apiURL || APIClient.shared.config.apiURL === '') {
+    if (!session) {
         WKSDK.shared().connectManager.disconnect()
-        router.push({ path: '/' })
+        void router.replace({ path: '/' })
+        return
     }
     // 获取IM的长连接地址
     APIClient.shared.get('/route', {
-        param: { uid: router.currentRoute.value.query.uid }
+        param: { uid }
     }).then((res) => {
         console.log(res)
         let addr = res.wss_addr
@@ -130,20 +134,27 @@ const connectIM = (addr: string) => {
         config.token = token
     }
     config.addr = addr
+    config.deviceFlag = 1
+    config.debug = false
     config.sendCountOfEach = 100000
     WKSDK.shared().config = config
 
 
     // 监听连接状态
+    let authenticationRejected = false
     connectStatusListener = (status: ConnectStatus, reasonCode?: number, connectionInfo?: ConnectionInfo) => {
         if (status == ConnectStatus.Connected) {
+            authenticationRejected = false
             if (connectionInfo) {
                 title.value = t('connectedNode', { uid: uid || '', node: connectionInfo.nodeId })
             } else {
                 title.value = t('connected', { uid: uid || '' })
             }
 
-        } else {
+        } else if (status === ConnectStatus.ConnectFail && reasonCode === 2) {
+            authenticationRejected = true
+            title.value = t('authenticationFailed')
+        } else if (!authenticationRejected) {
             title.value = t('disconnected', { uid: uid || '' })
         }
     }
@@ -388,30 +399,38 @@ const onCustomMessageSend = () => {
     scrollBottom()
 }
 
+// A full page transition drops account-specific SDK state as well as Vue state.
 const logout = () => {
-    WKSDK.shared().connectManager.disconnect()
-    router.push({ path: '/' })
+    clearSession(window.sessionStorage)
+    WKSDK.shared().disconnect()
+    window.location.replace(window.location.pathname + window.location.search + '#/')
+}
+
+const resync = () => {
+    if (text.value.trim()) {
+        return
+    }
+    WKSDK.shared().disconnect()
+    window.location.reload()
 }
 
 
 
 
+// Manual and scroll paging share one in-flight guard. The button also works
+// when a tall viewport cannot scroll a full first page of messages.
+const loadEarlier = () => {
+    if (pulldowning.value || pulldownFinished.value) return
+    pulldowning.value = true
+    pullDown().then(() => {
+        pulldowning.value = false
+    }).catch(() => {
+        pulldowning.value = false
+    })
+}
+
 const handleScroll = (e: any) => {
-    const targetScrollTop = e.target.scrollTop;
-    const scrollOffsetTop = e.target.scrollHeight - (targetScrollTop + e.target.clientHeight);
-    if (targetScrollTop <= 250) { // 下拉
-        if (pulldowning.value || pulldownFinished.value) {
-            console.log("不允许下拉", "pulldowning", pulldowning.value, "pulldownFinished", pulldownFinished.value)
-            return
-        }
-        console.log("下拉")
-        pulldowning.value = true
-        pullDown().then(() => {
-            pulldowning.value = false
-        }).catch(() => {
-            pulldowning.value = false
-        })
-    }
+    if (e.target.scrollTop <= 250) loadEarlier()
 }
 
 const onEnter = () => {
@@ -436,6 +455,10 @@ const onKeydown = (e: any) => {
             <div class="left">
                 <button v-on:click="logout">{{ t('logout') }}</button>
                 <button>{{ t('chatList') }}</button>
+                <button v-on:click="resync" :disabled="text.trim().length > 0"
+                    :title="text.trim() ? t('finishDraftBeforeSync') : ''">{{ t('resync') }}</button>
+                <button v-if="messages.length > 0 && !pulldownFinished" v-on:click="loadEarlier"
+                    :disabled="pulldowning">{{ t('loadEarlier') }}</button>
             </div>
             <div class="center">
                 {{ title }}
@@ -462,7 +485,7 @@ const onKeydown = (e: any) => {
             </div>
             <div class="message-box">
                 <div class="message-list" v-on:scroll="handleScroll" ref="chatRef">
-                    <template v-for="m in messages">
+                    <template v-for="m in messages" :key="m.clientMsgNo">
                         <div class="message right" v-if="m.send" :id="m.clientMsgNo">
                             <div class="status" v-if="m.status != MessageStatus.Normal">{{ t('sending') }}</div>
                             <div class="bubble right">

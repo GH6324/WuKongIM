@@ -7,6 +7,12 @@ import (
 )
 
 var (
+	// ErrSyncPageScanBudget fails closed when a visible page cannot be proved
+	// within the fixed scan budget; it must never become a false end-of-history.
+	ErrSyncPageScanBudget = errors.New("internal/message: visible history page scan budget exceeded")
+	// ErrSyncPageScanInvalid rejects a non-progressing or out-of-bounds raw scan.
+	ErrSyncPageScanInvalid = errors.New("internal/message: invalid history scan progress")
+
 	// ErrInvalidCommand reports a malformed send command.
 	ErrInvalidCommand = channelappend.ErrInvalidCommand
 	// ErrSyncLoginUIDRequired reports that a legacy message sync request has no login UID.

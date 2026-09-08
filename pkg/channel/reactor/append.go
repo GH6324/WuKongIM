@@ -119,6 +119,7 @@ func appendRecordsFromMessages(messages []ch.Message, admittedAt time.Time, payl
 			SizeBytes:         len(msg.Payload),
 			ServerTimestampMS: serverTimestampMS,
 			SyncOnce:          msg.SyncOnce,
+			RedDot:            msg.RedDot,
 		}
 	}
 	return records

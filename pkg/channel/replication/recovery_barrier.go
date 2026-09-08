@@ -71,6 +71,12 @@ func validAuthority(authority Authority) bool {
 		return false
 	}
 	_, leaderIsVoter := configured[authority.Leader]
+	for _, learner := range authority.Learners {
+		if _, duplicate := configured[learner]; learner == 0 || duplicate {
+			return false
+		}
+		configured[learner] = struct{}{}
+	}
 	return leaderIsVoter
 }
 

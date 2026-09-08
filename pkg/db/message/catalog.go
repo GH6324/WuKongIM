@@ -58,7 +58,9 @@ func (db *MessageDB) listChannelsPage(ctx context.Context, after ChannelKey, lim
 		if !ok {
 			return nil, "", false, fmt.Errorf("%w: corrupt catalog key", dberrors.ErrCorruptValue)
 		}
-		if after != "" && key <= after {
+		// The iterator starts at the encoded cursor. Only that exact key is
+		// excluded; longer keys may sort lower as decoded strings.
+		if after != "" && key == after {
 			continue
 		}
 		value, err := iter.Value()

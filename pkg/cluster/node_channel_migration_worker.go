@@ -358,6 +358,13 @@ func (n *Node) ApplyChannelMeta(ctx context.Context, nodeID uint64, meta metadb.
 
 func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error) {
 	id := ch.ChannelID{ID: channelID, Type: channelType}
+	// Native exchange durability can precede both reactor activation and its
+	// cached progress. Repair requires authoritative, current durable evidence.
+	if activator, ok := n.channels.(interface {
+		ActivateReplicaForRepair(context.Context, ch.ChannelID) (ch.RuntimeProbeChannel, error)
+	}); ok {
+		return activator.ActivateReplicaForRepair(ctx, id)
+	}
 	result, err := n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
 	if err != nil {
 		return ch.RuntimeProbeChannel{}, err
@@ -405,12 +412,12 @@ func (n *Node) applyChannelMigrationLocalRuntimeMeta(ctx context.Context, meta m
 		return ErrNotStarted
 	}
 	service, ok := n.channels.(interface {
-		ApplyMeta(ch.Meta) error
+		ApplyMetaContext(context.Context, ch.Meta) error
 	})
 	if !ok {
 		return ErrNotStarted
 	}
-	return service.ApplyMeta(channelwrapper.ProjectRuntimeMeta(meta))
+	return service.ApplyMetaContext(ctx, channelwrapper.ProjectRuntimeMeta(meta))
 }
 
 func (n *Node) drainLocalChannelRuntime(ctx context.Context, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {

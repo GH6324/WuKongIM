@@ -219,6 +219,7 @@ authorization, Review Agent evidence, retry, and monitoring contracts.
 | `cmd/wukongim/` | Product entrypoint that loads configuration and starts `internal/app`. |
 | `cmd/wkbench/` | Black-box benchmark CLI. |
 | `cmd/wkchatlifecycle/` | Fixed Run Plan materialization, Lease selector, and rehearsal-report validation. |
+| `cmd/wkmigrate/` | Offline original v2 source preparation, archival, native v3 import, and independent verification. |
 | `cmd/wkcli/`, `cmd/wkdb/` | Operations and local read-only storage diagnostics. |
 | `cmd/wkcloud*/`, `cmd/wkanalysis/` | Cloud lease identity/lifecycle, simulation, deployment, validation, viewing, and analysis tools. |
 | `cmd/wkissueagent/` | JSON-only GitHub Actions entrypoint for the stateless Issue Agent. |

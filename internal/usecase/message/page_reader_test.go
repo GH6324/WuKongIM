@@ -6,17 +6,14 @@ import (
 	"testing"
 )
 
-func TestPageReaderPreservesFilteredLookaheadWithoutRefill(t *testing.T) {
-	reader := &pageReadFixture{results: []CommittedMessageResult{{Messages: []SyncedMessage{
-		{MessageSeq: 20, Flags: MessageFlags{SyncOnce: true}},
-		{MessageSeq: 19}, {MessageSeq: 18}, {MessageSeq: 17},
-	}}}}
+func TestPageReaderDoesNotInventMoreWithoutVisibleLookahead(t *testing.T) {
+	reader := &historyScanFixture{rows: []SyncedMessage{{MessageSeq: 17}, {MessageSeq: 18}, {MessageSeq: 19}, {MessageSeq: 20, Flags: MessageFlags{SyncOnce: true}}}}
 	page, err := NewPageReader(reader).SyncMessages(context.Background(), ChannelMessageQuery{Limit: 3, PullMode: PullModeUp})
 	if err != nil || page.HasMore || len(page.Messages) != 3 || page.Messages[0].MessageSeq != 17 || page.Messages[2].MessageSeq != 19 {
-		t.Fatalf("page=%+v err=%v, want ascending 17..19 without More", page, err)
+		t.Fatalf("page=%+v err=%v", page, err)
 	}
-	if reader.calls != 1 || len(reader.queries) != 1 || reader.queries[0].Limit != 4 || !reader.queries[0].Reverse {
-		t.Fatalf("calls=%d queries=%+v, want one bounded latest scan", reader.calls, reader.queries)
+	if len(reader.queries) != 2 || reader.queries[0].Limit != 4 || !reader.queries[0].Reverse || reader.queries[1].FromSeq != 16 {
+		t.Fatalf("queries=%+v, want bounded continuation below the raw frontier", reader.queries)
 	}
 }
 

@@ -16,7 +16,8 @@ It does not own product business policy or expose engine-specific APIs.
 - Table specifications and the registry drive primary/index behavior, inspect,
   snapshot, backup, restore, and deletion.
 - Multi-Hash-Slot batches lock shards in sorted order, commit once, then publish
-  cache invalidations.
+  cache invalidations. A neighboring logical rejection may cause one isolated
+  rebuild with fresh staged state while retaining the original locks.
 - There is no conversation table; table IDs 6 and 7 remain reserved and must
   not be reused.
 
@@ -30,13 +31,20 @@ It does not own product business policy or expose engine-specific APIs.
 3. Snapshot and restore cover registered row, index, and system spans; restore
    installs isolated portable metadata, replays ordered Slot FSM commands, and
    verifies canonical digests.
-4. Active Channel migration scans use exclusive Channel cursors and bounded
-   index pages so incomplete tasks cannot pin executor discovery to the first row.
+4. Active migration tasks expose bounded ID/type cursor pages over the existing
+   index, allowing fair executor scheduling without changing stored encodings.
 5. Business Channel point reads use a fixed 8,192-entry LRU. Mutations and
    restore invalidate affected or complete cache state after durable commit.
 
 ## Invariants and Failure Semantics
 
+- Event sequence pages scan a pinned native iterator and retain a bounded heap,
+  so event-key order cannot truncate results before the sequence cursor.
+- Offline event import installs one exact historical projection, its last event
+  idempotency result and the full message cursor atomically. It never replays
+  reducers; exact retries succeed and changed or advanced target state fails.
+  Shared preflight validation rejects invalid projection/cursor combinations
+  and projections that cannot fit the bounded native sequence page.
 - Membership writes update obsolete/new activation index keys atomically;
   ordinary SEND never touches membership.
 - Subscriber `source_version` fences stale cross-Slot writes. Rejoin resets

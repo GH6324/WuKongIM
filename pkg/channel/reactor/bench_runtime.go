@@ -269,6 +269,7 @@ func (r *Reactor) handleRuntimeProbe(event Event) {
 			Status:             rc.state.Status,
 			LEO:                rc.state.LEO,
 			HW:                 rc.state.HW,
+			RecoveryRequired:   r.requiresQuorumInstall(rc.state) && !rc.quorumReadReady,
 			CheckpointHW:       rc.state.CheckpointHW,
 			WriteFence:         rc.state.WriteFence,
 			InflightAppend:     rc.state.InflightAppend != nil,

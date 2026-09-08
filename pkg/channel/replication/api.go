@@ -17,10 +17,12 @@ type AuthorityID struct {
 // Authority is the authoritative voter configuration installed before a
 // Channel becomes writable through the durable quorum log.
 type Authority struct {
-	Key         ch.ChannelKey
-	ChannelID   ch.ChannelID
-	ID          AuthorityID
-	Leader      ch.NodeID
+	Key       ch.ChannelKey
+	ChannelID ch.ChannelID
+	ID        AuthorityID
+	Leader    ch.NodeID
+	// Learners receive exact committed history but never contribute a quorum vote.
+	Learners    []ch.NodeID
 	Voters      []ch.NodeID
 	WriteQuorum int
 	WriteFence  ch.WriteFence

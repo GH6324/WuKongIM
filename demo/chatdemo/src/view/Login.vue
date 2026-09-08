@@ -2,9 +2,8 @@
 import { ref } from 'vue'
 import { t } from '../i18n'
 import APIClient from '../services/APIClient'
-import { useRouter, useRoute } from "vue-router";
 import { WKSDK } from 'wukongimjssdk';
-const router = useRouter();
+import { establishSession, loadSession } from '../services/session'
 
 
 const getUrlParam = (name: string) => {
@@ -27,29 +26,35 @@ if (!apiurl || apiurl?.trim() == "") {
 }
 
 
-console.log("apiurl--->", apiurl)
+const saved = loadSession(window.sessionStorage)
+const apiAddr = ref(apiurl || saved?.apiURL || '')
+const username = ref(saved?.uid || '')
+const password = ref(saved?.token || '')
+const createDemoCredentials = ref(false)
+const submitting = ref(false)
+const errorMessage = ref('')
 
-// defineProps<{ msg: string }>()
-
-const count = ref(0)
-const apiAddr = ref(apiurl || '')
-const username = ref('')
-const password = ref('')
-
-const login = () => {
-  APIClient.shared.config.apiURL = apiAddr.value
-  // 注意：这里的登录接口是悟空IM的演示接口，仅供演示使用，这些接口不应该暴露给前端，应该由后端封装后提供给前端
-  APIClient.shared.post('/user/token', {
-    uid: username.value, // 第三方服务端的用户唯一uid
-    token: password.value || "default111111", // 第三方服务端的用户的token
-    device_flag: 1, // 设备标识  0.app 1.web （相同用户相同设备标记的主设备登录会互相踢，从设备将共存）
-    device_level: 0,  // 设备等级 0.为从设备 1.为主设备
-  }).then((res) => {
-    console.log(res)
-    router.push({ path: '/chat', query: { uid: username.value, token: password.value } })
-  }).catch((err) => {
-    alert(err.msg)
-  })
+const login = async () => {
+  if (submitting.value) return
+  submitting.value = true
+  errorMessage.value = ''
+  try {
+    const session = await establishSession(window.sessionStorage, {
+      apiURL: apiAddr.value, uid: username.value, token: password.value,
+    }, createDemoCredentials.value, async session => {
+      APIClient.shared.config.apiURL = session.apiURL
+      await APIClient.shared.post('/user/token', {
+        uid: session.uid, token: session.token, device_flag: 1, device_level: 0,
+      })
+    })
+    APIClient.shared.config.apiURL = session.apiURL
+    // Recreate the SDK singleton so another account cannot inherit cached messages.
+    window.location.replace(window.location.pathname + window.location.search + '#/chat')
+  } catch {
+    errorMessage.value = t('loginFailed')
+  } finally {
+    submitting.value = false
+  }
 }
 
 
@@ -87,10 +92,13 @@ const login = () => {
           <label>{{ t('password') }}</label>
         </div>
         <div class="field">
-          <input type="text" :placeholder="t('passwordPlaceholder')" v-model="password" />
+          <input type="password" autocomplete="off" :placeholder="t('passwordPlaceholder')" v-model="password" />
         </div>
       </div>
-      <button class="submit" v-on:click="login">{{ t('login') }}</button>
+      <p>{{ t('existingTokenHint') }}</p>
+      <label><input type="checkbox" v-model="createDemoCredentials" /> {{ t('createDemoCredentials') }}</label>
+      <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
+      <button class="submit" :disabled="submitting" v-on:click="login">{{ t('login') }}</button>
     </div>
   </div>
 </template>

@@ -57,7 +57,8 @@ and bounded operations observations.
 - Route, leader, term, epoch, revision, and lease fences must be forwarded
   exactly; preferred or cached ownership must never replace observed authority.
 - Missing leaders, stale routes, unavailable placement, and write fences fail
-  closed as typed retryable errors. Context cancellation and deadlines remain
+  closed as typed retryable errors, including a stopped or unreachable append
+  authority transport. Context cancellation and deadlines remain
   unchanged.
 - Batch adapters preserve cardinality and order. Missing, duplicate,
   contradictory, or unrepresentable evidence is an error, not fabricated

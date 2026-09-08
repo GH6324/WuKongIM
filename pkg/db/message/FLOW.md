@@ -40,11 +40,17 @@ storage core without transferring shared-engine ownership.
    idempotency and newest-message lookup. Newest-first primary reads iterate
    natively in reverse and stop while scanning at `Limit` or `MaxBytes`; they
    must never materialize the complete Channel history before truncation.
+   Catalog pages follow encoded key order; skip only the exact cursor key.
 3. Snapshot, backup, restore, truncation, retention, and close stream or mutate
    bounded batches while keeping rows, indexes, catalog, system state, leases,
    and physical engine ownership consistent.
 
 ## Invariants and Failure Semantics
+
+- Offline helpers encode/decode existing records and independently read
+  stored columns and verify version-1 proposal chains. They add no new durable
+  format, empty-key exception, uniqueness relaxation or recovery path. The
+  importer must reject source values the native runtime cannot represent.
 
 - Sequences are contiguous and monotonic. A durable append updates its primary
   row, global message-ID index, idempotency/client index, sender index, and

@@ -6,14 +6,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 # Cluster Runtime Flow
 
 ## Responsibility
-
-`pkg/cluster` is the reusable cluster composition root. `Node` owns lifecycle,
-readiness, public facade delegation, route publication, and bounded snapshots;
-focused subpackages own Controller adaptation, immutable routing, typed node
-RPC, Slot reconciliation/proposal, Channel hosting, and observation loops.
-
-Every deployment follows these semantics, including a single-node cluster; no standalone data or control path exists.
-It does not own Manager or product business policy.
+`Node` composes Controller, Slot, Channel, transport, routing and observation;
+it owns lifecycle, readiness and bounded snapshots in every cluster.
 
 ## Boundaries
 
@@ -27,36 +21,42 @@ It does not own Manager or product business policy.
   fence maintenance and ownership but must not absorb delivery or Manager
   business logic.
 - Controller, Slot, Channel, transport, and storage implementations remain
-  behind stable public facades and neutral errors.
+  behind public facades and neutral errors.
 
 ## Main Flows
 
-1. Lifecycle wiring starts transport and Controller, installs each valid control
-   snapshot into discovery/routes, reconciles Slots and Channel resources, and
-   exposes readiness; Stop reverses that ownership after rejecting foreground
-   work and invalidating readiness.
+1. Lifecycle starts transport and Controller, installs control routes, reconciles
+   Slots/Channels and exposes readiness. Stop rejects work and reverses ownership.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    group Channel- or UID-owned work by physical Slot, execute locally or
-   forward, and recheck leadership. Device credentials use the authoritative Slot proxy.
-   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready.
+   forward, and recheck leadership. Person-directory prepare joins UID
+   membership/runtime metadata before publishing directory-ready.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
-   the exact leader; repair uses current health, fair per-Slot cursors, and authoritative cold-replica probes.
-   Migration execution rotates active-index pages across owned hash slots; waiting tasks cannot starve others.
-4. Conversation hydration batch-reads lifecycle and runtime routes by physical
-   Slot, preserves alignment and item errors, and groups heads by exact Leader;
-   a cold quorum Leader with durable HW below LEO recovers before read retry.
+   the exact leader while background control/task convergence stays bounded.
+   Repair probes activate cold replicas through authoritative metadata and the
+   native reactor before inspecting progress. Native follower proofs read exact
+   durable state and recheck authority; diagnostic probes stay read-only. A dead
+   Leader can preempt an unpromoted replacement through the existing guarded
+   abort, then elect from the next authoritative scan; promoted tasks are protected.
+   Failover proof renewal re-probes the surviving target under the current fence;
+   it never falls back to draining the unavailable source.
+4. Conversation and history reads batch Slot routes and group by exact Leader,
+   preserving alignment and item errors. Cold quorum Leaders (even HW=LEO=0)
+   recover first; loaded Leaders still installing authority cannot serve HW.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read
-   Controller-visible state without waiting for synchronous runtime task
-   reconciliation.
+   Controller-visible state without waiting for runtime task reconciliation.
+   Repair also reads this fresh health snapshot so a stalled task cannot hide failures.
 6. Controller-backed management mutations, including Slot leader-transfer task
-   creation, forward through the typed control-write envelope so semantic CAS
-   errors and returned task identity survive remote Controller-leader routing;
-   the task-result RPC remains for executor progress and terminal observations.
+   creation, preserve semantic CAS errors and task identity through typed RPC;
+   task-result RPC carries executor progress and terminal observations.
 
 ## Invariants and Failure Semantics
 
+- Offline generation seals reject incomplete imports and mismatched bootstrap
+  configuration before native startup.
+- Event sequence reads route to the Slot leader and include durable projections.
 - Route authority is `(HashSlot, SlotID, LeaderNodeID, LeaderTerm,
   ConfigEpoch, RouteRevision)` from one immutable publication. Local
   `AuthorityEpoch` is diagnostic only and never a distributed fence.
@@ -78,23 +78,26 @@ It does not own Manager or product business policy.
 - UID-owned membership fanout and person-directory batches have fixed
   concurrency. Directory-ready can never hide missing UID membership or
   missing append runtime metadata.
-- Lifecycle, fanout, workers, retries, scans, repairs, retention, tasks,
-  diagnostics, and observations are bounded and low-cardinality.
+- Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
+  Repair scans rotate Slots with row cursors under tick/task budgets. Slot
+  leadership loss drops its cursor; newly unavailable nodes restart owned Slot
+  scans, while unchanged health retains progress. Migration ticks have a five-second
+  deadline and up to eight durable steps per automatic failover. Task cursors
+  advance one candidate at a time, rechecking Slot ownership; a timed-out task
+  cannot skip other unstarted candidates in a larger configured tick budget.
+  Fresh durable progress permits continuation; stalled work yields immediately.
 - Maintenance closes business admission before storage replacement and keeps
   only explicitly allowed restore RPC available. Backup and restore retain
   cluster routing and exact authority fences.
 
 ## Read First
 
-- [Public API](api.go)
-- [Node ownership](node.go)
+- [Public API](api.go) and [Node ownership](node.go)
 - [Lifecycle](node_lifecycle.go)
 - [Routing publication](routing/router.go)
 - [Channel hosting](channels/service.go)
 
 ## Update Triggers
 
-Update this file when `Node` lifecycle or readiness changes, subtree ownership
-moves, route identity or publication changes, Slot or Channel authority flow
-changes, a typed RPC gains special policy, or maintenance/backup semantics
-change.
+Update when lifecycle, readiness, ownership, route/authority publication,
+typed RPC policy, or maintenance/backup semantics change.

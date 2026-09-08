@@ -54,8 +54,8 @@ type RuntimeConfig struct {
 	// for cross-channel batching before transport admission.
 	TrailingFlushInterval time.Duration
 	RepairWorkers         int
-	// MaxVoters bounds one installed Channel authority and therefore the
-	// runtime-owned follower-repair ledger.
+	// MaxVoters bounds voting membership. Background repair admits at most
+	// MaxVoters+1 total replicas for one bounded replacement learner.
 	MaxVoters   int
 	QueueItems  int
 	QueueBytes  int
@@ -169,7 +169,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	cfg = normalizeRuntimeConfig(cfg)
 	if cfg.LocalNode == 0 || cfg.Store == nil || cfg.Link == nil ||
 		cfg.LocalWorkers <= 0 || cfg.PeerWorkers <= 0 || cfg.PeerTargetFlight <= 0 || cfg.PeerTargetFlight > cfg.PeerWorkers ||
-		cfg.RepairWorkers <= 0 || cfg.MaxVoters <= 0 || cfg.MaxVoters > 256 || cfg.MaxChannels > int(^uint(0)>>1)/cfg.MaxVoters ||
+		cfg.RepairWorkers <= 0 || cfg.MaxVoters <= 0 || cfg.MaxVoters > 256 || cfg.MaxChannels > int(^uint(0)>>1)/(cfg.MaxVoters+1) ||
 		cfg.QueueItems < cfg.BatchItems || cfg.QueueBytes < cfg.BatchBytes ||
 		cfg.TargetItems < cfg.BatchItems || cfg.TargetItems > cfg.QueueItems-cfg.BatchItems ||
 		cfg.TargetBytes < cfg.BatchBytes || cfg.TargetBytes > cfg.QueueBytes-cfg.BatchBytes ||
@@ -213,7 +213,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	repairs, err := newRuntimeRepairOwner(runtimeRepairOwnerConfig{
 		Context: ctx, Store: cfg.Store, Peers: peers, Goroutines: cfg.Goroutines,
 		Workers: cfg.RepairWorkers, Timeout: cfg.RecoveryTimeout, RetryDelay: defaultRuntimeRepairRetry,
-		MaxPageBytes: cfg.RecoveryPageBytes, MaxPending: cfg.MaxChannels * cfg.MaxVoters,
+		MaxPageBytes: cfg.RecoveryPageBytes, MaxPending: cfg.MaxChannels * (cfg.MaxVoters + 1),
 	})
 	if err != nil {
 		cancel()
@@ -512,7 +512,7 @@ func newRuntimeRepairOwner(cfg runtimeRepairOwnerConfig) (*runtimeRepairOwner, e
 }
 
 // RecordFollowerRepair retains exact evidence until a fixed worker proves the
-// follower durable. The ledger bound is derived from MaxChannels*MaxVoters;
+// follower durable. The ledger bound is derived from MaxChannels*(MaxVoters+1);
 // reaching it with a new valid key is therefore an internal invariant breach.
 func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
 	if o == nil || o.ctx.Err() != nil || !validFollowerRepair(repair) {
@@ -548,7 +548,7 @@ func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
 	o.signal()
 }
 
-// InstallAuthority replaces the complete voter repair generation for one
+// InstallAuthority replaces the complete voter and learner repair generation for one
 // Channel. Older ready and running repairs are canceled before a newer
 // authority can publish repair evidence, so membership rotation cannot grow
 // the bounded ledger across generations.
@@ -557,7 +557,7 @@ func (o *runtimeRepairOwner) InstallAuthority(authority Authority) {
 		return
 	}
 	next := runtimeRepairAuthority{
-		channelID: authority.ChannelID, id: authority.ID, voters: append([]ch.NodeID(nil), authority.Voters...),
+		channelID: authority.ChannelID, id: authority.ID, voters: append(append([]ch.NodeID(nil), authority.Voters...), authority.Learners...),
 	}
 	o.mu.Lock()
 	if o.authorities == nil {
@@ -614,7 +614,8 @@ func repairAuthorityHasVoter(authority runtimeRepairAuthority, voter ch.NodeID) 
 func validFollowerRepair(repair followerRepair) bool {
 	return repair.channelKey != "" && repair.channelID.ID != "" && repair.leader != 0 && repair.follower != 0 &&
 		repair.follower != repair.leader && repair.needFrom > 0 && repair.manifest.LastOffset >= repair.needFrom &&
-		repair.manifest.ChannelEpoch > 0 && repair.manifest.LeaderTerm > 0 && repair.manifest.FenceVersion > 0
+		repair.manifest.ChannelEpoch > 0 && repair.manifest.LeaderTerm > 0 && repair.manifest.FenceVersion > 0 &&
+		repair.committed <= repair.manifest.LastOffset
 }
 
 func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool) {
@@ -633,6 +634,9 @@ func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool
 		merged.channelID = incoming.channelID
 		merged.leader = incoming.leader
 		merged.manifest = incoming.manifest
+	}
+	if incoming.committed > merged.committed {
+		merged.committed = incoming.committed
 	}
 	return merged, merged != current
 }
@@ -801,7 +805,7 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 				ChannelKey: repair.channelKey, ChannelID: repair.channelID,
 				Leader: repair.leader, Follower: repair.follower,
 				Manifest: proposal.Manifest, Records: proposal.Records,
-				Committed: minUint64(state.Committed, proposal.Manifest.LastOffset),
+				Committed: minUint64(max(state.Committed, repair.committed), proposal.Manifest.LastOffset),
 			}
 			resultCh := make(chan ReplicateResult, 1)
 			errCh := make(chan error, 1)
@@ -830,6 +834,7 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 			}
 			previous = entries[len(entries)-1]
 			from = proposal.Manifest.LastOffset + 1
+			o.advanceRepair(repair, from)
 		}
 	}
 	return true
@@ -840,4 +845,18 @@ func minUint64(left, right uint64) uint64 {
 		return left
 	}
 	return right
+}
+
+// advanceRepair retains successful page progress across bounded retries. Newer
+// generations have independent entries and cannot be advanced by this worker.
+func (o *runtimeRepairOwner) advanceRepair(repair followerRepair, from uint64) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	entry := o.pending[runtimeRepairKey{channel: repair.channelKey, follower: repair.follower}]
+	if entry == nil || compareRepairAuthority(entry.repair.manifest, repair.manifest) != 0 {
+		return
+	}
+	if from > entry.repair.needFrom && from <= entry.repair.manifest.LastOffset {
+		entry.repair.needFrom = from
+	}
 }

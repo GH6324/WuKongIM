@@ -10,7 +10,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-func TestRecoveryProbeOwnerSelectsQuorumPrefixInsteadOfMinorityTail(t *testing.T) {
+func TestRecoveryProbeOwnerPreservesUnprovenSuffixEvenWithAllVoters(t *testing.T) {
 	prefix := recoveryIdentity(5, 5)
 	minorityTail := recoveryIdentityAfter(prefix, 6, 6)
 	dispatcher := &scriptedRecoveryProbeDispatcher{results: map[ch.NodeID]ProbeResult{
@@ -23,8 +23,8 @@ func TestRecoveryProbeOwnerSelectsQuorumPrefixInsteadOfMinorityTail(t *testing.T
 		ChannelKey: "1:owner", ChannelID: ch.ChannelID{ID: "owner", Type: 1},
 		Leader: 1, Voters: []ch.NodeID{1, 2, 3}, Quorum: 2, Timeout: time.Minute,
 	}, dispatcher)
-	if err != nil {
-		t.Fatalf("recoverQuorumPrefix() error = %v", err)
+	if err != nil || !selected.NeedsConvergence {
+		t.Fatalf("recoverQuorumPrefix() = %+v, %v; want explicit suffix convergence", selected, err)
 	}
 	if selected.Index != 5 || selected.Identity != prefix || selected.CertifiedCommitted != 5 {
 		t.Fatalf("recoverQuorumPrefix() = %+v, want certified prefix 5", selected)

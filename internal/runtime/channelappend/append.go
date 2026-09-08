@@ -306,6 +306,7 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 			ChannelKey:        cmd.ChannelKey,
 			Payload:           cmd.Payload,
 			SyncOnce:          cmd.SyncOnce,
+			RedDot:            cmd.RedDot,
 			ServerTimestampMS: serverTimestampMS,
 		})
 	}
