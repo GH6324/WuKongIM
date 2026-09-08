@@ -42,9 +42,10 @@ examples, search, SEO, and machine-readable output. Runtime contracts are define
    checksum and independent-consumer WSS recovery separately from historical
    source runs, retaining exact package/harness/server identities. Python PyPI
    validation records exact wheel/sdist hashes and installed-package product/JS
-   interoperability, with separate three-node WSS fault/soak receipts and CI.
+   interoperability, with separate WSS fault/soak and group receipts, initial placement and server fixes.
    C++ archive recovery receipts separately pin the public binary, harness and
-   product server for bounded three-node WSS verification.
+   product server for bounded three-node WSS verification. C# documents application endpoint replacement and optional three-node WS
+   reproduction, with server blockers separate from verified single-node receipts.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.

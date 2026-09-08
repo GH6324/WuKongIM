@@ -134,7 +134,8 @@ func (w *LocalSessionWriter) buildOnlineDeliveryRecvPacket(event channelappendco
 		channelID = onlineDeliveryPersonChannelView(source, uid)
 	}
 	return &frame.RecvPacket{
-		Framer:      frame.Framer{RedDot: event.RedDot, SyncOnce: event.SyncOnce},
+		// Transient envelopes have no durable Channel sequence.
+		Framer:      frame.Framer{NoPersist: event.MessageSeq == 0, RedDot: event.RedDot, SyncOnce: event.SyncOnce},
 		MessageID:   int64(event.MessageID),
 		MessageSeq:  event.MessageSeq,
 		ClientMsgNo: event.ClientMsgNo,

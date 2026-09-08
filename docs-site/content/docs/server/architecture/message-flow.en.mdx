@@ -84,7 +84,7 @@ Durable committed history and whether one client has RECVACKed are separate dime
 
 ## NoPersist branch
 
-A plain non-command-channel `NoPersist` send (without `SyncOnce` and without an existing command-channel ID) performs only side-effect-safe pre-route validation and then returns terminal success. It does not resolve authority, append to a Channel, or dispatch realtime delivery. This compatibility branch is not an online-message delivery capability.
+An ordinary `NoPersist` send (without `SyncOnce` or a command-channel ID) passes validation and permissions, retains the source Channel, resolves its authority, allocates a transient message ID, and enters online delivery in writer order. Its sequence is zero; it skips the durable log, membership mutation, and PersistAfter.
 
 A command-style `NoPersist` send (with `SyncOnce` or an existing command-channel ID) maps to the command channel, resolves authority, and enters online recipient routing in writer order. It skips the Channel durable log, membership state, and PersistAfter, and reports success only after the online delivery plan is accepted. If no online-delivery capability exists, it fails rather than fabricating success.
 

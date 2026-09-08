@@ -68,8 +68,8 @@ Stop or startup rollback
 - The benchmark terminal controller is advertised only with a non-empty token,
   the real Gateway SEND drainer, Channel append group, and Online Delivery
   runtime. Partial compositions cannot mint a terminal capability.
-- Channel append producers start after their post-commit consumers and drain
-  before those dependencies stop. A drain timeout returns promptly but keeps
+- Channel append uses Slot-leader subscribers and owns versioned snapshot reuse.
+  Producers start after consumers and drain before them; a drain timeout keeps
   dependencies alive so a later `Stop` can continue the same drain.
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.

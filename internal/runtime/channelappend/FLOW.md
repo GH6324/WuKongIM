@@ -13,9 +13,10 @@ allocates message IDs, serializes per-Channel durable append, completes aligned
 futures, and hands committed messages to bounded best-effort delivery and
 side-effect runtimes.
 
-Command-style `NoPersist` sends use the same authority and recipient machinery
-but create no Channel log or membership state. Plain non-command `NoPersist`
-sends terminate successfully before routing.
+`NoPersist` sends use the same authority and recipient machinery but create no
+Channel log or membership state. Ordinary sends retain the source Channel;
+command-style sends retain the command Channel. Both allocate a transient
+message ID and enter online delivery with sequence zero.
 
 ## Boundaries
 
@@ -39,6 +40,7 @@ sends terminate successfully before routing.
 3. Fresh commits retain bounded delivery-handoff ownership until a terminal
    enqueue result. Subscriber pages reuse only page-local authority-planning
    scratch; each enqueued delivery plan owns its grouped recipient storage.
+   Non-large snapshots load in 1,024-row pages and retain only actual recipients.
    Stop closes admission and drains all futures, append, realtime, reservation,
    handoff, and retry ownership before pool release.
 

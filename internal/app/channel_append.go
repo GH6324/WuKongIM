@@ -29,7 +29,8 @@ func (l channelAppendAuthorityLocal) SubmitForAuthority(ctx context.Context, tar
 	return results
 }
 
-// channelAppendSubscriberSource pages durable channel subscribers for channelappend.
+// channelAppendSubscriberSource pages current Slot-leader subscribers. Versioned
+// snapshot reuse belongs to channelappend, never the benchmark setup cache.
 type channelAppendSubscriberSource struct {
 	node recipientSubscriberNode
 }
@@ -42,7 +43,7 @@ func (s channelAppendSubscriberSource) NextSubscriberPage(ctx context.Context, r
 	if limit <= 0 {
 		limit = 1
 	}
-	uids, cursor, done, err := s.node.ListChannelSubscribersPage(ctx, req.ChannelID.ID, int64(req.ChannelID.Type), req.Cursor, limit)
+	uids, cursor, done, err := s.node.ListChannelSubscribersAuthoritative(ctx, req.ChannelID.ID, int64(req.ChannelID.Type), req.Cursor, limit)
 	if err != nil {
 		return channelappend.SubscriberPage{}, err
 	}

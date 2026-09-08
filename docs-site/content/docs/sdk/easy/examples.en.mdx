@@ -169,6 +169,8 @@ Set `WUKONGIM_WS_URL`, `WUKONGIM_UID`, and `WUKONGIM_TOKEN` first, using Alice a
 
 The C# source passed 35 tests and local NuGet packing on macOS arm64 / .NET `8.0.424`. Against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, a token-authenticated single-node cluster passed bidirectional messaging, reconnect, heartbeat, invalid-token rejection, and cleanup. Reproduce with `WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py`; the script owns only its loopback test processes. This is not public NuGet download or production WSS evidence.
 
+See [C# cluster recovery](/en/sdk/easy/csharp/getting-started#three-node-clusters-and-application-address-replacement) for application endpoint replacement, optional three-node reproduction, and tracked server blockers.
+
 ## 4. Rerun released-package automation
 
 `Safety Automation - EasySDK Released Package Acceptance` resolves the exact four registry versions, builds the current WuKongIM, then uses the released npm package as Bob while Android API 34 and two iOS Simulator jobs complete bidirectional messaging. Trigger a rerun with:
@@ -248,3 +250,5 @@ python WuKongEasySDK-Python/tests/product.py --server /absolute/path/to/wukongim
 The script starts a temporary local cluster, provisions test identities and checks online cleanup through public endpoints, then stops its own processes. Independent protocol tests cover WSS, automatic reconnect, and queue bounds. See the [Python validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/90018a9ac53bdef4cb15dadb169ff835cbfcb2a6/docs/PYPI_VALIDATION.md) for the full scope.
 
 See the [separate acceptance record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/a9be49e69f4b7155a9a6244ef63f9cb6baf00cb9/docs/CLUSTER_VALIDATION.md) for the subsequent three-node WSS 30-minute run and fault recovery of the same PyPI package; it distinguishes the long run, short CI and their exact versions.
+
+Python also provides a [group example and validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/4d39f9e43265f88415f2fe01fc5418182e405c52/docs/GROUP_VALIDATION.md): four Python/JS clients verify membership changes, isolation, permissions and reconnect over three-node WSS after initial leader convergence. This scenario requires the recorded server recipient-cache fix; the installed PyPI package remains `0.1.0`. See the [Python group quickstart](/en/sdk/easy/python/getting-started#7-online-group-messaging-and-permissions) for backend setup and CLI commands.

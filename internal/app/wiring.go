@@ -292,7 +292,9 @@ func (a *App) wireDeliveryMetadata() {
 		}
 	}
 	if a.cfg.Delivery.Enabled && a.deliverySubscribers == nil {
-		a.deliverySubscribers = a.deliveryMeta
+		if node, ok := a.cluster.(recipientSubscriberNode); ok {
+			a.deliverySubscribers = channelAppendSubscriberSource{node: node}
+		}
 	}
 }
 
@@ -717,9 +719,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			if idempotencyNode, ok := a.cluster.(clusterinfra.ChannelIdempotencyNode); ok {
 				opts.Idempotency = clusterinfra.NewChannelIdempotencyStore(idempotencyNode)
 			}
-			if a.deliveryMeta != nil {
-				opts.Subscribers = a.deliveryMeta
-			} else if a.deliverySubscribers != nil {
+			if a.deliverySubscribers != nil {
 				opts.Subscribers = a.deliverySubscribers
 			} else if subscriberNode, ok := a.cluster.(recipientSubscriberNode); ok {
 				opts.Subscribers = channelAppendSubscriberSource{node: subscriberNode}
