@@ -1,6 +1,6 @@
 ---
 title: WuKongEasySDK
-description: Choose an iOS, Android, Flutter, Web, C#, C++, or Rust quickstart with pinned versions or source for Alice/Bob online messaging.
+description: Choose an iOS, Android, Flutter, Web, C#, C++, Rust, or Python quickstart with pinned versions or source for Alice/Bob online messaging.
 ---
 
 WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and online-messaging API. It fits applications that already have a product backend and own their UI and product state.
@@ -16,6 +16,7 @@ WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and o
   <Card title="Rust quickstart" description="Pin Git source and use Tokio for messaging, bounded reconnect and cleanup." href="/en/sdk/easy/rust/getting-started" />
   <Card title="C# quickstart" description="Use pinned .NET 8 source, async APIs, independent clients, and await using for messaging." href="/en/sdk/easy/csharp/getting-started" />
   <Card title="C++ quickstart" description="vcpkg dependency installation and CMake for C++17 connections, messaging, and cleanup." href="/en/sdk/easy/cpp/getting-started" />
+  <Card title="Python quickstart" description="Pinned source and asyncio for online messaging, heartbeat, reconnect, and cleanup." href="/en/sdk/easy/python/getting-started" />
 </Cards>
 
 After the platform tutorial, Alice and Bob will connect separately, exchange a text JSON payload in a person Channel, then remove listeners and connections on exit.
@@ -150,3 +151,7 @@ The [C++ repository](https://github.com/WuKongIM/WuKongEasySDK-CPP) has project 
 ## Next
 
 First [run the official examples](/en/sdk/easy/examples), then choose a platform for application integration. If you need offline messages, conversations, unread state, or broader platform APIs, switch to the [full SDK](/en/sdk/wukongim).
+
+## Python source integration
+
+[WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) is project version `0.1.0`, pinned at `c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a`, using Python 3.11+ and asyncio. Install from source; there is no PyPI release yet. It completed Python/Python and actual JS `2.0.4` bidirectional messaging, heartbeat, reconnect, invalid-Token rejection, and online cleanup against WuKongIM `0348c0539bbee420a859439695acdac911afa854`, a Token-authenticated 256-hash-slot single-node cluster. See the [Python quickstart](/en/sdk/easy/python/getting-started) for steps and validation scope. This source evidence is independent of the historical four-platform package acceptance.
