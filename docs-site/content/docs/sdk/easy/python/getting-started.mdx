@@ -114,4 +114,6 @@ WSS 默认验证证书链与主机名，最低 TLS 1.2。私有 CA 使用 `WKIMO
 
 PyPI `0.1.0` 来自发布源码 `ec2c62c73eca29be99ac15ba76ff7466c13617d5`。公开 wheel 与 sdist 的 SHA-256 均与发布工作流产物一致。从 PyPI 新安装的 Python `3.11.12` / websockets `15.0.1` 和 Python `3.14.7` / websockets `17.1` 两种环境，各通过 64 项测试，并在 WuKongIM `0348c0539bbee420a859439695acdac911afa854`、开启 Token 鉴权的 256 Hash Slot 单节点集群上完成 Python/Python 与真实 JS `2.0.4` 双向消息、Ping、手动重新连接、错误 Token 拒绝和在线清理。JS 来自固定源码构建。独立 WS/WSS 测试覆盖自动重连、请求取消、队列边界和证书拒绝。完整哈希、安装回执、版本与复现命令见 [PyPI 正式包验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/90018a9ac53bdef4cb15dadb169ff835cbfcb2a6/docs/PYPI_VALIDATION.md)。
 
+另外提供独立的[三节点 WSS 验收流程](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/1bda54d04154d246be04c8c5452586d77a932333/docs/CLUSTER_ACCEPTANCE.md)：从 PyPI 安装固定版本，通过私有 CA TLS 代理连接三个真实节点，覆盖跨节点收发、丢失 SENDACK、断网重连、节点重启、Token 轮换与资源清理。日常 CI 跑短验收，手动运行可选择 30 或 60 分钟；每次结果单独记录包、服务端、JS 与测试脚本身份。
+
 不提供离线同步、会话、未读或推送；这些需求请使用完整版 SDK。继续验证实际部署的 WSS 代理、Token 轮换、重复投递和容量，或回到 [WuKongEasySDK 概览](/zh/sdk/easy)与[运行官方示例](/zh/sdk/easy/examples)。
