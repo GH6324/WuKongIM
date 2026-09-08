@@ -337,3 +337,22 @@ func equalConnContractEvents(got, want []string) bool {
 	}
 	return true
 }
+
+// Queued frames must survive another read before the connection worker dispatches them.
+func TestWebSocketQueuedPayloadOwnsBytesAcrossReads(t *testing.T) {
+	for _, opcode := range []byte{wsOpcodeText, wsOpcodeBinary} {
+		raw := &contractGnetConn{}
+		state := &connState{raw: raw, runtime: &listenerRuntime{}, mode: connModeWSFrames, maxPendingBytes: 1024}
+		group := &engineGroup{}
+		for _, payload := range []string{`{"method":"send","id":"first"}`, `{"method":"recvack","id":"second"}`} {
+			raw.next = encodeMaskedTestWSFrame(t, true, opcode, [4]byte{1, 2, 3, 4}, []byte(payload))
+			group.handleWSTraffic(raw, state)
+		}
+		if len(state.queue) != 2 || string(state.queue[0].data) != `{"method":"send","id":"first"}` || string(state.queue[1].data) != `{"method":"recvack","id":"second"}` {
+			t.Fatalf("queued payload changed across reads: %+v", state.queue)
+		}
+		if state.queue[0].op != opcode || state.queue[1].op != opcode {
+			t.Fatal("lost WebSocket opcode")
+		}
+	}
+}

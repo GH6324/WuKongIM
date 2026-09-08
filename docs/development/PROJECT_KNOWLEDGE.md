@@ -2,6 +2,8 @@
 
 ## Internal
 
+- WebSocket decoding borrows reusable inbound/fragment buffers. The gnet event queue must copy admitted payloads before the next read; preserving the opcode and copying only after pending-byte admission keeps dispatch correct and memory bounded.
+
 - `WuKongIM/WuKongEasySDK-CSharp` is the independent .NET 8+ EasySDK repository. Its initial source version is `1.0.0`, uses PC device category `2` by default, and is documented at `/sdk/easy/csharp/getting-started` in both locales. NuGet package `WuKongEasySDK` `1.0.0` is pinned to source `02ea7d60cd94feef1996f41bca35ffc3b8e18ea6`; public installation is verified against the tested artifact with an empty consumer cache. Retain the original source messaging receipt separately, without inheriting the other platforms' registry receipts.
 
 - `docs-site/examples/go-webhook` is a separate standard-library business callback example. Its pure marker rules handle raw UTF-8 and SDK `type=1` text JSON without storing idempotency state. Explicit denial returns HTTP 200 with a business reason; HTTP errors remain transport failures governed by the sender policy. The documentation `verify` gate runs its fast Go tests.

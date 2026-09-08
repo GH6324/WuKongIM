@@ -172,6 +172,11 @@ func (s *connState) enqueueDataWithOpcode(opcode byte, data []byte) bool {
 
 // enqueueCopiedData copies from gnet's transient read buffer only after pending-byte admission succeeds.
 func (s *connState) enqueueCopiedData(data []byte) bool {
+	return s.enqueueCopiedDataWithOpcode(0, data)
+}
+
+// enqueueCopiedDataWithOpcode retains owned bytes before reusable transport buffers change.
+func (s *connState) enqueueCopiedDataWithOpcode(opcode byte, data []byte) bool {
 	s.mu.Lock()
 	if s.closing {
 		s.mu.Unlock()
@@ -187,7 +192,7 @@ func (s *connState) enqueueCopiedData(data []byte) bool {
 	}
 	payload := append([]byte(nil), data...)
 	s.pendingBytes += len(payload)
-	s.queue = append(s.queue, connEvent{kind: connEventData, data: payload})
+	s.queue = append(s.queue, connEvent{kind: connEventData, data: payload, op: opcode})
 	s.inboundRevision++
 	depth := len(s.queue)
 	bytes := int64(s.pendingBytes)
