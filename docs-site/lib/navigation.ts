@@ -448,8 +448,8 @@ function publishedEasySDKGroup(): NavigationGroup {
         'cpp/getting-started',
         'C++ 快速接入',
         'C++ quickstart',
-        '通过 vcpkg 安装 SDK 和依赖，以 C++17 和 CMake 完成在线收发与线程管理。',
-        'Install the SDK and dependencies with vcpkg, then use C++17 and CMake for messaging and thread management.',
+        '通过预编译包或 vcpkg 引入 SDK，以 C++17 和 CMake 完成在线收发与线程管理。',
+        'Use prebuilt archives or vcpkg with C++17 and CMake for messaging and thread management.',
       ),
     ],
   );

@@ -15,7 +15,7 @@ WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消�
   <Card title="Web 快速接入" description="精确安装 easyjssdk 2.0.4，通过业务 BFF 获取连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
   <Card title="Rust 快速接入" description="固定 Git 源码，使用 Tokio 管理收发、有限重连与清理。" href="/zh/sdk/easy/rust/getting-started" />
   <Card title="C# 快速接入" description="从固定源码接入 .NET 8，使用异步 API、独立实例和 await using 完成收发。" href="/zh/sdk/easy/csharp/getting-started" />
-  <Card title="C++ 快速接入" description="vcpkg 自动安装依赖，以 C++17 和 CMake 完成连接、消息和线程清理。" href="/zh/sdk/easy/cpp/getting-started" />
+  <Card title="C++ 快速接入" description="预编译包或 vcpkg 接入，以 C++17 和 CMake 完成在线消息和线程清理。" href="/zh/sdk/easy/cpp/getting-started" />
 </Cards>
 
 完成对应教程后，你会让 Alice 与 Bob 分别连接，在个人 Channel 中双向发送一个文本 JSON Payload，并在退出时正确移除监听器和连接。
@@ -141,9 +141,9 @@ C++ 使用独立 `WKIM` 实例和 I/O 线程，保存 `ListenerId`，退出时�
 
 C# 已发布到 [nuget.org](https://www.nuget.org/packages/WuKongEasySDK/1.0.0)，请按 [C# 快速接入](/zh/sdk/easy/csharp/getting-started) 安装精确版本 `1.0.0`；也可使用固定 commit 的项目引用或本地 NuGet 包。它的真实进程验证使用 WuKongIM `132e46209`，与上面的四端历史正式包记录分别保留。
 
-## C++ vcpkg 与固定源码
+## C++ 预编译包、vcpkg 与固定源码
 
-[C++ 仓库](https://github.com/WuKongIM/WuKongEasySDK-CPP) 工程版本 `0.1.0`，本文固定源码 `3e367a908f42385ab9306f9708b7456399cace7d`，可通过本仓库维护的 vcpkg Git registry 自动安装 SDK 及依赖，或使用 CMake 源码安装；尚无预编译 SDK 压缩包，也未宣称被微软默认目录收录。它参考 JS `v2.0.4`，已在 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 上完成 C++/C++ 和 C++/JS 在线双向消息、重连、错误 Token 拒绝和在线清理，并通过独立的 WS/WSS 协议测试。环境与完整验证范围见 [C++ 验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。该源码证据独立于上面四端的历史正式包验收。
+[C++ 仓库](https://github.com/WuKongIM/WuKongEasySDK-CPP) 工程版本 `0.1.0`，本文固定源码 `3e367a908f42385ab9306f9708b7456399cace7d`，可通过本仓库维护的 vcpkg Git registry 自动安装 SDK 及依赖，或使用 CMake 源码安装；也可下载 [v0.1.0 预编译包](https://github.com/WuKongIM/WuKongEasySDK-CPP/releases/tag/v0.1.0)，解压接入 Windows x64、macOS arm64 和 Linux x64；该 registry 不属于微软默认目录。它参考 JS `v2.0.4`，已在 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 上完成 C++/C++ 和 C++/JS 在线双向消息、重连、错误 Token 拒绝和在线清理，并通过独立的 WS/WSS 协议测试。环境与完整验证范围见 [C++ 验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。该源码证据独立于上面四端的历史正式包验收。
 
 ## 下一步
 

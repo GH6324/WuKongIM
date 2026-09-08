@@ -15,7 +15,7 @@ WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and o
   <Card title="Web quickstart" description="Install exactly easyjssdk 2.0.4 and obtain connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
   <Card title="Rust quickstart" description="Pin Git source and use Tokio for messaging, bounded reconnect and cleanup." href="/en/sdk/easy/rust/getting-started" />
   <Card title="C# quickstart" description="Use pinned .NET 8 source, async APIs, independent clients, and await using for messaging." href="/en/sdk/easy/csharp/getting-started" />
-  <Card title="C++ quickstart" description="vcpkg dependency installation and CMake for C++17 connections, messaging, and cleanup." href="/en/sdk/easy/cpp/getting-started" />
+  <Card title="C++ quickstart" description="Prebuilt packages or vcpkg with CMake for C++17 messaging and cleanup." href="/en/sdk/easy/cpp/getting-started" />
 </Cards>
 
 After the platform tutorial, Alice and Bob will connect separately, exchange a text JSON payload in a person Channel, then remove listeners and connections on exit.
@@ -143,9 +143,9 @@ The task sequence was calibrated from the legacy [EasySDK overview](https://wuko
 
 C# is available on [nuget.org](https://www.nuget.org/packages/WuKongEasySDK/1.0.0). Follow the [C# quickstart](/en/sdk/easy/csharp/getting-started) to install exact version `1.0.0`, or build a pinned project reference or local NuGet package. Its real-process verification uses WuKongIM `132e46209` and remains separate from the four historical registry-package receipts above.
 
-## C++ vcpkg and pinned source
+## C++ prebuilt packages, vcpkg and pinned source
 
-The [C++ repository](https://github.com/WuKongIM/WuKongEasySDK-CPP) has project version `0.1.0`. This tutorial pins source `3e367a908f42385ab9306f9708b7456399cace7d`, installed through the WuKongIM-maintained vcpkg Git registry or CMake source integration; no prebuilt SDK archive or inclusion in Microsoft’s curated catalog is claimed. It follows JS `v2.0.4` and completed C++/C++ and C++/JS online bidirectional messaging, reconnect, invalid-token rejection, and presence cleanup against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, plus separate WS/WSS protocol tests. See the [C++ validation record](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md) for environment and scope. This source evidence is separate from the historical four-platform released-package acceptance above.
+The [C++ repository](https://github.com/WuKongIM/WuKongEasySDK-CPP) has project version `0.1.0`. This tutorial pins source `3e367a908f42385ab9306f9708b7456399cace7d`, installed through the WuKongIM-maintained vcpkg Git registry or CMake source integration; [v0.1.0 prebuilt archives](https://github.com/WuKongIM/WuKongEasySDK-CPP/releases/tag/v0.1.0) also support Windows x64, macOS arm64 and Linux x64. The registry is not Microsoft’s curated catalog. It follows JS `v2.0.4` and completed C++/C++ and C++/JS online bidirectional messaging, reconnect, invalid-token rejection, and presence cleanup against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, plus separate WS/WSS protocol tests. See the [C++ validation record](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md) for environment and scope. This source evidence is separate from the historical four-platform released-package acceptance above.
 
 ## Next
 

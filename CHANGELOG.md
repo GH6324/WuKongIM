@@ -35,6 +35,8 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Document C++ SDK 0.1.0 prebuilt archives for Windows x64, macOS arm64 and Linux x64, including offline CMake integration, compatibility, checksums and upgrades. / 补充 C++ SDK 0.1.0 三平台预编译包的离线 CMake 接入、兼容要求、校验和升级说明。
+
 - Document the C++ EasySDK vcpkg Git registry with automatic dependency installation and a minimal CMake consumer. / 新增 C++ EasySDK vcpkg Git registry 接入文档，支持自动安装依赖和最小 CMake 消费端示例。
 
 - Add bilingual WuKongEasySDK-Rust quickstarts with pinned Git installation, Tokio lifecycle, bounded queues, and Rust/JavaScript interoperability examples. / 新增 WuKongEasySDK-Rust 中英文接入文档，覆盖固定 Git 版本安装、Tokio 生命周期、有界队列与 Rust/JavaScript 互通示例。

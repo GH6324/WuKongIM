@@ -37,7 +37,7 @@ examples, search, SEO, and machine-readable output. Runtime contracts are define
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. EasySDK distinguishes C# packages, C++ source/vcpkg Git-registry pins, and
+4. EasySDK distinguishes C# packages, C++ versioned archives and source/vcpkg Git-registry pins, and
    Rust source from historical registry receipts. Its examples record server
    revisions and reachable endpoints; Rust's Tokio/Rust-JS WSS recovery
    evidence does not imply a crates.io release.
