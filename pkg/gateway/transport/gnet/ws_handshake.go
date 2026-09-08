@@ -13,6 +13,8 @@ import (
 const (
 	wsGUID          = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 	wsMaxHeaderSize = 8 << 10
+	// Bound untrusted path text retained in handshake diagnostics.
+	wsMaxDiagnosticPathBytes = 256
 )
 
 type wsHandshakeResult struct {
@@ -23,6 +25,8 @@ type wsHandshakeResult struct {
 type wsHandshakeFailure struct {
 	response []byte
 	err      error
+	// statusCode is included in internal diagnostics, independent of the response body.
+	statusCode int
 }
 
 func parseWSHandshake(buf []byte, expectedPath string) (*wsHandshakeResult, *wsHandshakeFailure, bool) {
@@ -50,7 +54,16 @@ func parseWSHandshake(buf []byte, expectedPath string) (*wsHandshakeResult, *wsH
 		path = "/"
 	}
 	if req.URL == nil || req.URL.Path != path {
-		return nil, failWSHandshake(http.StatusNotFound, nil, fmt.Sprintf("websocket path %q not found", path)), true
+		failure := failWSHandshake(http.StatusNotFound, nil, fmt.Sprintf("websocket path %q not found", path))
+		requestedPath := ""
+		if req.URL != nil {
+			// EscapedPath excludes query credentials and keeps control bytes escaped.
+			requestedPath = req.URL.EscapedPath()
+		}
+		// Preserve the public response while making the internal mismatch unambiguous.
+		failure.err = fmt.Errorf("gateway/transport/gnet: websocket path mismatch: requested_path=%q expected_path=%q",
+			diagnosticWSPath(requestedPath), diagnosticWSPath(path))
+		return nil, failure, true
 	}
 
 	if !headerHasToken(req.Header, "Connection", "upgrade") {
@@ -85,9 +98,18 @@ func parseWSHandshake(buf []byte, expectedPath string) (*wsHandshakeResult, *wsH
 func failWSHandshake(status int, headers map[string]string, msg string) *wsHandshakeFailure {
 	body := []byte(msg)
 	return &wsHandshakeFailure{
-		response: buildHTTPResponse(status, headers, body),
-		err:      fmt.Errorf("gateway/transport/gnet: %s", msg),
+		response:   buildHTTPResponse(status, headers, body),
+		err:        fmt.Errorf("gateway/transport/gnet: %s", msg),
+		statusCode: status,
 	}
+}
+
+// diagnosticWSPath caps retained path text; callers must exclude query strings.
+func diagnosticWSPath(path string) string {
+	if len(path) > wsMaxDiagnosticPathBytes {
+		return path[:wsMaxDiagnosticPathBytes] + "..."
+	}
+	return path
 }
 
 func buildHTTPResponse(status int, headers map[string]string, body []byte) []byte {

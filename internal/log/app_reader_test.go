@@ -304,8 +304,35 @@ func TestAppLogReaderParsesConsoleEntryWithoutModuleWithFields(t *testing.T) {
 		entry.Message != "started" {
 		t.Fatalf("parsed console entry = %+v, want empty module with caller and message", entry)
 	}
-	if entry.Fields["extra"] != `{"node":1}` {
-		t.Fatalf("extra field = %#v, want structured console fields", entry.Fields["extra"])
+	if entry.Fields["node"] != float64(1) {
+		t.Fatalf("node field = %#v, want parsed console field", entry.Fields["node"])
+	}
+}
+
+func TestAppLogReaderParsesNamedConsoleFieldsAndPreservesPlainExtra(t *testing.T) {
+	for _, tc := range []struct {
+		name, suffix string
+		want         map[string]any
+	}{
+		{"json", `{"listener":"ws-gateway","error":"path mismatch","source":"/src/gateway/handler.go:180"}`,
+			map[string]any{"listener": "ws-gateway", "error": "path mismatch", "source": "handler.go:180"}},
+		{"plain", "plain diagnostic", map[string]any{"extra": "plain diagnostic"}},
+		{"malformed", `{"error":`, map[string]any{"extra": `{"error":`}},
+		{"null", "null", map[string]any{"extra": "null"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			line := "2026-09-06 09:00:47.528\tERROR\t[access.gateway.conn]\tgateway/handler.go:180\tgateway listener error\t" + tc.suffix
+			writeAppLogTestFile(t, dir, "app.log", line+"\n")
+			resp, err := NewAppLogReader(AppLogReaderOptions{Dir: dir}).Entries(context.Background(), AppLogEntriesRequest{Limit: 10})
+			if err != nil || len(resp.Items) != 1 {
+				t.Fatalf("Entries = %+v, %v", resp, err)
+			}
+			entry := resp.Items[0]
+			if entry.Message != "gateway listener error" || entry.Module != "access.gateway.conn" || !reflect.DeepEqual(entry.Fields, tc.want) {
+				t.Fatalf("entry = %+v, want fields %#v", entry, tc.want)
+			}
+		})
 	}
 }
 

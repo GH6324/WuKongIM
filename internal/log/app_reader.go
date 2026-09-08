@@ -537,7 +537,7 @@ func parseConsoleAppLogEntry(entry *AppLogEntry, raw string) {
 		entry.Caller = strings.TrimSpace(parts[2])
 		entry.Message = strings.TrimSpace(parts[3])
 		if len(parts) > 4 {
-			entry.Fields["extra"] = strings.Join(parts[4:], "\t")
+			parseConsoleAppLogFields(entry, strings.Join(parts[4:], "\t"))
 		}
 		return
 	}
@@ -551,8 +551,19 @@ func parseConsoleAppLogEntry(entry *AppLogEntry, raw string) {
 		entry.Message = strings.TrimSpace(parts[4])
 	}
 	if len(parts) > 5 {
-		entry.Fields["extra"] = strings.Join(parts[5:], "\t")
+		parseConsoleAppLogFields(entry, strings.Join(parts[5:], "\t"))
 	}
+}
+
+// parseConsoleAppLogFields exposes the encoder's JSON fields just like JSON logs.
+// Raw retains the original record; non-object or malformed suffixes stay in extra.
+func parseConsoleAppLogFields(entry *AppLogEntry, raw string) {
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(raw), &fields); err == nil && fields != nil {
+		entry.Fields = fields
+		return
+	}
+	entry.Fields["extra"] = raw
 }
 
 func isConsoleCallerField(value string) bool {

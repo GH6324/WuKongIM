@@ -88,6 +88,7 @@
 - `internal/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - Browser-facing manager APIs encode 64-bit `message_id` values as decimal JSON strings; web filters, keys, and display code must keep them as strings end to end.
 - The Manager Web production bundle is generated into `internal/access/manager/webui/dist`, committed in full, and embedded in `cmd/wukongim`; production must not require a separate web process or a frontend build during ordinary Go compilation.
+- Manager node-log search covers a bounded recent window in one selected node file, not complete history. Keywords require explicit submission; expanding the window tracks the requested size independently of matching rows. Live reading defaults off, retains at most 1,000 events, and pauses before evicting records while the operator is reading or inspecting details.
 - The embedded Operations MCP is administered through Manager but authenticated independently with one opaque `wko_*` token. Every Manager listener serves `/mcp`; Controller state selects one execution owner, ingress nodes never forward the raw token, targets consume one-time owner-held leases before pprof, audit fanout is deadline-bounded, and a stop-time 30-second fence prevents profile overlap across owner generations.
 - Manager message payloads are raw bytes encoded as Base64 in JSON; web views decode valid printable UTF-8 (including non-ASCII text) and keep binary payloads in Base64 form.
 - `cmd/wukongim` is the promoted product entrypoint. Controller, the new
@@ -193,6 +194,8 @@
 - Local Cloud Analysis should use the run's Cloud View `RemoteAddr` as a best-effort same-destination egress hint; transparent routing can give public echo services another IPv4. Keep pinned-TLS MCP health authoritative and preserve the echo fallback for runs without Cloud View.
 
 ## Gateway Runtime
+
+- WebSocket handshake rejection diagnostics carry the transport peer (the proxy when proxied), local address, connection ID, and HTTP status in the error text. Path mismatches include bounded escaped requested paths and expected paths, excluding URL queries; HTTP rejection responses remain unchanged. Manager parses console JSON suffixes into ordinary fields and displays error text without expanding raw logs.
 
 - `pkg/gateway/core` async CONNECT auth and SEND dispatch are owned by `RuntimeOptions` and ants-backed executors; do not reintroduce session-scoped async worker config compatibility.
 

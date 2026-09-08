@@ -6,7 +6,13 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Improve Manager node-log troubleshooting with explicit keyword search, a navigable details drawer and copy feedback, reliable retry, and live scrolling that preserves the reading position. / 优化管理台节点日志排查：关键字提交查询、可切换事件的详情抽屉与复制反馈、可靠重试，以及保护阅读位置的实时跟随。
+
 ### 🐛 Bug Fixes / 问题修复
+
+- WebSocket handshake rejection logs now include peer addresses, HTTP status, and bounded requested/expected paths for path mismatches without URL query parameters. Manager parses console log fields and shows the error and listener without expanding details. / 完善 WebSocket 握手拒绝日志，补充来源地址、HTTP 状态和路径不匹配时的实际/期望路径，不记录 URL 查询参数；Manager 支持解析 console 日志字段并直接显示错误原因和监听器。
 
 - Fix JavaScript/Web quickstart reconnect history occasionally appearing empty while person membership is still being projected after SENDACK; the example backend now retries empty latest pages within its existing finite budget. / 修复 JavaScript/Web 示例重连时偶发空历史：后端在既有有限预算内等待最新空页的单聊成员投影。
 

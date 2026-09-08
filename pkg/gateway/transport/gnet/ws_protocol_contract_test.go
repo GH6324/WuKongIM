@@ -149,6 +149,35 @@ func TestParseWSHandshakeRejectsInvalidUpgradeBoundaries(t *testing.T) {
 	}
 }
 
+func TestWSPathMismatchDiagnosticsAreBoundedAndExcludeQuery(t *testing.T) {
+	for _, tc := range []struct {
+		target string
+		want   string
+	}{
+		{target: "/ws?token=private-query", want: `requested_path="/ws"`},
+		{target: "/bad%0Apath?token=private-query", want: `requested_path="/bad%0Apath"`},
+		{target: "/" + strings.Repeat("x", 2048) + "?token=private-query", want: "..."},
+	} {
+		_, failure, complete := parseWSHandshake(websocketUpgradeRequest(http.MethodGet, tc.target, nil), "")
+		if !complete || failure == nil {
+			t.Fatal("expected completed path rejection")
+		}
+		detail := failure.err.Error()
+		if !strings.Contains(detail, tc.want) || !strings.Contains(detail, `expected_path="/"`) {
+			t.Errorf("diagnostic = %q, want %q and expected path", detail, tc.want)
+		}
+		if len(detail) > 800 || strings.ContainsAny(detail, "\r\n") || strings.Contains(detail, "private-query") {
+			t.Errorf("unbounded or unsafe diagnostic: %q", detail)
+		}
+		resp := readTestHTTPResponse(t, failure.response)
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusNotFound || string(body) != `websocket path "/" not found` {
+			t.Fatalf("response changed: status=%d body=%q err=%v", resp.StatusCode, body, err)
+		}
+	}
+}
+
 func TestBuildHTTPResponseHonorsExplicitConnectionHeader(t *testing.T) {
 	response := buildHTTPResponse(599, map[string]string{"cOnNeCtIoN": "keep-alive"}, []byte("diagnostic"))
 	resp := readTestHTTPResponse(t, response)
