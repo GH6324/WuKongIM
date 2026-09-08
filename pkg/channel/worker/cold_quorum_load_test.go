@@ -33,3 +33,11 @@ func TestQuorumColdLoadUsesConsistentDurableFrontier(t *testing.T) {
 	require.Equal(t, store.InitialState{LEO: 17, HW: 12, CheckpointHW: 12}, result.StoreLoad.Initial)
 	require.NoError(t, result.StoreLoad.Store.Close())
 }
+
+func TestQuorumColdLoadClosesStoreWithoutExactCapability(t *testing.T) {
+	factory := &trackingStoreFactory{}
+	result := ownershipStoreLoadTask().Run(context.Background(), Deps{Stores: factory, QuorumLog: &captureDurableQuorumLog{}})
+	require.ErrorIs(t, result.Err, ch.ErrInvalidConfig)
+	require.Nil(t, result.StoreLoad)
+	require.Equal(t, int32(1), factory.requireLastHandle(t).closeCalls.Load())
+}
