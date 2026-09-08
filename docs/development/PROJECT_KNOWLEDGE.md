@@ -2,6 +2,8 @@
 
 ## Internal
 
+- WebSocket decoding borrows reusable inbound/fragment buffers. The gnet event queue must copy admitted payloads before the next read; preserving the opcode and copying only after pending-byte admission keeps dispatch correct and memory bounded.
+
 - `docs-site/examples/go-webhook` is a separate standard-library business callback example. Its pure marker rules handle raw UTF-8 and SDK `type=1` text JSON without storing idempotency state. Explicit denial returns HTTP 200 with a business reason; HTTP errors remain transport failures governed by the sender policy. The documentation `verify` gate runs its fast Go tests.
 
 - The product composition deliberately leaves person-directory admission out of synchronous SEND. UID memberships are projected after durable append, so SENDACK does not imply immediate history visibility. The JavaScript quickstart BFF retries an empty latest page within its finite projection budget; normal cursor pages and unrelated errors keep their original behavior.

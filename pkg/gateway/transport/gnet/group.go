@@ -548,7 +548,7 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 				}
 			}
 			if len(result.payload) > 0 {
-				if !state.enqueueDataWithOpcode(result.opcode, result.payload) {
+				if !state.enqueueCopiedDataWithOpcode(result.opcode, result.payload) {
 					state.fail(ErrPendingBytesExceeded)
 					_ = c.Close()
 					return gnetv2.None
