@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"reflect"
 	"strconv"
 	"testing"
@@ -12,12 +13,11 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
-func TestRepairQuorumPrefixFetchesFromProvedDonorAndAtomicallyReplacesDivergence(t *testing.T) {
+func TestRepairQuorumPrefixAppendsFromProvedDonorWithoutReplacingLocalRows(t *testing.T) {
 	key := ch.ChannelKey("1:repair-owner")
 	id := ch.ChannelID{ID: "repair-owner", Type: 1}
 	first, firstTail := recoveryMutationAfter(t, key, id, 1, 0, ch.EntryIdentity{})
 	first.Committed = 1
-	divergent, _ := recoveryMutationAfter(t, key, id, 9, 1, firstTail)
 	donorSecond, donorSecondTail := recoveryMutationAfter(t, key, id, 2, 1, firstTail)
 	donorThird, donorThirdTail := recoveryMutationAfter(t, key, id, 3, 2, donorSecondTail)
 
@@ -27,9 +27,9 @@ func TestRepairQuorumPrefixFetchesFromProvedDonorAndAtomicallyReplacesDivergence
 	if err != nil {
 		t.Fatalf("NewStoreAdapter() error = %v", err)
 	}
-	if results := store.Sync(context.Background(), []Mutation{first, divergent}); len(results) != 2 ||
+	if results := store.Sync(context.Background(), []Mutation{first, donorSecond}); len(results) != 2 ||
 		!results[0].Outcome.Durable() || !results[1].Outcome.Durable() {
-		t.Fatalf("Sync(local divergence) = %+v", results)
+		t.Fatalf("Sync(local prefix) = %+v", results)
 	}
 	donorState := ReplicaState{
 		LEO: 3, Committed: 1, Manifest: donorThird.Manifest, TailIdentity: donorThirdTail,
@@ -39,7 +39,6 @@ func TestRepairQuorumPrefixFetchesFromProvedDonorAndAtomicallyReplacesDivergence
 	dispatcher := &scriptedRecoveryFetchDispatcher{result: FetchResult{
 		State: donorState,
 		Proposals: []RecoveryProposal{
-			{Manifest: donorSecond.Manifest, Records: donorSecond.Records},
 			{Manifest: donorThird.Manifest, Records: donorThird.Records},
 		},
 	}}
@@ -58,8 +57,8 @@ func TestRepairQuorumPrefixFetchesFromProvedDonorAndAtomicallyReplacesDivergence
 	if got != repairedState {
 		t.Fatalf("repaired state = %+v, want quorum-proven prefix committed as %+v", got, repairedState)
 	}
-	if len(dispatcher.queries) != 1 || dispatcher.queries[0].Donor != 2 || dispatcher.queries[0].From != 2 ||
-		dispatcher.queries[0].Through != 3 || dispatcher.queries[0].Previous != firstTail {
+	if len(dispatcher.queries) != 1 || dispatcher.queries[0].Donor != 2 || dispatcher.queries[0].From != 3 ||
+		dispatcher.queries[0].Through != 3 || dispatcher.queries[0].Previous != donorSecondTail {
 		t.Fatalf("fetch queries = %+v, want one exact donor-2 suffix query", dispatcher.queries)
 	}
 	loaded, loadErr := store.Load(context.Background(), LoadBatch{Items: []LoadRequest{{
@@ -75,6 +74,58 @@ func TestRepairQuorumPrefixFetchesFromProvedDonorAndAtomicallyReplacesDivergence
 	}
 	if !reflect.DeepEqual(loaded.Items[0].Entries, wantEntries) {
 		t.Fatalf("repaired identities = %+v, want %+v", loaded.Items[0].Entries, wantEntries)
+	}
+}
+
+func TestRepairQuorumPrefixPreservesUnprovenLocalSuffix(t *testing.T) {
+	for _, scenario := range []string{"divergent-tail", "advanced-after-proof", "checkpoint-only"} {
+		t.Run(scenario, func(t *testing.T) {
+			h, _, a := convergenceFixture(t)
+			first, firstTail := recoveryMutationAfter(t, a.Key, a.ChannelID, 1, 0, ch.EntryIdentity{})
+			second, secondTail := recoveryMutationAfter(t, a.Key, a.ChannelID, 2, 1, firstTail)
+			conflict, _ := recoveryMutationAfter(t, a.Key, a.ChannelID, 9, 1, firstTail)
+			writeRecoveryFixture(t, h, 1, first)
+			selected := ReplicaState{LEO: 2, Manifest: second.Manifest, TailIdentity: secondTail}
+			expectedErr := ch.ErrLogConflict
+			switch scenario {
+			case "divergent-tail":
+				writeRecoveryFixture(t, h, 1, conflict)
+			case "advanced-after-proof":
+				writeRecoveryFixture(t, h, 1, second)
+				selected = ReplicaState{LEO: 1, Manifest: first.Manifest, TailIdentity: firstTail}
+				expectedErr = errRecoveryProbeIncomplete
+			case "checkpoint-only":
+				writeRecoveryFixture(t, h, 1, second)
+				expectedErr = nil
+			}
+			before, err := loadRecoveryReplicaState(context.Background(), h.stores[1], a.Key, a.ChannelID, []uint64{1, 2})
+			if err != nil {
+				t.Fatal(err)
+			}
+			dispatcher := &scriptedRecoveryFetchDispatcher{}
+			_, err = repairQuorumPrefix(context.Background(), recoveryRepairRequest{
+				ChannelKey: a.Key, ChannelID: a.ChannelID, Leader: 1, Local: 1,
+				Voters: a.Voters, Quorum: 2, Timeout: time.Minute, MaxPageBytes: 64 << 10,
+				Selection: recoverySelection{Index: selected.LEO, Identity: selected.TailIdentity,
+					Supporters: []recoverySupporter{{Voter: 2, State: selected}, {Voter: 3, State: selected}}},
+			}, dispatcher, h.stores[1])
+			if !errors.Is(err, expectedErr) {
+				t.Fatalf("repair error = %v, want %v", err, expectedErr)
+			}
+			after, err := loadRecoveryReplicaState(context.Background(), h.stores[1], a.Key, a.ChannelID, []uint64{1, 2})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "checkpoint-only" {
+				before.State.Committed = 2
+			}
+			if !reflect.DeepEqual(before, after) {
+				t.Fatalf("local rows changed: before=%+v after=%+v", before, after)
+			}
+			if len(dispatcher.queries) != 0 {
+				t.Fatal("unexpected suffix fetch")
+			}
+		})
 	}
 }
 

@@ -30,22 +30,14 @@ func (n *Node) ListRunnableMigrationTasks(ctx context.Context, localNode uint64,
 	if err != nil {
 		return nil, err
 	}
-	out := make([]metadb.ChannelMigrationTask, 0, limit)
+	hashSlots := make([]uint16, 0, snapshot.HashSlots.Count)
 	for _, slotID := range slotIDs {
-		hashSlots := hashSlotsOfPhysicalSlot(snapshot.HashSlots, slotID)
-		for _, hashSlot := range hashSlots {
-			remaining := limit - len(out)
-			if remaining <= 0 {
-				return out, nil
-			}
-			tasks, err := n.defaultSlotMetaDB.ForHashSlot(hashSlot).ListActiveChannelMigrationTasks(ctx, remaining)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, tasks...)
-		}
+		hashSlots = append(hashSlots, hashSlotsOfPhysicalSlot(snapshot.HashSlots, slotID)...)
 	}
-	return out, nil
+	sort.Slice(hashSlots, func(i, j int) bool { return hashSlots[i] < hashSlots[j] })
+	return n.channelMigrationScan.list(ctx, hashSlots, limit, func(ctx context.Context, hashSlot uint16, cursor metadb.ChannelMigrationTaskCursor, limit int) ([]metadb.ChannelMigrationTask, metadb.ChannelMigrationTaskCursor, bool, error) {
+		return n.defaultSlotMetaDB.ForHashSlot(hashSlot).ListActiveChannelMigrationTaskPage(ctx, cursor, limit)
+	})
 }
 
 // LocalLeaderSlotIDs returns physical Slot IDs currently led by this node.
@@ -392,12 +384,12 @@ func (n *Node) applyChannelMigrationLocalRuntimeMeta(ctx context.Context, meta m
 		return ErrNotStarted
 	}
 	service, ok := n.channels.(interface {
-		ApplyMeta(ch.Meta) error
+		ApplyMetaContext(context.Context, ch.Meta) error
 	})
 	if !ok {
 		return ErrNotStarted
 	}
-	return service.ApplyMeta(channelwrapper.ProjectRuntimeMeta(meta))
+	return service.ApplyMetaContext(ctx, channelwrapper.ProjectRuntimeMeta(meta))
 }
 
 func (n *Node) drainLocalChannelRuntime(ctx context.Context, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {

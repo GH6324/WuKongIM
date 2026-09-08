@@ -91,6 +91,8 @@ type RepairScanner struct {
 	cursors map[uint32]metadb.ChannelRuntimeMetaCursor
 	// lastSlot rotates the next tick beyond the Slot that consumed the prior budget.
 	lastSlot uint32
+	// healthyNodes detects eligibility loss after an earlier page was scanned.
+	healthyNodes map[uint64]bool
 }
 
 // NewRepairScanner creates a bounded Channel repair scanner.
@@ -123,6 +125,19 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 	if err != nil {
 		return result, err
 	}
+	// A pause may begin before the last health report expires. Revisit rows
+	// already scanned as healthy when a node loses placement eligibility, rather
+	// than waiting for a potentially large full-page cycle. Stable reports retain
+	// cursors and all per-tick page/task budgets still apply.
+	healthy := failoverHealthyNodeSet(snapshot.Nodes)
+	for nodeID := range s.healthyNodes {
+		if !healthy[nodeID] {
+			clear(s.cursors)
+			s.lastSlot = 0
+			break
+		}
+	}
+	s.healthyNodes = healthy
 	slotIDs, err := s.source.LocalLeaderSlotIDs(ctx)
 	if err != nil {
 		return result, err

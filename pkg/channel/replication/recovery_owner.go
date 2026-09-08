@@ -259,7 +259,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 	}
 	if quorumLEO == 0 {
 		selected := recoverySelection{CertifiedCommitted: certifiedCommitted}
-		return selected, validateRecoverySuffixEvidence(selected, frontierReports, len(frontierReports), len(request.Voters))
+		return selected, validateRecoverySuffixEvidence(selected, frontierReports)
 	}
 	selected := recoverySelection{CertifiedCommitted: certifiedCommitted}
 	firstIndex := certifiedCommitted
@@ -355,7 +355,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 			identity, ok := quorumIdentityAt(stableReports, position, index, request.Quorum)
 			if !ok {
 				selected.Continuation = nil
-				return selected, validateRecoverySuffixEvidence(selected, frontierReports, len(stable), len(request.Voters))
+				return selected, validateRecoverySuffixEvidence(selected, frontierReports)
 			}
 			if selected.Index == 0 {
 				if index != 1 || identity.PreviousIndex != 0 || identity.PreviousTerm != 0 || identity.PreviousDigest != (ch.EntryDigest{}) {
@@ -372,7 +372,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		pageEnd := indexes[len(indexes)-1]
 		if pageEnd == quorumLEO {
 			selected.Continuation = nil
-			return selected, validateRecoverySuffixEvidence(selected, frontierReports, len(stable), len(request.Voters))
+			return selected, validateRecoverySuffixEvidence(selected, frontierReports)
 		}
 		stable = recoveryIdentitySupporters(stableReports, len(indexes)-1, selected.Identity)
 		if len(stable) < request.Quorum {
@@ -383,16 +383,12 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 	}
 }
 
-// validateRecoverySuffixEvidence prevents a read quorum from treating an
-// unavailable voter's copy as absent. A visible suffix may have been acknowledged
-// by that voter and one survivor, even before their committed checkpoint advances.
-// Until all voters are accounted for, recovery may not discard such a suffix.
-func validateRecoverySuffixEvidence(selected recoverySelection, reports []recoveryProbeReport, stableVoters, configuredVoters int) error {
+// validateRecoverySuffixEvidence preserves every observed suffix. Probe responses
+// are not durable promises: even an apparent minority tail can gain another vote
+// while recovery reads are in flight. Only append-only convergence is permitted.
+func validateRecoverySuffixEvidence(selected recoverySelection, reports []recoveryProbeReport) error {
 	for _, report := range reports {
-		if report.Result.State.Committed > selected.Index {
-			return ch.ErrLogConflict
-		}
-		if stableVoters < configuredVoters && report.Result.State.LEO > selected.Index {
+		if report.Result.State.LEO > selected.Index {
 			return errRecoveryProbeIncomplete
 		}
 	}
@@ -518,6 +514,10 @@ func recoveryIdentitySupporters(reports []recoveryProbeReport, position int, ide
 
 func collectRecoveryProbeRound(ctx context.Context, request recoveryProbeRequest, indexes []uint64, dispatcher recoveryProbeDispatcher) ([]recoveryProbeReport, error) {
 	completions := make(chan recoveryProbeCompletion, len(request.Voters))
+	localPending := false
+	for _, voter := range request.Voters {
+		localPending = localPending || voter == request.Leader
+	}
 	for _, voter := range request.Voters {
 		voter := voter
 		query := recoveryProbeQuery{
@@ -534,18 +534,37 @@ func collectRecoveryProbeRound(ctx context.Context, request recoveryProbeRequest
 
 	reports := make([]recoveryProbeReport, 0, len(request.Voters))
 	for pending := len(request.Voters); pending > 0; pending-- {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case completion := <-completions:
-			if completion.err != nil {
-				continue
+		var completion recoveryProbeCompletion
+		// Consume every already-arrived observation, including conflicting or
+		// longer tails. Once a configured quorum has answered, an outstanding
+		// remote voter need not delay this read proof. Observe the local result
+		// first so convergence never mistakes a fast remote quorum for missing
+		// local evidence. Subsequent identity pages retain
+		// only stable supporters, and repair still refuses to overwrite any
+		// existing local suffix before the durable current-authority barrier.
+		if len(reports) >= request.Quorum && !localPending {
+			select {
+			case completion = <-completions:
+			default:
+				return reports, nil
 			}
-			if !validRecoveryProbeResult(completion.result) || !sameRecoveryProbeIndexes(indexes, completion.result.Entries) {
-				return nil, ch.ErrLogConflict
+		} else {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case completion = <-completions:
 			}
-			reports = append(reports, recoveryProbeReport{Voter: completion.voter, Result: completion.result})
 		}
+		if completion.voter == request.Leader {
+			localPending = false
+		}
+		if completion.err != nil {
+			continue
+		}
+		if !validRecoveryProbeResult(completion.result) || !sameRecoveryProbeIndexes(indexes, completion.result.Entries) {
+			return nil, ch.ErrLogConflict
+		}
+		reports = append(reports, recoveryProbeReport{Voter: completion.voter, Result: completion.result})
 	}
 	return reports, nil
 }

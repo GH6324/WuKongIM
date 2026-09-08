@@ -554,6 +554,8 @@ func (n *Node) startChannelMigrationLoop() {
 		Meta:      metaReader,
 		Observer:  migrationObserver,
 		TaskLimit: n.cfg.ChannelMigration.TaskLimit,
+		// Complete ready tasks at the scanner admission rate without sleeping between durable phases.
+		FailoverPhaseLimit: 8,
 	})
 	scanner := channelwrapper.NewRepairScanner(channelwrapper.RepairScannerConfig{
 		Enabled:         true,

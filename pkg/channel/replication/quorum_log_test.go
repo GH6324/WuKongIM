@@ -177,8 +177,8 @@ func TestQuorumLogInstallDefersEmptyAuthorityBarrierIntoFirstProposal(t *testing
 	if err != nil || restartedReceipt != receipt {
 		t.Fatalf("Commit(restart exact retry) = %+v, %v; want %+v", restartedReceipt, err, receipt)
 	}
-	if harness.syncCalls != beforeRestart+len(authority.Voters) {
-		t.Fatalf("restart exact retry issued %d store attempts, want one conflict proof per voter", harness.syncCalls-beforeRestart)
+	if harness.syncCalls != beforeRestart+authority.WriteQuorum {
+		t.Fatalf("restart exact retry issued %d store attempts, want only the initially admitted local-plus-quorum round before local conflict", harness.syncCalls-beforeRestart)
 	}
 	for _, voter := range authority.Voters {
 		loaded, loadErr := harness.stores[voter].Load(context.Background(), LoadBatch{Items: []LoadRequest{{ChannelKey: authority.Key, ChannelID: authority.ChannelID}}})

@@ -349,3 +349,32 @@ func TestRepairScannerDropsCursorWhenSlotLeadershipIsLost(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, source.hashSlotActiveCalls[0].ChannelID, source.hashSlotActiveCalls[1].ChannelID)
 }
+
+func TestRepairScannerRevisitsPassedChannelsWhenLeaderHealthExpires(t *testing.T) {
+	a, b, c := ch.ChannelID{ID: "row-a", Type: 1}, ch.ChannelID{ID: "row-b", Type: 1}, ch.ChannelID{ID: "row-c", Type: 1}
+	source := newFakeRepairScannerSource(a, b, c)
+	source.nodes = failoverHealthyNodes(1, 2, 3)
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{failoverPlannerMeta(a)}, {failoverPlannerMeta(b)}, {failoverPlannerMeta(c)}}
+	store := &fakeRepairScannerStore{}
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 1, MaxPagesPerTick: 1, MaxTasksPerTick: 1}, source, store)
+	// The paused leader still has a fresh report when the early rows are scanned.
+	for range 2 {
+		r, err := scanner.RunOnce(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 1, r.PagesScanned)
+		require.Zero(t, r.TasksCreated)
+	}
+	require.Equal(t, b.ID, scanner.cursors[1].ChannelID)
+	source.nodes[0].Health.Freshness = control.NodeHealthStale
+	r, err := scanner.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, r.PagesScanned)
+	require.Equal(t, 1, r.TasksCreated)
+	require.Equal(t, a, store.requests[0].ChannelID, "newly unavailable leadership must revisit already-passed channels")
+	// Unchanged unhealthy evidence does not reset the cursor on every tick.
+	r, err = scanner.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, r.PagesScanned)
+	require.Equal(t, 1, r.TasksCreated)
+	require.Equal(t, b, store.requests[1].ChannelID)
+}

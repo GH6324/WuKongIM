@@ -37,7 +37,7 @@ depending on their frames, JSON, or concrete cluster runtimes.
 2. Single and batch sync validate membership and visibility, canonicalize
    Channel IDs, and pass page intent plus an independent visibility floor to
    `PageReader`. It owns latest-page selection, scan bounds, bounded lookahead,
-   filtering, ascending order, and `HasMore` for sync and plugin reads. The
+   filtering, bounded continuation, ascending order, and `HasMore` for sync and plugin reads. The
    committed-record adapter executes routed scans; sync then clones payloads
    and optionally enriches stream messages with bounded event metadata.
 3. Legacy event sync reads a bounded durable sequence page through Slot authority,
@@ -61,8 +61,11 @@ depending on their frames, JSON, or concrete cluster runtimes.
   cache state.
 - Page preparation never rewrites a caller start sequence to enforce visibility;
   `PageReader` interprets latest intent and the floor together. Command filtering
-  remains after the bounded scan and never triggers refill reads. Plugin reads
-  retain their separate authorization and response contracts.
+  remains in the use case. Hidden raw records advance a monotonic scan cursor
+  until limit+1 visible records or the range end proves `HasMore`. Reads use
+  at most 64 aligned waves of 1,024 raw records per Channel and a five-second
+  context; exhausted budgets or invalid progress fail instead of implying end
+  of history. Plugin reads retain separate authorization and response contracts.
 - Sync reads committed data only and never mutate membership. A new person
   conversation without membership returns an empty page without a Channel read;
   missing group membership and tombstones still fail validation. Single and batch

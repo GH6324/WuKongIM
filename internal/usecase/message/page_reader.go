@@ -1,6 +1,15 @@
 package message
 
-import "context"
+import (
+	"context"
+	"time"
+)
+
+const (
+	messagePageScanChunk   = 1024
+	messagePageScanWaves   = 64
+	messagePageScanTimeout = 5 * time.Second
+)
 
 // CommittedMessageQuery describes one bounded scan after page semantics have
 // been resolved. The adapter must preserve these bounds and scan ordering.
@@ -62,34 +71,121 @@ func (r *PageReader) SyncMessages(ctx context.Context, query ChannelMessageQuery
 	return results[0].Page, nil
 }
 
-// SyncMessagesBatch executes one aligned read wave. A transport or cardinality
-// error fails the wave; individual read errors stay at their requested indexes.
+// SyncMessagesBatch fills visible pages in bounded aligned read waves. Hidden
+// records advance the raw cursor but never consume the caller's visible limit.
 func (r *PageReader) SyncMessagesBatch(ctx context.Context, queries []ChannelMessageQuery) ([]ChannelMessageReadResult, error) {
 	if r == nil || r.committed == nil {
 		return nil, ErrMessageReaderRequired
 	}
-	plans := make([]messagePagePlan, len(queries))
-	reads := make([]CommittedMessageQuery, len(queries))
-	for index, query := range queries {
-		plans[index] = planMessagePage(query)
-		reads[index] = plans[index].scan
-	}
-	readResults, err := r.committed.ReadCommittedMessages(ctx, reads)
-	if err != nil {
-		return nil, err
-	}
-	if len(readResults) != len(queries) {
-		return nil, ErrSyncBatchResultMismatch
-	}
+	ctx, cancel := context.WithTimeout(ctx, messagePageScanTimeout)
+	defer cancel()
 	results := make([]ChannelMessageReadResult, len(queries))
-	for index, read := range readResults {
-		if read.Err != nil {
-			results[index].Err = read.Err
-			continue
+	states := make([]messagePageScan, len(queries))
+	pending := make([]int, len(queries))
+	for i, q := range queries {
+		states[i].plan = planMessagePage(q)
+		states[i].next = states[i].plan.scan
+		pending[i] = i
+	}
+	for wave := 0; len(pending) > 0 && wave < messagePageScanWaves; wave++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		results[index].Page = plans[index].page(read.Messages)
+		reads := make([]CommittedMessageQuery, len(pending))
+		for i, index := range pending {
+			reads[i] = states[index].next
+		}
+		got, err := r.committed.ReadCommittedMessages(ctx, reads)
+		if err != nil {
+			return nil, err
+		}
+		if len(got) != len(reads) {
+			return nil, ErrSyncBatchResultMismatch
+		}
+		remaining := pending[:0]
+		for i, index := range pending {
+			state := &states[index]
+			if got[i].Err != nil {
+				results[index].Err = got[i].Err
+				state.kept = nil
+				continue
+			}
+			done, err := state.consume(got[i].Messages)
+			if err != nil {
+				results[index].Err = err
+				state.kept = nil
+				continue
+			}
+			if done {
+				results[index].Page = state.plan.page(state.kept)
+				state.kept = nil
+				continue
+			}
+			remaining = append(remaining, index)
+		}
+		pending = remaining
+	}
+	for _, index := range pending {
+		results[index].Err = ErrSyncPageScanBudget
 	}
 	return results, nil
+}
+
+// messagePageScan retains at most limit+1 visible records and one raw cursor.
+// Every continuation stays inside the original visibility and sequence bounds.
+type messagePageScan struct {
+	plan messagePagePlan
+	next CommittedMessageQuery
+	kept []SyncedMessage
+}
+
+func (s *messagePageScan) consume(rows []SyncedMessage) (bool, error) {
+	q := s.next
+	if len(rows) > q.Limit {
+		return false, ErrSyncPageScanInvalid
+	}
+	if len(rows) == 0 {
+		return true, nil
+	}
+	var previous uint64
+	for i, m := range rows {
+		seq := m.MessageSeq
+		if seq == 0 || seq < q.MinSeq || (q.MaxSeq > 0 && seq > q.MaxSeq) ||
+			(q.Reverse && (seq > q.FromSeq || (i > 0 && seq >= previous))) ||
+			(!q.Reverse && (seq < q.FromSeq || (i > 0 && seq <= previous))) {
+			return false, ErrSyncPageScanInvalid
+		}
+		previous = seq
+		if (s.plan.excludeThroughSeq > 0 && seq <= s.plan.excludeThroughSeq) || (s.plan.excludeFromSeq > 0 && seq >= s.plan.excludeFromSeq) {
+			return true, nil
+		}
+		if !m.Flags.SyncOnce {
+			s.kept = append(s.kept, m)
+		}
+		if len(s.kept) > s.plan.limit {
+			return true, nil
+		}
+	}
+	if len(rows) < q.Limit {
+		return true, nil
+	}
+	last := rows[len(rows)-1].MessageSeq
+	if q.Reverse {
+		if last <= 1 || last <= q.MinSeq || last-1 <= s.plan.excludeThroughSeq && s.plan.excludeThroughSeq > 0 {
+			return true, nil
+		}
+		s.next.FromSeq = last - 1
+		s.next.MaxSeq = last - 1
+	} else {
+		if last == ^uint64(0) || (q.MaxSeq > 0 && last >= q.MaxSeq) {
+			return true, nil
+		}
+		s.next.FromSeq = last + 1
+	}
+	// A small initial page can be entirely controls. Continue in fixed bounded
+	// chunks rather than paying one remote read for each missing visible row.
+	s.next.Limit = messagePageScanChunk
+	return false, nil
 }
 
 // messagePagePlan keeps scan selection and response construction together so
@@ -109,13 +205,16 @@ func planMessagePage(query ChannelMessageQuery) messagePagePlan {
 	if limit <= 0 {
 		limit = 1
 	}
+	if limit > maxSyncMessagesLimit {
+		limit = maxSyncMessagesLimit
+	}
 	latest := query.StartSeq == 0 && query.EndSeq == 0
 	plan := messagePagePlan{limit: limit, scan: CommittedMessageQuery{
 		ChannelID: query.ChannelID,
 		FromSeq:   query.StartSeq,
 		MinSeq:    query.MinSeq,
 		MaxSeq:    ^uint64(0),
-		Limit:     limit + 1,
+		Limit:     min(limit+1, messagePageScanChunk),
 		MaxBytes:  int(^uint(0) >> 1),
 		Reverse:   query.PullMode == PullModeDown || latest,
 	}}
@@ -155,8 +254,8 @@ func (p messagePagePlan) page(messages []SyncedMessage) ChannelMessagePage {
 		}
 		kept = append(kept, msg)
 	}
-	// Preserve the compatibility lookahead: filtering may underfill a page;
-	// it must not trigger an additional scan or invent HasMore from store cursors.
+	// Only an additional visible record proves another page. Continuation has
+	// already crossed any intervening hidden records before this projection.
 	hasMore := len(kept) > p.limit
 	if hasMore {
 		kept = kept[:p.limit]

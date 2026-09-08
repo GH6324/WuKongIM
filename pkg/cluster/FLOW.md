@@ -6,12 +6,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 # Cluster Runtime Flow
 
 ## Responsibility
-
-`pkg/cluster` composes Controller adaptation, routing, typed RPC, Slot
-reconciliation/proposals, Channel hosting, and observation loops. `Node` owns
-lifecycle, readiness, public facades, route publication, and bounded snapshots.
-
-All deployments, including a single-node cluster, use these semantics.
+`Node` composes Controller, Slot, Channel, transport, routing and observation;
+it owns lifecycle, readiness and bounded snapshots in every cluster.
 
 ## Boundaries
 
@@ -43,6 +39,8 @@ All deployments, including a single-node cluster, use these semantics.
    durable state and recheck authority; diagnostic probes stay read-only. A dead
    Leader can preempt an unpromoted replacement through the existing guarded
    abort, then elect from the next authoritative scan; promoted tasks are protected.
+   Failover proof renewal re-probes the surviving target under the current fence;
+   it never falls back to draining the unavailable source.
 4. Conversation and history reads batch Slot routes and group by exact Leader,
    preserving alignment and item errors. Cold quorum Leaders (even HW=LEO=0)
    recover first; loaded Leaders still installing authority cannot serve HW.
@@ -80,16 +78,18 @@ All deployments, including a single-node cluster, use these semantics.
   concurrency. Directory-ready can never hide missing UID membership or
   missing append runtime metadata.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
-  Repair scans rotate Slots and retain per-Slot row cursors across tick/task
-  budgets. Losing Slot leadership discards its cursor; reacquisition rescans.
+  Repair scans rotate Slots with row cursors under tick/task budgets. Slot
+  leadership loss drops its cursor; newly unavailable nodes restart owned Slot
+  scans, while unchanged health retains progress. Migration ticks have a five-second
+  deadline, up to eight durable steps of one automatic failover, and task cursors.
+  Fresh durable progress permits continuation; stalled work yields immediately.
 - Maintenance closes business admission before storage replacement and keeps
   only explicitly allowed restore RPC available. Backup and restore retain
   cluster routing and exact authority fences.
 
 ## Read First
 
-- [Public API](api.go)
-- [Node ownership](node.go)
+- [Public API](api.go) and [Node ownership](node.go)
 - [Lifecycle](node_lifecycle.go)
 - [Routing publication](routing/router.go)
 - [Channel hosting](channels/service.go)

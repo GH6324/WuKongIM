@@ -32,8 +32,9 @@ type recoveryFetchCompletion struct {
 	err    error
 }
 
-// repairQuorumPrefix truncates a minority suffix and installs the selected
-// chain in bounded, proposal-aligned atomic pages. A crash between pages leaves
+// repairQuorumPrefix extends a compatible local prefix with the selected
+// chain in bounded, proposal-aligned atomic pages. It never removes local rows.
+// A crash between pages leaves
 // a non-writable exact prefix that a later Install can prove and resume.
 func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, dispatcher recoveryFetchDispatcher, store ReplicaStore) (ReplicaState, error) {
 	if ctx == nil || dispatcher == nil || store == nil || request.ChannelKey == "" || request.ChannelID.ID == "" ||
@@ -59,17 +60,14 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 	if local.Committed > selection.Index {
 		return ReplicaState{}, ch.ErrLogConflict
 	}
-	keepThrough := local.Committed
-	previous := ch.EntryIdentity{}
+	// Probes are observations, not promises that block concurrent accepted work.
+	// Preserve even an uncommitted local suffix learned after the quorum proof.
+	if local.LEO > selection.Index {
+		return ReplicaState{}, errRecoveryProbeIncomplete
+	}
+	keepThrough := local.LEO
+	previous := local.TailIdentity
 	if keepThrough > 0 {
-		probed, probeErr := loadRecoveryReplicaState(operationContext, store, request.ChannelKey, request.ChannelID, []uint64{keepThrough})
-		if probeErr != nil {
-			return ReplicaState{}, probeErr
-		}
-		if probed.State != local || len(probed.Entries) != 1 || !probed.Entries[0].Present {
-			return ReplicaState{}, ch.ErrStaleMeta
-		}
-		previous = probed.Entries[0].Identity
 		if keepThrough == selection.CertifiedCommitted && previous != selection.CertifiedIdentity {
 			return ReplicaState{}, ch.ErrLogConflict
 		}
@@ -83,8 +81,7 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 
 	current := local
 	from := keepThrough + 1
-	firstPage := true
-	for from <= selection.Index {
+	for current.LEO < selection.Index {
 		through := selection.Index
 		if distance := through - from; distance >= maxRecoveryProbeIndexes {
 			through = from + maxRecoveryProbeIndexes - 1
@@ -103,14 +100,10 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 				return ReplicaState{}, ch.ErrLogConflict
 			}
 		}
-		pageKeep := current.LEO
-		if firstPage {
-			pageKeep = keepThrough
-		}
 		committed := last
 		replaced := store.Replace(operationContext, []RecoveryReplacement{{
 			ChannelKey: request.ChannelKey, ChannelID: request.ChannelID, Expected: current,
-			KeepThrough: pageKeep, Proposals: page.Proposals, Committed: committed,
+			KeepThrough: current.LEO, Proposals: page.Proposals, Committed: committed,
 		}})
 		if len(replaced) != 1 || !replaced[0].Outcome.Durable() || replaced[0].Err != nil || replaced[0].LastOffset != last {
 			if len(replaced) == 1 && replaced[0].Err != nil {
@@ -129,20 +122,28 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 		current = loaded.State
 		previous = tail
 		from = last + 1
-		firstPage = false
 	}
-	if from == 1 && selection.Index == 0 {
+	if current.Committed < selection.Index {
+		// The exact chain is already present. Publish only its proven checkpoint
+		// with the same frontier CAS used for append pages.
 		replaced := store.Replace(operationContext, []RecoveryReplacement{{
 			ChannelKey: request.ChannelKey, ChannelID: request.ChannelID, Expected: current,
-			KeepThrough: 0, Committed: 0,
+			KeepThrough: current.LEO, Committed: selection.Index,
 		}})
-		if len(replaced) != 1 || !replaced[0].Outcome.Durable() || replaced[0].Err != nil || replaced[0].LastOffset != 0 {
+		if len(replaced) != 1 || !replaced[0].Outcome.Durable() || replaced[0].Err != nil || replaced[0].LastOffset != current.LEO {
 			if len(replaced) == 1 && replaced[0].Err != nil {
 				return ReplicaState{}, replaced[0].Err
 			}
 			return ReplicaState{}, ch.ErrLogConflict
 		}
-		current = ReplicaState{}
+		loaded, loadErr := loadRecoveryReplicaState(operationContext, store, request.ChannelKey, request.ChannelID, nil)
+		if loadErr != nil {
+			return ReplicaState{}, loadErr
+		}
+		current.Committed = selection.Index
+		if loaded.State != current {
+			return ReplicaState{}, ch.ErrLogConflict
+		}
 	}
 	if current.LEO != selection.Index || current.Committed != selection.Index || current.TailIdentity != selection.Identity {
 		return ReplicaState{}, ch.ErrLogConflict

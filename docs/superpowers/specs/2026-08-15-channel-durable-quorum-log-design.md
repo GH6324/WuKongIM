@@ -201,15 +201,32 @@ Admitted timeouts and ambiguous store/RPC results return typed
 - Lost response: exact replay proves follower durability.
 - Quorum durability before a lost client response: retry returns the same
   receipt.
-- New authority: fence old admission, persist the higher term on a quorum,
-  probe an election quorum, and recover before becoming writable.
+- New authority: fence old admission, probe an intersecting election quorum,
+  preserve accepted durable records, and persist the current-authority barrier
+  on a quorum before becoming writable. Read-only probes are not durable
+  promises against concurrent old work.
 
 Recovery selects the greatest identical prefix proven by an intersecting
-quorum. It never selects a tail merely because one replica reports the highest
-LEO. The new leader repairs its local copy, writes a quorum-durable current-term
-barrier, and only then becomes ready. Minority-only uncommitted suffixes may be
-truncated. A conflict at or below a quorum-certified committed cut is corruption
-and blocks readiness.
+quorum. A probe round consumes already-arrived observations and can proceed
+with a configured quorum while other voters remain outstanding; subsequent
+identity pages retain only stable supporters. Late callbacks retain their
+bounded mailbox. Recovery never selects a tail merely because one replica
+reports the highest LEO. The new leader repairs its local copy, writes a quorum-durable current-term
+barrier, and only then becomes ready. Every observed suffix is preserved, even
+when every voter reports: a lagging checkpoint does not prove absence of a
+successful ACK, and a probe does not revoke in-flight work. If the observed
+voters have compatible tails, recovery first proves that each tail is an exact
+ancestor of a candidate donor, then copies only missing original proposals with
+no commit promotion. The highest LEO selects a candidate, never a certificate.
+A fresh quorum proof and current-authority barrier remain mandatory afterward.
+Local repair appends behind an exact frontier compare-and-swap; a concurrently
+advanced or conflicting suffix causes a retry/error without removing records.
+
+This path heals compatible replication lag without a database or wire-format
+change. It does not implement a separate persisted-promise protocol or reconcile
+divergent durable branches. Conflicts remain non-writable for investigation;
+truncation requires a separately designed durable fencing/decision proof and
+must not be inferred from these read-only probes.
 
 Recovery streams fixed-size identity pages under the caller's bounded recovery
 deadline. Page memory, voter fanout, and local/remote execution are bounded,
@@ -256,7 +273,7 @@ storage before a formal capacity claim.
 4. Add the data-bearing follower push and bounded per-target batching.
 5. Wire the reactor through `DurableQuorumLog.Commit` and remove hot PullHint,
    Pull/AckOffset, and displaced quorum waiter logic.
-6. Add authority installation, quorum probing, suffix repair/truncation, and
+6. Add authority installation, quorum probing, append-only suffix convergence, and
    current-term barrier crash matrices.
 7. Repeat focused/race/integration gates, then the exact local three-node
    diagnostic and an independent-storage Simulation Run.

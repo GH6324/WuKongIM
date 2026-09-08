@@ -4,6 +4,7 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -38,8 +39,7 @@ func TestNativeLearnerCatchesUpUnderWriteFence(t *testing.T) {
 	a.Learners = []ch.NodeID{4}
 	a.WriteFence = ch.WriteFence{Token: "replacement", Version: 2, Reason: ch.WriteFenceReasonReplicaReplace}
 	router.register(4, nil)
-	installed, err := runtimes[1].Log().Install(ctx, a)
-	require.NoError(t, err)
+	installed := installLearnerAuthorityEventually(t, runtimes[1].Log(), a)
 	require.Greater(t, installed.HW, uint64(1))
 	router.register(4, runtimes[4].ExchangeServer())
 	require.Eventually(t, func() bool {
@@ -50,8 +50,7 @@ func TestNativeLearnerCatchesUpUnderWriteFence(t *testing.T) {
 	// possible. Restoring voters permits an exact retry of the pending proposal.
 	a.WriteFence = ch.WriteFence{}
 	a.ID.FenceVersion++
-	_, err = runtimes[1].Log().Install(ctx, a)
-	require.NoError(t, err)
+	_ = installLearnerAuthorityEventually(t, runtimes[1].Log(), a)
 	router.register(2, nil)
 	router.register(3, nil)
 	proposal := Proposal{Key: a.Key, Expected: a.ID, CommandID: ch.CommandID{31: 2}, Records: []ch.Record{{ID: 102, Epoch: a.ID.ChannelEpoch, FromUID: "sender", ClientMsgNo: "native-next", Payload: []byte("next"), SizeBytes: 4, ServerTimestampMS: 112}}}
@@ -68,4 +67,22 @@ func TestNativeLearnerCatchesUpUnderWriteFence(t *testing.T) {
 		loaded, err := stores[4].Load(ctx, LoadBatch{Items: []LoadRequest{{ChannelKey: a.Key, ChannelID: a.ChannelID}}})
 		return err == nil && len(loaded.Items) == 1 && loaded.Items[0].Err == nil && loaded.Items[0].State.Committed == receipt.HW
 	}, 2*time.Second, time.Millisecond, "learner must follow new commits after its initial copy")
+}
+
+// Trailing voter writes and checkpoints remain concurrent with a new fence.
+// An unstable read proof must fail closed and be retried, just as the native
+// migration executor retries its phase. All other errors remain test failures.
+func installLearnerAuthorityEventually(t *testing.T, log DurableQuorumLog, authority Authority) Installed {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	for {
+		installed, err := log.Install(ctx, authority)
+		if errors.Is(err, errRecoveryProbeIncomplete) && ctx.Err() == nil {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+		require.NoError(t, err, "authority never obtained a stable exact proof")
+		return installed
+	}
 }

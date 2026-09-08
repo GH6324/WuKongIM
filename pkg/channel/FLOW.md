@@ -6,20 +6,16 @@ summary: Implements the reusable multi-reactor Channel log runtime, replication,
 # Channel Runtime Flow
 
 ## Responsibility
-
 `pkg/channel` is the reusable replicated Channel log runtime. It owns Channel
 metadata fences, per-Channel ordering, leader append, durable-quorum commits, follower pull replication,
-committed progress, retention adoption, runtime lifecycle, and synchronous
-facades over reactor futures.
+committed progress, retention, lifecycle, and synchronous reactor facades.
 
-The subtree is split by role: `machine` holds pure transitions, `reactor` owns
-Channel state and scheduling, `replication` holds protocol decisions, `service`
-is the public synchronous facade, `store` defines persistence, `transport`
-defines RPC DTOs, and `worker` bounds blocking I/O.
-It does not own product permission, authority selection, fanout, or SENDACK policy.
+`machine` holds pure transitions, `reactor` owns state and scheduling,
+`replication` holds protocol decisions, `service`
+is the synchronous facade, `store` defines persistence, `transport` defines RPC
+DTOs, and `worker` bounds blocking I/O.
 
 ## Boundaries
-
 - Product permission, authority selection, subscriber fanout, and SENDACK
   orchestration stay above this package.
 - `store/channel_adapter.go` is the only Channel file allowed to import message
@@ -58,13 +54,19 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
 - Durable quorum success requires local durability plus a distinct-voter quorum.
   Exact manifests and closed durable/already-durable/absent/conflict/unknown
   outcomes make ambiguous commits safely retryable after cancellation or
-  restart; caller cancellation cannot revoke admitted durability.
+  restart; caller cancellation cannot revoke admitted durability. A definitive
+  local conflict reaches durable command lookup without waiting for missing
+  peers or retaining an impossible local pending proposal. A valid newer durable
+  authority invalidates a resumed former leader and returns stale metadata;
+  same-authority, missing, or malformed evidence remains a conflict.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
-  Install selects a quorum-identical hash-chain prefix, refuses suffix removal
-  when an unavailable voter could hold another acknowledged copy, repairs bounded pages,
-  and completes authority recovery only after the deterministic current-term
-  barrier. Non-ISR learners receive quorum-proven exact proposals through the
+  Install preserves every observed suffix, proves compatible voter tails on one
+  exact hash chain, and copies missing proposals in bounded pages. Probe rounds
+  consume arrived evidence plus the local result, then use a quorum without waiting
+  for outstanding voters; identity pages retain only stable supporters. A fresh
+  quorum-identical prefix proof precedes append-only local repair; authority
+  recovery completes only after the deterministic current-term barrier. Non-ISR learners receive quorum-proven exact proposals through the
   bounded repair workers without contributing votes; page progress survives
   retry deadlines. Recovery can complete under a transfer write fence for new-leader
   verification; business Commit stays blocked until the fence is cleared.
@@ -77,8 +79,8 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
 - Unloaded state is absence from the reactor map. Cold PullHint activation must
   resolve authoritative metadata and prove local replica membership before
   opening storage.
-- Mailboxes, Channel count, append queues, worker queues, batching windows,
-  recovery probes, maintenance turns, and result payloads are bounded.
+- Mailboxes, Channel count, append/worker queues, batching, recovery probes,
+  maintenance turns, and result payloads are bounded.
 - Write fencing rejects new append admission without discarding already
   accepted work. Lifecycle eviction requires no pending work and current
   fenced checkpoint/replica evidence.

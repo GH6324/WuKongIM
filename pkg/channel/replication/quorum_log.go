@@ -2,6 +2,7 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"time"
@@ -135,10 +136,18 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	// still blocks Commit. Requiring an unfenced authority here would deadlock
 	// the task that verifies the new leader before clearing that fence.
 
-	selection, err := recoverQuorumPrefix(ctx, recoveryProbeRequest{
+	request := recoveryProbeRequest{
 		ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
 		Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout,
-	}, l.cfg.Recovery)
+	}
+	selection, err := recoverQuorumPrefix(ctx, request, l.cfg.Recovery)
+	if errors.Is(err, errRecoveryProbeIncomplete) {
+		if err = l.convergeRecoveryPrefix(ctx, authority); err != nil {
+			return Installed{}, err
+		}
+		// Copied proposals only become recovery evidence after a fresh read quorum.
+		selection, err = recoverQuorumPrefix(ctx, request, l.cfg.Recovery)
+	}
 	if err != nil {
 		return Installed{}, err
 	}
@@ -284,6 +293,13 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 }
 
 func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumChannel, proposal Proposal) (Receipt, error) {
+	// Follower catch-up can advance a resumed former leader's durable replica
+	// before its cached routing and sequencer receive the new metadata. Only a
+	// validated newer durable authority proves that this is a stale owner.
+	if l.durableAuthorityAdvanced(ctx, state) {
+		state.ready = false
+		return Receipt{}, ch.ErrStaleMeta
+	}
 	loaded, found, err := l.loadRetainedProposal(ctx, state, proposal.CommandID)
 	if err != nil {
 		return Receipt{}, err
@@ -293,6 +309,26 @@ func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumC
 	}
 	l.remember(state, loaded)
 	return loaded.receipt, nil
+}
+
+// durableAuthorityAdvanced performs one bounded frontier read on the conflict
+// path. Missing, malformed, or same-authority evidence cannot reclassify a
+// command conflict or authorize a retry as a different leader.
+func (l *quorumLog) durableAuthorityAdvanced(ctx context.Context, state *quorumChannel) bool {
+	loaded, err := l.cfg.Store.Load(ctx, LoadBatch{Items: []LoadRequest{{
+		ChannelKey: state.authority.Key, ChannelID: state.authority.ChannelID,
+	}}})
+	if err != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		return false
+	}
+	frontier := loaded.Items[0].State
+	if !validReplicaState(frontier) || frontier.LEO == 0 {
+		return false
+	}
+	tail := frontier.TailIdentity
+	return compareAuthorityID(AuthorityID{
+		ChannelEpoch: tail.ChannelEpoch, LeaderTerm: tail.LeaderTerm, FenceVersion: tail.FenceVersion,
+	}, state.authority.ID) > 0
 }
 
 func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChannel, command ch.CommandID) (retainedProposal, bool, error) {
@@ -334,6 +370,13 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, retained retainedProposal) (Receipt, error) {
 	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability)
 	if err != nil {
+		if result.outcome == ch.AppendOutcomeConflict {
+			state.pending = nil
+			return l.reconcileCommandConflict(ctx, state, Proposal{
+				Key: state.authority.Key, Expected: state.authority.ID,
+				CommandID: retained.proposal.manifest.CommandID, Records: retained.proposal.records,
+			})
+		}
 		return Receipt{}, err
 	}
 	return l.finishCommit(state, retained, result)

@@ -94,6 +94,12 @@ func (e *MigrationExecutor) runLeaderTransferDrainLeader(ctx context.Context, ta
 }
 
 func (e *MigrationExecutor) runLeaderTransferFinalTargetCatchUp(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	if task.Kind == metadb.ChannelMigrationKindLeaderFailover {
+		// Fence renewal can invalidate an earlier cutover proof and return a
+		// failover here. Re-prove the surviving target under the current fence;
+		// a dead source can never supply a graceful drain proof.
+		return e.runLeaderTransferDrainLeader(ctx, task)
+	}
 	meta, id, err := e.readLeaderTransferMeta(ctx, task)
 	if err != nil {
 		return err

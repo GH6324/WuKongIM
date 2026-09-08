@@ -15,9 +15,13 @@ the repaired spare enters the public Channel replicas and ISR while preserving
 the repaired spare can carry Channel quorum after another original replica
 stops. The process-pause case retains TCP connections in a ten-Slot cluster,
 limits scans to one page per tick, and distinguishes writes before process recovery from history safety after
-recovery. The strict availability gate remains unresolved for an ACK followed
-immediately by leader pause while the trailing replica is behind; do not weaken
-it or treat the safety case as proof of availability.
+recovery. The strict availability gate sends immediately after ACK and leader
+pause while the trailing replica may be behind, then checks multiple successful
+writes and an exact cross-ingress ClientMsgNo retry before resuming the process.
+After resume, send through the former leader itself to exercise stale route recovery.
+The strict case also pages all acknowledged history with a two-message limit,
+using only More and the oldest visible sequence to cross hidden recovery barriers.
+Do not weaken this gate or treat the safety case as proof of availability.
 
 ## Run
 

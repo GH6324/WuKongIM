@@ -417,22 +417,20 @@ const resync = () => {
 
 
 
+// Manual and scroll paging share one in-flight guard. The button also works
+// when a tall viewport cannot scroll a full first page of messages.
+const loadEarlier = () => {
+    if (pulldowning.value || pulldownFinished.value) return
+    pulldowning.value = true
+    pullDown().then(() => {
+        pulldowning.value = false
+    }).catch(() => {
+        pulldowning.value = false
+    })
+}
+
 const handleScroll = (e: any) => {
-    const targetScrollTop = e.target.scrollTop;
-    const scrollOffsetTop = e.target.scrollHeight - (targetScrollTop + e.target.clientHeight);
-    if (targetScrollTop <= 250) { // 下拉
-        if (pulldowning.value || pulldownFinished.value) {
-            console.log("不允许下拉", "pulldowning", pulldowning.value, "pulldownFinished", pulldownFinished.value)
-            return
-        }
-        console.log("下拉")
-        pulldowning.value = true
-        pullDown().then(() => {
-            pulldowning.value = false
-        }).catch(() => {
-            pulldowning.value = false
-        })
-    }
+    if (e.target.scrollTop <= 250) loadEarlier()
 }
 
 const onEnter = () => {
@@ -459,6 +457,8 @@ const onKeydown = (e: any) => {
                 <button>{{ t('chatList') }}</button>
                 <button v-on:click="resync" :disabled="text.trim().length > 0"
                     :title="text.trim() ? t('finishDraftBeforeSync') : ''">{{ t('resync') }}</button>
+                <button v-if="messages.length > 0 && !pulldownFinished" v-on:click="loadEarlier"
+                    :disabled="pulldowning">{{ t('loadEarlier') }}</button>
             </div>
             <div class="center">
                 {{ title }}

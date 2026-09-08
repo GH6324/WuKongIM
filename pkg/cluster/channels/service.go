@@ -1550,23 +1550,50 @@ func recoveredAppendError(recovered bool, err error) error {
 	return err
 }
 
+// ApplyMetaContext preserves authoritative cache provenance while allowing
+// migration work to yield on contention or cancellation instead of pinning its supervisor.
+func (s *Service) ApplyMetaContext(ctx context.Context, meta ch.Meta) error {
+	return s.applyRuntimeMetaContext(ctx, meta, true, true)
+}
+
 func (s *Service) applyRuntimeMeta(meta ch.Meta, authoritative bool) error {
+	return s.applyRuntimeMetaContext(context.Background(), meta, authoritative, false)
+}
+
+func (s *Service) applyRuntimeMetaContext(ctx context.Context, meta ch.Meta, authoritative, bounded bool) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
 	if s == nil || s.runtime == nil {
 		return ch.ErrNotReady
+	}
+	apply := s.runtime.ApplyMeta
+	if bounded {
+		applier, ok := s.runtime.(runtimeMetaContextApplier)
+		if !ok {
+			return ch.ErrInvalidConfig
+		}
+		apply = func(meta ch.Meta) error { return applier.ApplyMetaContext(ctx, meta) }
 	}
 	if meta.Key == "" {
 		meta.Key = ch.ChannelKeyForID(meta.ID)
 	}
 	if !validAppendMetaIdentity(meta.ID, meta) {
-		return s.runtime.ApplyMeta(meta)
+		return apply(meta)
 	}
 	lock := &s.metaApplyLocks[channelMetaApplyLockIndex(meta.ID)]
-	lock.Lock()
+	if bounded {
+		if !lock.TryLock() {
+			return ch.ErrNotReady
+		}
+	} else {
+		lock.Lock()
+	}
 	defer lock.Unlock()
 
 	candidate := cloneMeta(meta)
 	selected, _ := s.metaCache.preferCurrent(meta.ID, candidate)
-	if err := s.runtime.ApplyMeta(selected); err != nil {
+	if err := apply(selected); err != nil {
 		return err
 	}
 	if authoritative {
