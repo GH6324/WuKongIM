@@ -106,7 +106,10 @@ func (e *MigrationExecutor) runReplicaReplaceFinalTargetCatchUp(ctx context.Cont
 		return e.blockTask(ctx, task, migrationBlockTargetNotReady)
 	}
 	if probe.HW < task.CutoverLEO {
-		return e.blockTask(ctx, task, migrationBlockTargetLagging)
+		// Learner replication is asynchronous. Keep the fenced task runnable
+		// so a later bounded scan can observe catch-up without a Slot write.
+		// A blocked task is excluded from execution and would never recover.
+		return nil
 	}
 	progress := metadb.ChannelMigrationProgress{
 		LeaderLEO:          task.CutoverLEO,

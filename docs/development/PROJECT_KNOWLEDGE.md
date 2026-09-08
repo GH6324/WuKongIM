@@ -2,6 +2,8 @@
 
 ## Internal
 
+- Durable Channel replication excludes learners from quorum votes and recovery voting. Authority installation copies its quorum-proved committed frontier to non-ISR replicas through the fixed repair workers, one bounded page per turn; the repair ledger allows the configured voter count plus one replacement replica and fences cursors to exact work generations. Migration probes refresh loaded follower frontiers from consistent exact storage because quorum exchanges bypass follower reactor state. A replica-replacement target below `CutoverLEO` remains runnable; invalid runtime proofs still block promotion.
+
 - Chat Demo existing-token login must not call `/user/token`. Its per-tab session
   persists connection credentials only; account changes and resynchronization
   rebuild the SDK singleton. Prepending history requires stable message keys

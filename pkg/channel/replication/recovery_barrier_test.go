@@ -82,3 +82,27 @@ func TestAuthorityBarrierRejectsEqualOrRegressiveFence(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthorityRejectsInvalidLearnersAndFreezesMembership(t *testing.T) {
+	base := Authority{Key: "1:learners", ChannelID: ch.ChannelID{ID: "learners", Type: 1}, ID: AuthorityID{ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1}, Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2}
+	for _, learners := range [][]ch.NodeID{{0}, {2}, {4, 4}} {
+		bad := base
+		bad.Learners = learners
+		if validAuthority(bad) {
+			t.Fatalf("accepted invalid learners %v", learners)
+		}
+	}
+	base.Learners = []ch.NodeID{4}
+	if !validAuthority(base) {
+		t.Fatal("valid learner rejected")
+	}
+	copied := cloneAuthority(base)
+	base.Learners[0] = 5
+	if copied.Learners[0] != 4 || sameAuthority(base, copied) {
+		t.Fatal("learner membership was not frozen and fenced")
+	}
+	base.Leader = 5
+	if validAuthority(base) {
+		t.Fatal("learner was accepted as leader")
+	}
+}

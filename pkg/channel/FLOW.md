@@ -41,6 +41,9 @@ DTOs, and `worker` bounds blocking I/O.
 2. Followers pull continuous records, apply and return ACK progress, and use a
    bounded checkpoint path; idle leaders and caught-up followers coordinate
    checkpointed stop before either runtime can be evicted.
+   In durable-log mode, authority installation seeds non-voting learner catch-up
+   from the quorum-proved frontier; fixed repair workers retain one-page progress.
+   Tail growth preserves that cursor; new gap evidence and authority replacement fence it.
 3. Committed reads expose only HW-covered records above the logical retention
    floor. Runtime probes distinguish a loaded Leader from completed quorum
    recovery, including when a durable write fence permits only reads. Optional

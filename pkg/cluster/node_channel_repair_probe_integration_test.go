@@ -8,9 +8,10 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/stretchr/testify/require"
 )
 
-func TestClusterChannelRepairProbeLoadsDurableColdReplica(t *testing.T) {
+func TestClusterChannelRepairProbeLoadsAndRefreshesDurableReplica(t *testing.T) {
 	nodes := newDefaultThreeNodeCluster(t)
 	for _, n := range nodes {
 		n.cfg.Channel.TickInterval = time.Hour
@@ -45,4 +46,15 @@ func TestClusterChannelRepairProbeLoadsDurableColdReplica(t *testing.T) {
 	if proof.ChannelID != id || proof.Role != ch.RoleFollower || proof.ChannelEpoch != meta.ChannelEpoch || proof.LeaderEpoch != meta.LeaderEpoch || proof.LEO < receipt.MessageSeq || proof.HW > proof.LEO {
 		t.Fatalf("proof=%+v receipt=%+v meta=%+v", proof, receipt, meta)
 	}
+
+	// The loaded follower reactor does not consume quorum exchange writes.
+	// Later migration probes must refresh its durable frontier independently.
+	for _, messageID := range []uint64{9102, 9103} {
+		receipt, err = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, CommitMode: ch.CommitModeQuorum, Message: ch.Message{MessageID: messageID, Payload: []byte("after-probe")}})
+		require.NoError(t, err)
+	}
+	require.Eventually(t, func() bool {
+		refreshed, err := leader.ProbeChannel(ctx, follower.cfg.NodeID, id.ID, id.Type)
+		return err == nil && refreshed.LEO >= receipt.MessageSeq && refreshed.HW > proof.HW && refreshed.HW <= refreshed.LEO
+	}, 3*time.Second, time.Millisecond)
 }

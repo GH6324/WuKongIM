@@ -87,7 +87,7 @@ func newQuorumLog(cfg quorumLogConfig) (*quorumLog, error) {
 }
 
 func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed, error) {
-	if l == nil || ctx == nil || !validAuthority(authority) || len(authority.Voters) > l.cfg.MaxVoters || len(authority.Voters)+len(authority.Learners) > l.cfg.MaxVoters+1 || authority.Leader != l.cfg.Local {
+	if l == nil || ctx == nil || !validAuthority(authority) || len(authority.Voters) > l.cfg.MaxVoters || len(authority.Voters)+len(authority.Learners) > l.cfg.MaxVoters+1 || (len(authority.Learners) > 0 && l.cfg.RepairAuthorities == nil) || authority.Leader != l.cfg.Local {
 		return Installed{}, ch.ErrInvalidConfig
 	}
 	if err := ctx.Err(); err != nil {

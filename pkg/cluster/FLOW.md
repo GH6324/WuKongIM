@@ -36,9 +36,11 @@ it owns lifecycle, readiness and bounded snapshots in every cluster.
    the exact leader while background control/task convergence stays bounded.
    Repair probes activate cold replicas through authoritative metadata and the
    native reactor before inspecting progress. Native follower proofs read exact
-   durable state and recheck authority; diagnostic probes stay read-only. A dead
+   durable state and recheck metadata/runtime authority, rejecting future durable
+   epochs or fences; diagnostic probes stay read-only. A dead
    Leader can preempt an unpromoted replacement through the existing guarded
    abort, then elect from the next authoritative scan; promoted tasks are protected.
+   Replacement catch-up stays runnable while its valid target is lagging.
    Failover proof renewal re-probes the surviving target under the current fence;
    it never falls back to draining the unavailable source.
 4. Conversation and history reads batch Slot routes and group by exact Leader,

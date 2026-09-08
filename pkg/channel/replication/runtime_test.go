@@ -663,3 +663,30 @@ type runtimeTestLink struct {
 func (l runtimeTestLink) Exchange(ctx context.Context, target ch.NodeID, batch ExchangeBatch) (ExchangeBatchResult, error) {
 	return l.router.exchange(ctx, l.from, target, batch)
 }
+
+func TestRuntimeRepairProgressIsBoundedAndFencedToExactWork(t *testing.T) {
+	key := runtimeRepairKey{channel: "1:paged", follower: 4}
+	entry := &runtimeRepairEntry{version: 1, repair: followerRepair{needFrom: 1, manifest: ch.ProposalManifest{LastOffset: 300}}}
+	owner := &runtimeRepairOwner{pending: map[runtimeRepairKey]*runtimeRepairEntry{key: entry}}
+	owner.retainProgress(key, entry, 1, 257)
+	if entry.repair.needFrom != 257 {
+		t.Fatal("completed page was not retained")
+	}
+	owner.retainProgress(key, entry, 1, 301)
+	owner.retainProgress(key, entry, 1, 1)
+	if entry.repair.needFrom != 257 {
+		t.Fatal("cursor escaped pending range or regressed")
+	}
+	entry.version++
+	entry.gapVersion = entry.version
+	owner.retainProgress(key, entry, 1, 299)
+	if entry.repair.needFrom != 257 {
+		t.Fatal("stale gap generation advanced the cursor")
+	}
+	replacement := &runtimeRepairEntry{version: 1, repair: followerRepair{needFrom: 1, manifest: ch.ProposalManifest{LastOffset: 300}}}
+	owner.pending[key] = replacement
+	owner.retainProgress(key, entry, 2, 299)
+	if replacement.repair.needFrom != 1 {
+		t.Fatal("superseded authority advanced replacement work")
+	}
+}

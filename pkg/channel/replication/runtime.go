@@ -54,8 +54,9 @@ type RuntimeConfig struct {
 	// for cross-channel batching before transport admission.
 	TrailingFlushInterval time.Duration
 	RepairWorkers         int
-	// MaxVoters bounds voting membership. Background repair admits at most
-	// MaxVoters+1 total replicas for one bounded replacement learner.
+	// MaxVoters bounds one installed Channel authority and therefore the
+	// runtime-owned follower-repair ledger. One additional replica slot permits
+	// a replacement learner while the original voter membership is retained.
 	MaxVoters   int
 	QueueItems  int
 	QueueBytes  int
@@ -147,19 +148,22 @@ type runtimeRepairKey struct {
 type runtimeRepairEntry struct {
 	repair  followerRepair
 	version uint64
-	queued  bool
-	running bool
-	ctx     context.Context
-	cancel  context.CancelFunc
+	// gapVersion fences page progress after a repeated or earlier gap; tail growth keeps it valid.
+	gapVersion uint64
+	queued     bool
+	running    bool
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 type runtimeRepairAuthority struct {
 	channelID ch.ChannelID
 	id        AuthorityID
-	voters    []ch.NodeID
+	replicas  []ch.NodeID
 }
 
 type followerRepairAuthorityOwner interface {
+	RecordFollowerRepair(followerRepair)
 	InstallAuthority(Authority)
 }
 
@@ -522,7 +526,7 @@ func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
 	o.mu.Lock()
 	authority, known := o.authorities[repair.channelKey]
 	if !known || authority.channelID != repair.channelID || authority.id != repairAuthorityID(repair) ||
-		!repairAuthorityHasVoter(authority, repair.follower) {
+		!repairAuthorityHasReplica(authority, repair.follower) {
 		o.mu.Unlock()
 		return
 	}
@@ -536,9 +540,13 @@ func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
 		entry = &runtimeRepairEntry{repair: repair, version: 1, queued: true, ctx: entryCtx, cancel: cancel}
 		o.pending[key] = entry
 		o.ready = append(o.ready, key)
-	} else if merged, changed := mergeFollowerRepair(entry.repair, repair); changed {
+	} else if merged, changed := mergeFollowerRepair(entry.repair, repair); changed || repair.needFrom <= entry.repair.needFrom {
+		invalidatesProgress := repair.needFrom <= entry.repair.needFrom
 		entry.repair = merged
 		entry.version++
+		if invalidatesProgress {
+			entry.gapVersion = entry.version
+		}
 		if !entry.running && !entry.queued {
 			entry.queued = true
 			o.ready = append(o.ready, key)
@@ -548,7 +556,7 @@ func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
 	o.signal()
 }
 
-// InstallAuthority replaces the complete voter and learner repair generation for one
+// InstallAuthority replaces the complete replica repair generation for one
 // Channel. Older ready and running repairs are canceled before a newer
 // authority can publish repair evidence, so membership rotation cannot grow
 // the bounded ledger across generations.
@@ -557,7 +565,7 @@ func (o *runtimeRepairOwner) InstallAuthority(authority Authority) {
 		return
 	}
 	next := runtimeRepairAuthority{
-		channelID: authority.ChannelID, id: authority.ID, voters: append(append([]ch.NodeID(nil), authority.Voters...), authority.Learners...),
+		channelID: authority.ChannelID, id: authority.ID, replicas: append(append([]ch.NodeID(nil), authority.Voters...), authority.Learners...),
 	}
 	o.mu.Lock()
 	if o.authorities == nil {
@@ -602,9 +610,9 @@ func repairAuthorityID(repair followerRepair) AuthorityID {
 	}
 }
 
-func repairAuthorityHasVoter(authority runtimeRepairAuthority, voter ch.NodeID) bool {
-	for _, candidate := range authority.voters {
-		if candidate == voter {
+func repairAuthorityHasReplica(authority runtimeRepairAuthority, replica ch.NodeID) bool {
+	for _, candidate := range authority.replicas {
+		if candidate == replica {
 			return true
 		}
 	}
@@ -613,9 +621,8 @@ func repairAuthorityHasVoter(authority runtimeRepairAuthority, voter ch.NodeID) 
 
 func validFollowerRepair(repair followerRepair) bool {
 	return repair.channelKey != "" && repair.channelID.ID != "" && repair.leader != 0 && repair.follower != 0 &&
-		repair.follower != repair.leader && repair.needFrom > 0 && repair.manifest.LastOffset >= repair.needFrom &&
-		repair.manifest.ChannelEpoch > 0 && repair.manifest.LeaderTerm > 0 && repair.manifest.FenceVersion > 0 &&
-		repair.committed <= repair.manifest.LastOffset
+		repair.follower != repair.leader && repair.needFrom > 0 && repair.manifest.LastOffset >= repair.needFrom && repair.committed <= repair.manifest.LastOffset &&
+		repair.manifest.ChannelEpoch > 0 && repair.manifest.LeaderTerm > 0 && repair.manifest.FenceVersion > 0
 }
 
 func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool) {
@@ -627,6 +634,7 @@ func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool
 		return incoming, true
 	}
 	merged := current
+	merged.committed = max(current.committed, incoming.committed)
 	if incoming.needFrom < merged.needFrom {
 		merged.needFrom = incoming.needFrom
 	}
@@ -634,9 +642,6 @@ func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool
 		merged.channelID = incoming.channelID
 		merged.leader = incoming.leader
 		merged.manifest = incoming.manifest
-	}
-	if incoming.committed > merged.committed {
-		merged.committed = incoming.committed
 	}
 	return merged, merged != current
 }
@@ -666,7 +671,8 @@ func (o *runtimeRepairOwner) runWorker() {
 				continue
 			}
 		}
-		succeeded := o.repair(entry.ctx, repair)
+		next, succeeded := o.repair(entry.ctx, repair)
+		o.retainProgress(key, entry, version, next)
 		if !succeeded {
 			timer := time.NewTimer(o.retryDelay)
 			select {
@@ -697,6 +703,19 @@ func (o *runtimeRepairOwner) take() (runtimeRepairKey, followerRepair, *runtimeR
 		return key, entry.repair, entry, entry.version, true
 	}
 	return runtimeRepairKey{}, followerRepair{}, nil, 0, false
+}
+
+// retainProgress resumes a bounded repair page only within the exact work
+// generation that proved it. Tail growth preserves progress; new gap evidence
+// or authority replacement wins. Completion still requires the full version.
+func (o *runtimeRepairOwner) retainProgress(key runtimeRepairKey, completed *runtimeRepairEntry, version uint64, next uint64) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	entry := o.pending[key]
+	if entry == completed && entry != nil && entry.gapVersion <= version &&
+		next > entry.repair.needFrom && next <= entry.repair.manifest.LastOffset {
+		entry.repair.needFrom = next
+	}
 }
 
 func (o *runtimeRepairOwner) finish(key runtimeRepairKey, completed *runtimeRepairEntry, version uint64, succeeded bool) {
@@ -744,12 +763,12 @@ func (o *runtimeRepairOwner) Close(ctx context.Context) error {
 	}
 }
 
-func (o *runtimeRepairOwner) repair(parent context.Context, repair followerRepair) bool {
+func (o *runtimeRepairOwner) repair(parent context.Context, repair followerRepair) (uint64, bool) {
 	ctx, cancel := context.WithTimeout(parent, o.timeout)
 	defer cancel()
 	loaded, ok := o.waitForRepairFrontier(ctx, repair)
 	if !ok {
-		return false
+		return repair.needFrom, false
 	}
 	return o.repairFromFrontier(ctx, repair, loaded)
 }
@@ -777,16 +796,16 @@ func (o *runtimeRepairOwner) waitForRepairFrontier(ctx context.Context, repair f
 	}
 }
 
-func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair followerRepair, loaded LoadResult) bool {
+func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair followerRepair, loaded LoadResult) (uint64, bool) {
+	from := repair.needFrom
 	state := loaded.State
 	previous := ch.EntryIdentity{}
 	if repair.needFrom > 1 {
 		if len(loaded.Entries) != 1 || !loaded.Entries[0].Present {
-			return false
+			return from, false
 		}
 		previous = loaded.Entries[0].Identity
 	}
-	from := repair.needFrom
 	through := repair.manifest.LastOffset
 	for from <= through {
 		pageThrough := through
@@ -798,7 +817,7 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 			From: from, Through: pageThrough, Previous: previous, MaxBytes: o.maxPageBytes,
 		}})
 		if len(pages) != 1 || pages[0].Err != nil || len(pages[0].Proposals) == 0 {
-			return false
+			return from, false
 		}
 		for _, proposal := range pages[0].Proposals {
 			request := ReplicateRequest{
@@ -816,28 +835,28 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 				}
 				resultCh <- result
 			}); err != nil {
-				return false
+				return from, false
 			}
 			select {
 			case <-ctx.Done():
-				return false
+				return from, false
 			case <-errCh:
-				return false
+				return from, false
 			case result := <-resultCh:
 				if !result.Status.Durable() {
-					return false
+					return from, false
 				}
 			}
 			_, entries, ok := ch.SealProposalManifest(proposal.Manifest, proposal.Records)
 			if !ok || len(entries) == 0 {
-				return false
+				return from, false
 			}
 			previous = entries[len(entries)-1]
 			from = proposal.Manifest.LastOffset + 1
-			o.advanceRepair(repair, from)
 		}
+		return from, from > through
 	}
-	return true
+	return from, true
 }
 
 func minUint64(left, right uint64) uint64 {
@@ -845,18 +864,4 @@ func minUint64(left, right uint64) uint64 {
 		return left
 	}
 	return right
-}
-
-// advanceRepair retains successful page progress across bounded retries. Newer
-// generations have independent entries and cannot be advanced by this worker.
-func (o *runtimeRepairOwner) advanceRepair(repair followerRepair, from uint64) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	entry := o.pending[runtimeRepairKey{channel: repair.channelKey, follower: repair.follower}]
-	if entry == nil || compareRepairAuthority(entry.repair.manifest, repair.manifest) != 0 {
-		return
-	}
-	if from > entry.repair.needFrom && from <= entry.repair.manifest.LastOffset {
-		entry.repair.needFrom = from
-	}
 }
