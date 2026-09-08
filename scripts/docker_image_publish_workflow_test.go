@@ -109,7 +109,8 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"scripts/merge-docker-prometheus-sbom.jq",
 		"prometheus-candidates/$arch",
 		"prometheus-canonical/$arch",
-		"trivy fs --scanners vuln --severity CRITICAL,HIGH --exit-code 1",
+		"trivy rootfs --scanners vuln --severity CRITICAL,HIGH --exit-code 1",
+		`select(.Type == "gobinary")`,
 		"git diff --exit-code HEAD --",
 	} {
 		require.Contains(t, text, want)

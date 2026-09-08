@@ -139,7 +139,7 @@ metrics_enable = true
 
 `metrics_enable` 开启 WuKongIM 的 `/metrics`；`prometheus.enable` 启动由 WuKongIM 管理的 Prometheus 子进程。镜像为 `linux/amd64` 和 `linux/arm64` 携带对应二进制，无需设置 `binary_path`，启动时无需下载。
 
-默认抓取容器内部的 `127.0.0.1:5001/metrics`，Prometheus 监听 `127.0.0.1:9099`，Manager 自动使用该地址查询指标。数据保存在 `/var/lib/wukongim/prometheus`，随现有 `wukongim-data` Volume 持久化；默认保留 15 天，可通过 `prometheus.retention_time` 和 `prometheus.retention_size` 调整。
+默认抓取容器内部的 `127.0.0.1:5001/metrics`，Prometheus 监听 `127.0.0.1:9099`，Manager 自动使用该地址查询指标。内置进程提供采集和查询 API，指标通过 Manager 查看，镜像不包含 Prometheus 自带的网页界面。数据保存在 `/var/lib/wukongim/prometheus`，随现有 `wukongim-data` Volume 持久化；默认保留 15 天，可通过 `prometheus.retention_time` 和 `prometheus.retention_size` 调整。
 
 ```bash
 docker restart wukongim

@@ -210,7 +210,8 @@ missing mirror. Each candidate must also pass the bounded
 managed Prometheus enabled, an actual scrape, historical queries after container
 recreation on the same volume, and graceful stop. The canonical digest passes
 that probe again before mirroring, including recovery runs. Extracted Prometheus
-executables are separately vulnerability-scanned and their components and
+executables pass a separate Trivy `rootfs` scan that requires exactly one
+`gobinary` result, preventing an empty scan from passing. Their components and
 dependency edges are included in the corresponding platform SBOM. After the
 scan passes, the Workflow builds the canonical
 multi-platform image, creates signed GitHub build provenance plus a CycloneDX
