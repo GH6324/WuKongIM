@@ -2,6 +2,8 @@ package cluster
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"sort"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -288,9 +290,11 @@ func (n *Node) ActiveChannelMigrationInHashSlot(ctx context.Context, hashSlot ui
 	return ok, err
 }
 
-// ControlSnapshot adapts LocalControlSnapshot to the repair scanner source contract.
+// ControlSnapshot gives repair planning current Controller health. Health reports
+// and their TTL can change without a new Node-applied placement revision; cached
+// health must never keep a dead Channel leader or admit a stale repair target.
 func (n *Node) ControlSnapshot(ctx context.Context) (control.Snapshot, error) {
-	return n.LocalControlSnapshot(ctx)
+	return n.LocalControllerSnapshot(ctx)
 }
 
 // ProbeChannel reads one local or remote Channel runtime proof.
@@ -363,6 +367,30 @@ func (n *Node) ApplyChannelMeta(ctx context.Context, nodeID uint64, meta metadb.
 func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error) {
 	id := ch.ChannelID{ID: channelID, Type: channelType}
 	result, err := n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
+	if err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	for _, probe := range result.Channels {
+		if probe.ChannelID == id {
+			return probe, nil
+		}
+	}
+	// Durable quorum replicas may have data without a loaded reactor. Resolve
+	// current Slot authority before activating only this exact local replica.
+	meta, err := n.readChannelMigrationRuntimeMeta(ctx, n.HashSlotForKey(channelID), channelID, int64(channelType))
+	if errors.Is(err, metadb.ErrNotFound) {
+		return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
+	}
+	if err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	if meta.Status != uint8(ch.StatusActive) || !slices.Contains(meta.Replicas, n.cfg.NodeID) {
+		return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
+	}
+	if err := n.applyChannelMigrationLocalRuntimeMeta(ctx, meta); err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	result, err = n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
 	if err != nil {
 		return ch.RuntimeProbeChannel{}, err
 	}

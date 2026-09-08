@@ -60,7 +60,7 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
   Install selects a quorum-identical hash-chain prefix, repairs bounded pages,
-  and makes writes ready only after the deterministic current-term barrier.
+  and makes writes ready only after the deterministic current-term barrier; migration fences still reject business writes.
 - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
   only positive sequences covered by local HW and the logical retention floor.
   Committed-read results own their payload bytes beyond store-handle closure,

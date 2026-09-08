@@ -117,9 +117,6 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 			if !sameAuthority(authority, state.authority) {
 				return Installed{}, ch.ErrLogConflict
 			}
-			if authority.WriteFence.Set() {
-				return Installed{}, ch.ErrWriteFenced
-			}
 			if state.ready {
 				return Installed{Authority: state.authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 			}
@@ -134,9 +131,8 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	if authorityAdvanced && l.cfg.RepairAuthorities != nil {
 		l.cfg.RepairAuthorities.InstallAuthority(authority)
 	}
-	if authority.WriteFence.Set() {
-		return Installed{}, ch.ErrWriteFenced
-	}
+	// Installation proves recovered state even while a migration fences business
+	// writes. Commit retains the fence until authoritative metadata clears it.
 
 	selection, err := recoverQuorumPrefix(ctx, recoveryProbeRequest{
 		ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
