@@ -84,6 +84,8 @@ the dependency manifest. SDK source is pinned to
 Commit both JSON files to reproduce dependency selection. Existing projects
 should merge these entries into their manifests instead of overwriting them.
 
+As of 2026-09-08, the curated-catalog submission is [microsoft/vcpkg#53837](https://github.com/microsoft/vcpkg/pull/53837) and has not been merged. The proposed port builds the official `v0.1.0` tag; the instructions above still use the WuKongIM custom registry and require `vcpkg-configuration.json`.
+
 [Independent consumer example](https://github.com/WuKongIM/WuKongEasySDK-CPP/tree/main/examples/vcpkg-consumer) · [Registry maintenance](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/main/docs/VCPKG.md)
 
 ## Alternative: download and extract a prebuilt SDK
