@@ -522,7 +522,10 @@ func TestCommitEffectFailuresDropThenAdvance(t *testing.T) {
 
 func TestNonLargeGroupSubscriberSnapshotCachedInChannelState(t *testing.T) {
 	source := &recordingSubscriberSourceForRecipientTest{
-		pages: []SubscriberPage{{Recipients: []Recipient{{UID: "u2"}, {UID: "u3"}}, Done: true}},
+		pages: []SubscriberPage{
+			{Recipients: []Recipient{{UID: "u2"}}, Cursor: "u2"},
+			{Recipients: []Recipient{{UID: "u3"}}, Done: true},
+		},
 	}
 	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
 	group := newStartedTestGroup(t, Options{
@@ -549,14 +552,14 @@ func TestNonLargeGroupSubscriberSnapshotCachedInChannelState(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, future), 1, 1151, 2)
 
 	enqueuer.waitCalls(t, 2)
-	if source.calls != 1 {
-		t.Fatalf("subscriber source calls = %d, want one cached snapshot load", source.calls)
+	if source.calls != 2 {
+		t.Fatalf("subscriber source calls = %d, want two pages loaded once then cached", source.calls)
 	}
 	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3", "u2", "u3"}) {
 		t.Fatalf("recipient uids = %#v, want cached subscribers dispatched for both messages", got)
 	}
-	if !reflect.DeepEqual(source.limits, []int{subscriberSnapshotLoadLimit}) {
-		t.Fatalf("subscriber load limits = %#v, want one snapshot load", source.limits)
+	if !reflect.DeepEqual(source.limits, []int{1024, 1024}) {
+		t.Fatalf("subscriber load limits = %#v, want bounded snapshot pages", source.limits)
 	}
 }
 
