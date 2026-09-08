@@ -35,6 +35,7 @@ export function AppLogRow({ entry }: AppLogRowProps) {
   const seq = entry.seq
   const raw = redactLogText(entry.raw)
   const message = redactLogText(entry.message || entry.raw)
+  const error = typeof entry.fields?.error === "string" ? redactLogText(entry.fields.error) : ""
   const caller = redactLogText(entry.caller)
   const displayedLevel = displayLogLevel(entry.level) === "STACK"
     ? intl.formatMessage({ id: "appLogs.level.stack" })
@@ -57,6 +58,11 @@ export function AppLogRow({ entry }: AppLogRowProps) {
           {entry.module ? <span className="text-slate-400">{entry.module}</span> : null}
           <span className="break-all text-slate-100">{message}</span>
         </div>
+        {error && error !== message ? (
+          <div className="mt-1 whitespace-pre-wrap break-all text-xs text-amber-200/90" data-system-log-entry="error">
+            {error}
+          </div>
+        ) : null}
         <div
           className="mt-1 flex flex-wrap gap-1.5 break-all text-[11px] text-slate-400"
           data-system-log-entry="metadata"
