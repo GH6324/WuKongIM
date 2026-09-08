@@ -1,6 +1,6 @@
 ---
 title: WuKongEasySDK
-description: Choose an iOS, Android, Flutter, Web, C#, or C++ quickstart with pinned versions or source for Alice/Bob online messaging.
+description: Choose an iOS, Android, Flutter, Web, C#, C++, or Rust quickstart with pinned versions or source for Alice/Bob online messaging.
 ---
 
 WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and online-messaging API. It fits applications that already have a product backend and own their UI and product state.
@@ -13,6 +13,7 @@ WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and o
   <Card title="Android quickstart" description="Install exactly 1.0.5 and complete the loop around the process singleton and Activity lifecycle." href="/en/sdk/easy/android/getting-started" />
   <Card title="Flutter quickstart" description="Install exactly 1.1.0, retain listener references, and release them from dispose." href="/en/sdk/easy/flutter/getting-started" />
   <Card title="Web quickstart" description="Install exactly easyjssdk 2.0.4 and obtain connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
+  <Card title="Rust quickstart" description="Pin Git source and use Tokio for messaging, bounded reconnect and cleanup." href="/en/sdk/easy/rust/getting-started" />
   <Card title="C# quickstart" description="Use pinned .NET 8 source, async APIs, independent clients, and await using for messaging." href="/en/sdk/easy/csharp/getting-started" />
   <Card title="C++ quickstart" description="Pinned source and CMake for C++17 connections, online messaging, and thread cleanup." href="/en/sdk/easy/cpp/getting-started" />
 </Cards>
@@ -29,6 +30,8 @@ After the platform tutorial, Alice and Bob will connect separately, exchange a t
 | Product-owned UI, persistence, and receipts | More client message state owned by the SDK |
 
 EasySDK is neither a chat UI nor a complete product backend. A successful `send` means the server returned a send result; it does not mean the peer received, displayed, or processed the message. If you need the broader feature set, return to [SDK selection](/en/sdk).
+
+Rust uses one `Client` per identity; clones share the socket. `subscribe()` returns a bounded receiver, `disconnect().await` permits later connection, and `destroy().await` closes permanently. The default device category is PC `2`. See the [Rust quickstart](/en/sdk/easy/rust/getting-started) for installation and lifecycle.
 
 ## Before you begin: get connection material from your backend
 
