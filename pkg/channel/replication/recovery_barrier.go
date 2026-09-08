@@ -25,8 +25,9 @@ func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered
 	}
 	if recovered.LEO > 0 {
 		tail := recovered.TailIdentity
-		if authority.ID.ChannelEpoch < tail.ChannelEpoch ||
-			(authority.ID.ChannelEpoch == tail.ChannelEpoch && authority.ID.LeaderTerm <= tail.LeaderTerm) {
+		// Clearing a native transfer fence advances FenceVersion without a new
+		// leader term. Use the same complete authority order as Install.
+		if compareAuthorityID(authority.ID, AuthorityID{ChannelEpoch: tail.ChannelEpoch, LeaderTerm: tail.LeaderTerm, FenceVersion: tail.FenceVersion}) <= 0 {
 			return recoveryBarrierResult{}, ch.ErrStaleMeta
 		}
 	}
@@ -54,7 +55,7 @@ func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered
 		return recoveryBarrierResult{}, errDurableQuorumUnavailable
 	}
 	return recoveryBarrierResult{State: ReplicaState{
-		Prefix: recovered.Prefix, LEO: manifest.LastOffset, Committed: recovered.LEO, Manifest: manifest, TailIdentity: entries[0],
+		LEO: manifest.LastOffset, Committed: recovered.LEO, Manifest: manifest, TailIdentity: entries[0],
 	}}, nil
 }
 
@@ -68,6 +69,12 @@ func validAuthority(authority Authority) bool {
 		return false
 	}
 	_, leaderIsVoter := configured[authority.Leader]
+	for _, learner := range authority.Learners {
+		if _, duplicate := configured[learner]; learner == 0 || duplicate {
+			return false
+		}
+		configured[learner] = struct{}{}
+	}
 	return leaderIsVoter
 }
 

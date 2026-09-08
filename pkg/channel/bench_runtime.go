@@ -94,12 +94,13 @@ type RuntimeProbeChannel struct {
 	Role Role
 	// Status is the local runtime status.
 	Status Status
-	// Recovering keeps a newly selected quorum leader from serving a stale checkpoint.
-	Recovering bool
 	// LEO is the local log end offset.
 	LEO uint64
 	// HW is the local committed high watermark.
 	HW uint64
+	// RecoveryRequired means the current Leader has not completed quorum recovery.
+	// Its HW must not be treated as a recovered committed-read frontier.
+	RecoveryRequired bool
 	// CheckpointHW is the local durable checkpoint high watermark.
 	CheckpointHW uint64
 	// WriteFence is the currently applied durable write fence.

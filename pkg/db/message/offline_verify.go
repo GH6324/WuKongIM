@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
@@ -33,13 +34,6 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 		return dberrors.ErrCorruptState
 	}
 	var previous quorumlog.EntryIdentity
-	if frontier.Prefix.Version != 0 {
-		var valid bool
-		previous, valid = quorumlog.ImportedPrefixEntry(frontier.Prefix)
-		if !valid {
-			return dberrors.ErrCorruptState
-		}
-	}
 	for previous.Index < frontier.LEO {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -60,7 +54,7 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 		}
 		m := proposal.manifest
 		count := m.LastOffset - m.BaseOffset
-		if m.Version != quorumlog.FullMessageProposalVersion || m.BaseOffset != previous.Index || m.PreviousIndex != previous.Index || m.PreviousTerm != previous.LeaderTerm || m.PreviousDigest != previous.Digest || count == 0 || count > 256 || m.LastOffset > frontier.LEO {
+		if m.Version != quorumlog.ProposalManifestVersion || m.BaseOffset != previous.Index || m.PreviousIndex != previous.Index || m.PreviousTerm != previous.LeaderTerm || m.PreviousDigest != previous.Digest || count == 0 || count > 256 || m.LastOffset > frontier.LEO {
 			return dberrors.ErrCorruptState
 		}
 		paired, found, err := loadDurableProposalPairByLast(l.db.engine, l.key, m.LastOffset)
@@ -82,7 +76,7 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 			return err
 		}
 		// Message rows do not duplicate the proposal's channel epoch. Restore
-		// it from the manifest before recomputing the full-content identities;
+		// it from the manifest before recomputing the existing version-1 identities;
 		// every separately stored entry is compared against that result below.
 		used, recoveryUsed := 0, 0
 		for i := range records {
@@ -91,7 +85,7 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 			}
 			used += records[i].SizeBytes
 			row := rows[i]
-			recoveryBytes := quorumlog.RecoveryRecordBytes(row.FromUID, row.ClientMsgNo, len(row.Payload), rowProtocolFields(row))
+			recoveryBytes := quorumlog.RecoveryRecordBytes(row.FromUID, row.ClientMsgNo, len(row.Payload))
 			if recoveryBytes > maxBytes-recoveryUsed {
 				return dberrors.ErrInvalidArgument
 			}
@@ -117,4 +111,22 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 		previous = identities[len(identities)-1]
 	}
 	return l.validateDurableProposalCommandIndex(ctx)
+}
+
+// ReadOfflineMessage exposes existing durable columns for independent migration
+// verification without changing normal reads, writes, key validation or codecs.
+// The caller must keep the target stopped throughout its verification session.
+func (l *ChannelLog) ReadOfflineMessage(ctx context.Context, seq uint64) (channelcompat.Message, bool, error) {
+	if ctx == nil {
+		return channelcompat.Message{}, false, dberrors.ErrInvalidArgument
+	}
+	if err := l.beginUse(); err != nil {
+		return channelcompat.Message{}, false, err
+	}
+	defer l.endUse()
+	row, found, err := l.getRowBySeq(ctx, seq)
+	if err != nil || !found {
+		return channelcompat.Message{}, found, err
+	}
+	return channelMessageFromRow(row), true, nil
 }

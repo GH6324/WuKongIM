@@ -28,6 +28,8 @@ type sendMessageRequest struct {
 }
 
 type sendMessageHeaderRequest struct {
+	// RedDot preserves the protocol unread-badge flag when non-zero.
+	RedDot int `json:"red_dot"`
 	// NoPersist marks the send as non-durable when non-zero.
 	NoPersist int `json:"no_persist"`
 	// SyncOnce marks the send as a one-shot command-channel message when non-zero.
@@ -112,6 +114,7 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 		Expire:                 req.Expire,
 		Payload:                payload,
 		NoPersist:              noPersist,
+		RedDot:                 req.Header.RedDot != 0,
 		SyncOnce:               syncOnce,
 		NormalizePersonChannel: req.ChannelType == frame.ChannelTypePerson,
 		ProtocolVersion:        frame.LatestVersion,

@@ -1,11 +1,13 @@
 package migrationv2
 
 import (
-	"encoding/base64"
+	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/migration"
@@ -14,7 +16,11 @@ import (
 // Describe decodes source format only. Slot and Channel authority decisions
 // belong to the migration use case, after all hash references are resolved.
 func (Reader) Describe(row Row, id RecordIdentity) (d migration.RecordDescription, err error) {
-	var key any
+	if counters, err := channelCountersOnly(row); counters || err != nil {
+		d.DerivedChannelCounters = counters
+		return d, err
+	}
+	var key []any
 	value := row.Fields
 	switch row.Table {
 	case "Plugin":
@@ -31,9 +37,44 @@ func (Reader) Describe(row Row, id RecordIdentity) (d migration.RecordDescriptio
 				return d, errors.New("invalid original plugin config")
 			}
 			plugin.HasConfig = len(config) != 0
+			plugin.Evidence.ConfigFieldCount = len(config)
 		}
+		// UseNumber avoids rounding large numbers in diagnostic comparisons.
+		// This is evidence only: it never rewrites the original configuration.
+		config := map[string]any{}
+		if v := row.Fields["Config"]; len(v) > 0 {
+			parser := json.NewDecoder(bytes.NewReader(v))
+			parser.UseNumber()
+			if err := parser.Decode(&config); err != nil {
+				return d, errors.New("invalid original plugin config")
+			}
+		}
+		canonical, err := json.Marshal(config)
+		if err != nil {
+			return d, errors.New("invalid original plugin config")
+		}
+		fields, err := json.Marshal(row.Fields)
+		if err != nil {
+			return d, errors.New("invalid original plugin fields")
+		}
+		hash := func(v []byte) string { return fmt.Sprintf("%x", sha256.Sum256(v)) }
+		plugin.Evidence.NoSHA256 = hash(row.Fields["No"])
+		plugin.Evidence.ConfigJSONSHA256 = hash(canonical)
+		plugin.Evidence.ConfigTemplateSHA256 = hash(row.Fields["ConfigTemplate"])
+		plugin.Evidence.MethodsSHA256 = hash(row.Fields["Methods"])
+		plugin.Evidence.FieldsSHA256 = hash(fields)
+		plugin.Evidence.MethodCount = len(plugin.Methods)
 		d.Plugin = plugin
-	case "User", "SystemUid":
+	case "User":
+		key = []any{id.UID}
+		state := cloneFields(row.Fields)
+		delete(state, "CreatedAt")
+		delete(state, "UpdatedAt")
+		d.UserWithoutTimestamps, err = json.Marshal(state)
+		if err != nil {
+			return d, err
+		}
+	case "SystemUid":
 		key = []any{id.UID}
 	case "Device":
 		flag, err := scalar64(row, "DeviceFlag")
@@ -41,6 +82,12 @@ func (Reader) Describe(row Row, id RecordIdentity) (d migration.RecordDescriptio
 			return d, err
 		}
 		key = []any{id.UID, flag}
+		// getDeviceId iterates the UID secondary index in ascending ID order.
+		// Its upper bound excludes MaxUint64 and ID zero is the not-found value.
+		if row.ID == 0 || row.ID == math.MaxUint64 || id.UID == "" {
+			return d, errors.New("original device is outside the cold-login lookup range")
+		}
+		d.DeviceUIDIndex = originalIndexKey(0x0301, SecondaryIndex, 0x0301, stringHash(id.UID), row.ID)
 		value = cloneFields(row.Fields)
 		value["SourceID"] = uint64Bytes(row.ID)
 	case "ChannelInfo", "ChannelClusterConfig":
@@ -49,6 +96,30 @@ func (Reader) Describe(row Row, id RecordIdentity) (d migration.RecordDescriptio
 		key = []any{id.Channel.ID, id.Channel.Type, id.UID}
 	case "Conversation", "PendingConversation":
 		key = []any{id.UID, id.Channel.ID, id.Channel.Type}
+		if row.Table == "PendingConversation" {
+			facts, err := (Reader{}).DecodeBusiness(row, id)
+			if err != nil {
+				return d, err
+			}
+			d.ConversationLookup = &migration.ConversationLookup{Type: facts.Conversation.Type}
+		}
+		if row.Table == "Conversation" {
+			facts, err := (Reader{}).DecodeBusiness(row, id)
+			if err != nil {
+				return d, err
+			}
+			if row.ID == 0 || row.ID == math.MaxUint64 {
+				return d, errors.New("original conversation is outside its primary lookup range")
+			}
+			state := cloneFields(row.Fields)
+			delete(state, "CreatedAt")
+			delete(state, "UpdatedAt")
+			data, err := json.Marshal(state)
+			if err != nil {
+				return d, err
+			}
+			d.ConversationLookup = &migration.ConversationLookup{IndexKey: originalIndexKey(0x0901, Index, 0x0901, row.Owner, channelHash(id.Channel.ID, id.Channel.Type)), State: data, UpdatedAt: facts.Conversation.UpdatedAtNS, HasUpdatedAt: len(row.Fields["UpdatedAt"]) == 8, Type: facts.Conversation.Type}
+		}
 	case "PluginUser":
 		key = []any{id.UID, string(row.Fields["PluginNo"])}
 	case "Message":
@@ -93,11 +164,7 @@ func (Reader) Describe(row Row, id RecordIdentity) (d migration.RecordDescriptio
 		}
 		value["Replicas"] = replicas
 	}
-	encoded, err := json.Marshal(key)
-	if err != nil {
-		return d, err
-	}
-	d.Key = base64.RawURLEncoding.EncodeToString(encoded)
+	d.Key = migration.IdentityKey(key...)
 	if d.Comparable == nil {
 		d.Comparable, err = json.Marshal(value)
 	}
@@ -144,7 +211,11 @@ func decodeChannelAuthority(row Row, id RecordIdentity) (a migration.ChannelAuth
 		found = found || node == a.Leader
 		a.Replicas = append(a.Replicas, node)
 	}
-	if !found || a.Term == 0 || a.Version == 0 {
+	// Original v2 persists and reloads version zero, and its Raft accepts it
+	// on initial configuration. Version is still included byte-for-byte in
+	// Comparable: authoritative Slot replica disagreement must fail selection.
+	// A positive version alone never proves source authority or convergence.
+	if !found || a.Term == 0 {
 		return a, errors.New("v2 channel authority is not initialized")
 	}
 	sort.Slice(a.Replicas, func(i, j int) bool { return a.Replicas[i] < a.Replicas[j] })

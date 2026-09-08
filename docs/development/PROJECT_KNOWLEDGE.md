@@ -2,6 +2,44 @@
 
 ## Internal
 
+- Legacy StreamNo is not a synonym for ClientMsgNo. Protocol v5 omits the old wire stream identifiers, while old protocol/plugin surfaces can still use them. A retained legacy stream parent may have an empty body and no event projection; excluding old Stream/StreamMeta rows never authorizes fabricating payloads or terminal events, clearing parent fields, or bypassing native replication checks. Any archive-only parent-field conversion needs an explicit plan policy and verification.
+
+- Migration must honor the existing v3 durable schema, proposal version 1,
+  unique message IDs and ordinary replica recovery. No v2-specific empty-ID
+  rows, proposal versions or recordless history boundaries are allowed. Source
+  seconds map exactly to ServerTimestampMS; unsupported flags/protocol fields,
+  non-1 retained starts, duplicate identities and unverified plugins block
+  completion without rewriting identities or widening Stream exclusions.
+  Synthetic compatible message fixtures test installation mechanics separately
+  from unchanged original fixtures. The 2026-09-06 empty-replica recovery test
+  fails on the restored v3 runtime; offline verification is not live acceptance.
+
+- Original `GetUserPluginNo` reads `GetHighestPriorityPluginByUid` through the
+  PluginUser UID index, not User.PluginNo. PluginUser's primary hash is
+  FNV64a(pluginNo + "_" + uid); both UID/plugin indexes are operational (encoded
+  with Index kind). A missing legacy User column does not disable this binding.
+  Plugin registration/config is node-local: `pluginStart` directly writes DB
+  without a Slot proposal. Cross-node equality or an explicit mapping is needed
+  before projecting node-local plugin configuration to a changed target topology.
+
+- The pinned v2 `SaveChannelClusterConfig` and reopen read preserve
+  `ConfVersion=0` and nonempty-ID `ChannelType=0`. Raft admits version zero as
+  initial configuration; `Step(ConfChange)` ignores switch errors, so a refused
+  downgrade must be observed through unchanged `Config().Version`, not its return
+  error. Migration preserves the original counter and uses owner Slot authority
+  plus full replica comparison; positivity alone proves nothing. Zero-type
+  messages/policies/conversations remain rejected. Empty ChannelInfo/Config
+  records can appear in original management lists even when point/existence
+  reads report empty/not found; those rows must not be silently discarded.
+- Original Conversation UID/channel columns and ChannelClusterConfig channel IDs
+  preserve arbitrary string bytes; native metadata binary keys accept nonempty
+  byte strings. Migration uses `MarshalState` / `UnmarshalState` and `IdentityKey`
+  for internal logical state, joins and independent equality, because ordinary
+  JSON collapses invalid UTF-8. Raw source rows retain byte-valued columns and
+  the public plan/report format stays JSON. Codec changes require fresh workspaces
+  and archives. Empty identities, zero-type business rows and unsupported protocol/plugin
+  fields are not excused by the legacy stream exclusion. Native reopen/snapshot
+  tests do not prove API/SDK equivalence for opaque identities.
 - Migration validates original operational Device/member/conversation/message
   indexes and shard placement before conversion and on archive reconstruction.
   Original ID/client indexes may outlive absent message primaries; stale sender
@@ -24,12 +62,6 @@
 - Original v2 conversation UpdatedAt is not explicit activation proof: an empty
   subscribed group can have a durable conversation row and still be absent from
   public conversation sync. Preserve membership without activating that group.
-- Bounded Channel repair scans retain Slot/page progress across ticks. Cold
-  candidate probes load only current authoritative local-replica metadata.
-  Applying an explicit write fence can complete the metadata transition while
-  quorum remains unready; reads wait for current-authority recovery rather than
-  trusting a loaded runtime's previous checkpoint.
-
 - `wkmigrate` builds a fresh native Controller/Slot generation; it does not
   reinterpret v2 consensus indexes as a v3 backup or committed prefix. Full
   verification re-decodes selected source records and reads native target rows
@@ -54,6 +86,11 @@
   the UID owner. They cannot overwrite stored read/delete state or supply an
   invented historical row ID. Message event state and its complete cursor must
   be imported directly, without replaying reducers or renumbering events.
+- Explicit empty-leader history recovery is an operator decision, not a source
+  election or ACK proof. Bind the full original capture and rebuilt diagnostic,
+  the channel identity, one named complete formal-quorum copy and its exact
+  message count/hash. Preserve original diagnostic reasons; reject unknown
+  failures, partial leaders and unused decisions during archive reconstruction.
 - Migration source archive COMPLETE proves portable source integrity only;
   target installation, replication recovery and public API validation remain
   separate requirements. See the approved
@@ -248,7 +285,7 @@
 - `/conversation/sync` is the v2.2 client compatibility surface over the membership-backed directory. It accepts the old `version`, `last_msg_seqs`, `msg_count`, `only_unread`, `exclude_channel_types`, `page`, and `page_size` fields, scans at most 1,000 membership candidates, and reads messages plus full stream-event summaries in batches of at most 200 Channels before returning the old raw conversation array with legacy system-UID projection. Because that array cannot represent `unresolved`, the compatibility flow retries unresolved hydration once and fails the request if any key remains unresolved instead of silently dropping a conversation; canonical clients use `/conversation/list` plus `/conversation/retry`.
 - Durable business Channel point reads use a fixed 8,192-entry LRU rather than a process-lifetime high-cardinality map; mutations and restore still invalidate cached rows, and metadata snapshots expose both current entries and capacity.
 - UID membership and CMD-directory reads are Slot-leader authoritative even when the accepting ingress node is not a replica of that UID's logical Slot. Ordinary static nodes learn actual leaders for unassigned Slots from the Slot-status RPC; local DB presence is never treated as cluster ownership.
-- A hot quorum Channel Leader's live reactor HW is authoritative for conversation hydration and committed-message reads; durable HW checkpoints are intentionally coalesced. Both paths probe all locally assigned channels once per Leader batch. An unloaded quorum Leader may use durable HW directly only when that checkpoint covers its local LEO; conversation hydration otherwise applies the current metadata fence to recover the cold runtime and retries against live HW instead of returning a false empty head.
+- A recovered hot quorum Channel Leader's live reactor HW is authoritative for conversation hydration and committed-message reads; durable HW checkpoints are intentionally coalesced. Both paths probe locally assigned channels once per Leader batch. A cold or still-recovering quorum Leader must apply serving-node authoritative metadata through the bounded native installation path before using live HW. Local HW=LEO, including 0=0, cannot prove a stale/empty replica has the quorum tail. Recovery or authority failures return item errors, never successful partial history; a write fence alone does not block recovered reads. A zero committed watermark returns an empty page before storage, whose MaxSeq=0 otherwise means an unbounded range. This changes no durable schema or quorum commit rule.
 - A valid non-tombstoned membership is sufficient for ordinary conversation construction and message pull; do not recheck the subscriber set. Pull clamps to join, delete, and retention floors and rejects terminally disbanded channels.
 - `message.PageReader` owns latest-page intent, membership-floor interaction, sequence bounds, bounded lookahead, command filtering, ascending page order, and `HasMore` for ordinary sync and plugin reads. Ordinary preparation supplies an unchanged start sequence plus `MinSeq`; the cluster adapter only translates resolved scans. Legacy conversations retain their final newest-first projection, and plugins retain their separate authorization and ordered single-read error behavior.
 - Conversation hydration and message pull that need the newest records must use storage-native reverse iteration and enforce `Limit` / `MaxBytes` while scanning. Reversing an unbounded forward materialization makes memory and decode work proportional to the complete Channel history even when the response contains one record.
@@ -778,3 +815,288 @@
 - WuKongEasySDK tutorials pin exact official releases and source revisions: iOS 1.1.1 at `ca688fcac2c4cd8d6f8e8163faf165376b520ba9`, Android 1.0.5 at `61ae6dc6d0077b15e47cda1fd530296b97a06a7a`, Flutter 1.1.0 at `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`, and Web 2.0.4 at `9c03c98c725982fac224cd1d3b52456eae983975`. Their logging-security, example, and connection-lifecycle fixes are included in those releases. A 2026-08-31 cross-repository source run against WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a` verified the official Web example at `a055b3667247333b6b3183249f5d5929673dfd53` in Chrome, Android at `7134bbd0263fd01d9e7f71b7bd05b226f75b2292` on an API 34 emulator, iOS at `40014c16c0becd390c105098d359048901f4d87c` on iPhone 16 / iOS 18.3 Simulator, and Flutter `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` on iOS Simulator. A separate 2026-09-01 released-package run resolved npm 2.0.4, Maven Central 1.0.5, CocoaPods 1.1.1, and pub.dev 1.1.0, then completed Alice/Bob online bidirectional messaging and disconnect against WuKongIM PR test merge `35f314cc2512f3f0f5d55d9677e817cb64129985` for candidate head `1c9430f15fc8844e7025df07d54ab6e80e026414`; Web also passed in Chrome 151. GitHub Actions run `33484491015` retains the final-head hosted receipt, and `.github/workflows/easysdk-release-acceptance.yml` preserves its registry-resolution and hosted-emulator/simulator contract. Neither evidence class proves physical devices, WSS, offline behavior, capacity, or production token validation.
 - Shell scripts that must stop and wait for a background sampler must start it in the owning shell; command substitution creates a subshell-owned child that the parent cannot reliably wait or clean up.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.
+
+- Original v2 deployments upgraded over time may retain Stream (0x1101) and
+  StreamMeta (0x1201) rows removed by fd6538a7275e5a00235ed4e7c7d7efd6a93640ec.
+  Their format is pinned to parent 9fc693d5068b20ec6be3e3bc35925b38a277feac;
+  Stream payloads use the index kind, so generic index handling must not skip
+  the explicit business compatibility gate. Only a named operator-authorized
+  `exclusions.legacy_stream_storage` plan rule archives these rows without
+  target import; this flag alone preserves parent Message rows and does not authorize
+  excluding plugins or newer events. Counts/digests are bound into selection
+  and portable archive rebuild, and surfaced in independent verification.
+
+- At the pinned v2 revision, ConversationManager.storeConversations explicitly
+  skips cache entries whose UID is empty before constructing durable rows;
+  wkdb conversation writers also skip empty UIDs. Migration preserves these
+  original cache objects as IgnoredConversation provenance and reports them
+  under originally_ignored_empty_uid_conversation, never creating a target
+  user/membership or requiring a business exclusion for this original no-op.
+
+- Original clusterconfig.Config.updateNodeOnlineStatus computes OfflineCount
+  and LastOffline from process history and time.Now; their only consumers are
+  operational displays. Migration retains them in original snapshots but clears
+  them in the temporary authority-comparison copy. Online state, membership,
+  leader/term, config version and persisted log convergence are still compared.
+
+### Original v2 sparse channel counters
+
+- At migration SourceCommit, `AddDenylist` / `RemoveAllDenylist` call
+  `incChannelInfoColumnCount` independently of channel creation. Counter-only
+  `ChannelInfo` rows have no body according to `IsEmptyChannelInfo`; the raw
+  counts belong in the archive and cannot synthesize a target channel policy.
+- Personal permissions use `(recipient UID, type 1)` in `PermissionService.allowSend`.
+  Valid original User/Device rows supply collision-checked identity hints for
+  hash-only permission owners. Hints create no target channel or permission;
+  actual member rows still pass operational-index and authoritative-replica checks.
+- The counter rule requires only known four-byte count columns and the exact
+  original primary key/shard. An empty identity, partial identity, policy flag,
+  timestamp-only body or unresolved actual member remains a migration error.
+
+### Offline migration diagnostics
+
+- Dedupe report v5 uses `:dedupe-v5` workspace identity. Its per-node protocol
+  impact counts unsupported fields after candidate CMD/stream/duplicate omissions,
+  separates omitted fields, and retains at most three payload-free examples per
+  field. These are physical per-node candidates, not selected logical records;
+  unresolved identity chains or replica authority still prevent a migration
+  claim. The diagnostic never normalizes flags or authorizes field loss.
+- RedDot now maps through the existing native FramerFlags bit and ordinary
+  Channel read/replication projections. StreamNo is still lost by the native
+  projection and remains blocked for retained rows. The stream Setting bit is preserved separately.
+  The 15 real legacy stream parents audited before the exclusion decision all have Setting=2; their 45 physical rows
+  match across three captured nodes. Ten distinct parents have empty original
+  payloads, four have 39 bytes and one has 108 bytes. Omitting old stream chunks
+  does not reconstruct their content in a parent message. RedDot must be preserved. Clearing
+  StreamNo or the stream setting requires an additional explicit loss policy.
+
+- Plugin configuration preservation alone does not preserve execution affinity.
+  Pinned v2 tags group recipients by their UID Slot leader and run offline
+  Receive on that node. V3 emits offline plugin effects from its delivery-plan
+  executor; real three-node tests select different node-local configurations
+  for the same bound UID. The captured real UID belongs to source Slot 36,
+  leader 1001, independently of PluginUser's Slot-0 storage ownership. The
+  audited example includes its configured name in replies. Keeping all three
+  original node configs therefore needs an explicit business decision, even
+  though each config, binding and executable is preserved exactly. A private
+  source-1001-uniform candidate passed message/restart tests and was subsequently
+  approved for `wk.plugin.ai-example` only. Encode that choice in `plugin_configs`;
+  keep each original node's enabled flag/timestamps and archive all original
+  configurations. No other plugin gets an implicit config override.
+  Native executable scanning uses the filename stem as plugin identity; stage
+  the unchanged audited bytes as `<plugin_no>.wkp`, without the legacy platform
+  filename suffix. Automatic Receive tests must enable product Delivery;
+  zero-value app configuration omits that path. These are test/config concerns,
+  never grounds to change v3 storage or lift full-source compatibility checks.
+
+- Original `PluginUser` authority belongs to source Slot 0; its two operational
+  indexes and all formal replicas must agree before selection. Conversion routes
+  `(UID, PluginNo)` to the existing UID-owned v3 `plugin_binding` table using
+  `BindPluginUser`, rejecting changed existing rows before the native upsert can
+  preserve or advance timestamps. Source physical IDs and exact nanoseconds stay
+  archived; native timestamp fields use Unix milliseconds, including floor
+  semantics before the epoch. Backwards source updates fail before rounding.
+  Verification derives fields from selected source rows, checks UID lookups,
+  scans the native plugin reverse index in 128-row pages, and checks all primary
+  counts and bootstrap snapshots. Its reverse-index ledger is disk-backed and
+  groups by Hash Slot/plugin; native strings sort by byte length, then bytes.
+  Bindings alone no longer block data conversion. Global methods/configuration
+  and legacy `User.PluginNo` still require business compatibility proof; no
+  plugin executable is installed by this binding path.
+
+- `Plan.PluginNodes` explicitly selects one source for every target
+  node's plugin settings, separate from UID Slot ownership. A source may supply
+  several targets when expanding; contraction requires an explicit source
+  choice. It never merges configurations. All source nodes remain captured. Prepare and
+  archive preparation derive original registration plus native desired state in
+  `plugin-settings/v1/<capture>/<plan>/`; consumers check the assignment digest
+  before visiting sensitive records. `Plan.PluginConfigs` explicitly selects a
+  captured source's effective config for one named plugin on every mapped target;
+  the plugin must already exist on the config source and every mapped source.
+  A config override can come from an otherwise unmapped original node.
+  Original per-node state and the
+  chosen config-row provenance remain intact. Only Config changes; Enabled and
+  exact native timestamps come from each originally mapped node. Import uses the
+  unchanged native Store under `data_dir/plugin-state` before generation sealing,
+  includes the assignment report in generation identity, and refuses retry drift.
+  Verification independently decodes raw source Plugin rows and the plan, compares
+  JSON using UseNumber, and checks missing/extra files and counts. Disk-sorted
+  evidence has a separate source-bound digest. These stages never bypass
+  business-plugin compatibility gates or install an executable. Old
+  status 0/1 maps to enabled, 2 to disabled; source timestamp presence and full
+  nanoseconds remain in original metadata and native desired timestamps.
+
+- Plugin business-mapping findings include hashed plugin identity, configuration,
+  template, methods and complete original fields. Configuration JSON normalizes
+  object order/whitespace with `UseNumber`; number spellings are deliberately
+  not equated. Different hashes are investigation evidence, not proof of replica
+  corruption or authority. Original plugin configuration is node-local; PluginUser
+  bindings and registration/configuration have different ownership. Neither an
+  identical plugin executable nor native v3 binding/config tables certify hook
+  behavior, target-node configuration assignment or binary compatibility. Keep
+  the business mapping gate until those contracts are verified.
+
+- `wkmigrate diagnose` owns a separate `plan digest + :diagnose-v2` workspace.
+  It emits a physical per-node census and streamed JSONL findings, never prepare,
+  conversion or target seals. Duplicate groups are disk joined without an LRU;
+  counts across replicas or issue categories must not be summed as business loss.
+  Complete source scanning is distinct from authority selection, pending state
+  recovery, API/SDK equivalence and native runtime acceptance.
+
+- `wkmigrate authority` uses an isolated `:authority-v3` workspace and audits
+  only current migration-marked channel owners. Two locked passes bind to the
+  same source file digests; config commands come from original retained Slot
+  logs. Config comparison accepts exact log-index apply output or exact original
+  encoded payload: the pre-cluster2 store retained ConfVersion unchanged.
+  Message comparisons hash all original stored fields and report every differing
+  sequence. Missing config commands, uncertain replacements/leader transfers,
+  conflicting content or extra tails prevent a candidate. The command never
+  clears migration markers or selects business rows. Prepare independently rebuilds
+  proofs from captured raw commands rather than consuming that report.
+- Original v2 `joinNewRepliceIfNeed` uses MigrateFrom=MigrateTo for adding a
+  learner; a migration marker alone does not prove divergent business history.
+  Original channel storage GetState sets AppliedIndex to the last message
+  sequence and Apply is empty. A maximum tail or two agreeing copies alone is
+  not independent evidence of a historical committed watermark or client ACK.
+
+- Migration duplicate-message planning is per source node: retain the greatest original channel sequence for MessageID or the native `(channel, sender, nonempty ClientMsgNo)` key; an empty sender also skips native idempotency. Cross-channel MessageIDs and winners superseded by the other rule remain unresolved. `dedupe-plan` only emits source-bound impact evidence, without selection/conversion seals. Removing older rows requires an explicitly agreed sequence/cursor mapping because native v3 histories must be contiguous from 1; the operator has now authorized compaction with cursor mapping and CMD omission.
+
+- Approved migration message policy: exclude original SyncOnce/default CMD-channel histories before choosing latest non-CMD duplicates; omit old CMD memberships while preserving ordinary memberships and message-event projections. An old read/delete position maps to the count of surviving original sequences <= that position, never to a later duplicate winner. Original gaps/tail mismatch, cross-channel duplicate IDs and superseded winners still fail. Original message-ID indexes must resolve to the maximal original sequence even when CMD is omitted; highest source MessageID still bounds bootstrap allocation. Conversion and verification rebuild maps in separate namespaces; `export-map` reconstructs the client sidecar from the bound original archive. Client migration-generation/cache handling remains an external cutover prerequisite.
+
+- Historical source authority: at `9b699e31a58fccb09a00fd9d326a78f40bbfcc7e`,
+  channelMigrate accepts Leader-to-itself requests, sets MigrateFrom/MigrateTo
+  and UnixNano ConfVersion without changing other fields, and adds no learner.
+  Remote sync does not trigger that self transfer. `aef7ff71c` changed cluster2
+  apply to use log.Index. Authority report v3 recognizes this exact retained
+  predecessor/current-command transition on every owner-Slot replica, with full
+  raw-field hashes and all formal message histories equal. It does not infer the
+  operator who issued a request, clear source markers, certify historical ACKs,
+  or authorize importing from incomplete evidence. Historical original-code
+  probes and source-bound results are recorded in the authority-history report.
+
+- Prepare captures raw original config commands with node/shard/count/digest
+  evidence and archives them under source/. Before selecting marked channels,
+  it reruns config/membership/history proofs in a private namespace, bound to
+  Capture.Digest by Selection.AuthorityDigest. Missing/changed/misplaced commands
+  fail before selection. Source marks/versions remain exact; target placement
+  remains native. Fresh archive reconstruction works with source paths unmounted;
+  old captures without command evidence cannot certify a transition. This does
+  not bypass source index, plugin, message-format or runtime acceptance checks.
+
+- Original v2 device cold login scans the UID secondary index in ascending
+  physical ID order and returns the first matching DeviceFlag. Add/Update can
+  overwrite the hot cache with a different row; the stopped source cannot prove
+  that prior cache. Only explicit `metadata.device_lookup=v2_cold_start` enables
+  reduction. Full source-index checks precede disk-sorted selection; all original
+  rows and a decision digest are archived, chosen credentials still require
+  owner-Slot replica agreement, and archive preparation rebuilds the choice.
+  Message duplicate policy does not authorize device or conversation reduction.
+- Original conversation GetConversation and read/delete updates use the channel
+  unique index. GetLastConversations sorts primaries by UpdatedAt, then the API
+  keeps the first per channel; UpdatedAt is also returned as conversation version.
+  GetConversationsByType instead keeps the last primary ID per channel. Equal
+  read/delete boundaries do not justify discarding differing versions or applying
+  max-ID/max-read heuristics. The metadata-lookups report records the real source
+  comparisons. Explicit `metadata.conversation_lookup=v2_active_slot` follows exact
+  indexes for state agreement, the active Slot Leader's UpdatedAt list for chat
+  versions, and highest physical ID for CMD sync. Equal-time conflicting states
+  fail. The operator's original conversation_list_limit counts physical chat rows
+  before deduplication and absent persisted-conversation recovery intents. Selected
+  raw rows stay intact; approved message mappings independently transform cursors.
+- Explicit metadata.archive_empty_channels only archives the empty-ID/type-zero
+  ChannelInfo/config pair after a complete structured-reference absence scan,
+  zero policy/member counts, matching owner-Slot formal copies and retained raw
+  command histories, with latest applied config equality under an original
+  version rule. Missing pairs/logs, dangling indexes, opaque legacy references,
+  or transitions fail. Proofs bind Capture.Digest and rebuild from raw archives;
+  no global identity relaxation, permission removal or v3 storage change occurs.
+
+### Ordinary-message RedDot preservation
+
+- `SendCommand.RedDot` must survive the append DTO, Channel Message/Record,
+  native message adapter, replication, recovery, and ordinary history response.
+  HTTP `/message/send` reads the legacy `header.red_dot`; gateway SEND already
+  carries the frame bit. This flag does not change server badge-count policy.
+- Reuse mask 0x02 in the existing FramerFlags column. Message keys, columns, row
+  codec, compatibility record format, and quorum proposal/entry v1 digests stay
+  unchanged. The existing v1 digest does **not** bind RedDot; equal proposal
+  hashes alone are not proof of equal flag metadata. Migration must independently
+  compare full original/target message fields, including RedDot.
+- Channel RPC v8 adds the flag to Message and Record tails. Keep v7 allocator
+  proof/head fields gated at v7, decode existing v3-v7 layouts, and reject any
+  legacy encoding that would lose a true flag. Quorum Exchange v4 is the only
+  data-bearing exchange version; no fallback to v3. Deployment requires stopped
+  traffic and all-node upgrade. Old binaries can read the unchanged row bytes
+  but may drop the flag again when rewriting/replicating; writable rollback is
+  not a RedDot-preserving operation.
+- Old rows with a zero bit remain false. This fix does not infer lost history
+  flags, restore v2 StreamNo, or alter CMD synchronization behavior.
+
+- Offline migration `messages.exclude_streams` explicitly omits messages whose pinned v2 Setting stream bit (1<<1) is set or whose StreamNo is nonempty. Apply CMD/stream exclusions before duplicate selection; CMD wins overlapping reason counts. Keep source rows archived, compact survivors per channel to 1..N and map read/delete boundaries by retained prefixes. An empty surviving history has tail zero and next native append sequence one. Exclude event projections/cursors only by the original channel/client key; a shared retained parent makes ownership ambiguous and blocks conversion. The September 8 user decision supersedes preserving the 15 old stream parent rows. No native storage change implements this policy.
+
+- Main commit `065317e0bcbe8c6bcc0457410f974d0020718db1` already handles empty conversations in message sync and idempotent unread commands. An authorized missing Channel runtime surfaces as a routed Channel-not-found error; single/batch sync recognize it after membership validation. Migration branches predating this fix must carry the existing usecase change, not invent runtime metadata or change storage for an empty imported history. The September 8 HTTP acceptance uses both pure v3 empty-group controls and actually imported stream-only histories in one- and three-node clusters; nonmember reads still fail, and native SEND starts at sequence one.
+
+- Source selection defers the active-plugin compatibility error until independent
+  replica checks have run. The error is joined with any later failure, never
+  replaced. Diagnostic `ReplicaComparisonComplete` is not a selection certificate;
+  any `PluginBusinessRows` leaves Digest empty, blocks conversion/export and
+  prevents PREPARED. The CLI may emit blocked preflight evidence on stdout while
+  retaining stderr diagnostics and a nonzero exit.
+
+- Original-plugin runtime acceptance must read pre-restart messages and replies
+  before any new send warms their channels. The migration plugin fixture now
+  checks complete fields through every node in single-node and three-node
+  clusters after two full restarts; the last round performs reads only. This
+  component evidence does not replace full-source plugin preparation or SDK
+  cutover checks.
+
+- Pinned v2 User CreatedAt/UpdatedAt are encoded in replicated AddUser/UpdateUser
+  commands and used by the old manager for display/sort. Native v3 User has no
+  corresponding fields. Explicit metadata.archive_user_timestamps may exclude
+  only these two fields from replica comparison, while checksumming all original
+  per-node User rows and retaining their bytes in the source archive. It does not
+  select a winning time or ignore UID, PluginNo, credentials or unknown fields.
+  The real-source audit found three users with timestamp-only divergence despite
+  identical retained commands; the historical cause of application divergence
+  remains unproven. Do not describe these values as replica-local generation.
+
+- Plugin migration captures declared original executable files as 1 MiB immutable
+  chunks under plugin-artifacts/v1 and binds them into source selection/archive.
+  Installation uses native plugins/<no>.wkp with mode 0500 before generation
+  publication; independent verification rehashes original chunks and target files.
+  Descriptor-only registrations cannot authorize unknown executables. The only
+  explicit program profile is wk-ai-example-receive-linux-amd64-v1: exact audited
+  SHA256 671b3436d1a8d765371077009b1dfd6dec4528a1ce9cdc0dbebe2cfddc5b3224,
+  11856443 bytes, one wk.plugin.ai-example 0.0.1/Receive/priority-1 registration per
+  source, name-only configuration, complete original files and explicitly uniform
+  effective config. This single-plugin restriction preserves priority selection;
+  other bindings, methods and programs fail. Imported-cluster runtime and SDK
+  acceptance remain separate from this code-defined compatibility mapping.
+
+- Offline history.leader_quorum_prefixes can accept only current-Leader history
+  backed by identical complete formal-majority copies, with every other captured
+  history an exact prefix. It checks full original message fields before drops,
+  contiguous sequences, nondecreasing terms, tails, stable membership and retained
+  applied config lineage. Deletions, membership changes, same-term leader changes,
+  an empty/shorter current Leader, or extra nonmember history remain unresolved.
+  Prepare and archive rebuild compute fresh capture-bound proofs in a new scratch
+  namespace; metadata comparison and the separate marked-transition proof remain
+  strict. Original v2 GetState uses the last stored message as AppliedIndex, so no
+  independent historical ACK/commit certificate can be inferred from that value.
+
+- Migration missing-conversation recovery is an explicit, bounded per-UID/channel decision
+  tied to the complete source capture and retained tail. All original replicas and pending
+  intents must lack that conversation. Native JoinSeq=1, ReadSeq=tail, DeletedToSeq=0
+  preserves readable history while adding a fully read list entry; source conversation
+  timestamps/IDs are never invented. Independent verification rebuilds these expectations
+  from source rows, and stale or unused decisions fail. No v3 storage model exception applies.
+
+- Channel RPC v8 must preserve both native `RedDot` and `SyncOnce`; losing the latter exposes recovery barriers as ordinary history on remote reads. Keep ordinary-page filtering at its existing use-case boundary. Business sequence checks after recovery require strict increase, since native barrier records may occupy intervening log positions.
+
+- Native Channel repair must activate a cold replica using authoritative metadata before requesting reactor proof. New-leader recovery is allowed under an active transfer fence, while Commit remains fenced; clearing the fence advances FenceVersion within the same leader term.
+- Message catalog cursors use the encoded length-prefixed key order. After seeking the encoded cursor, skip only the exact key; raw lexical comparisons can omit longer Channel keys from diagnostics and migration counts.
+
+- 原生频道新增非 ISR 副本必须通过 exact quorum 复制追平；不能重新启用普通记录 follower pull。Learners 与 Voters 分离，最多允许配置副本数加一个临时替换副本，后台页进度可跨超时重试；恢复检查读取 follower 实际落盘状态并复核元数据，不能使用旧 reactor LEO/HW 作为当前证明。
+
+- 元数据 group commit 中的校验失败只属于对应逻辑请求。可重建请求在共享物理提交开始前被其他请求中止时，最多单独重建一次，必须重置 staging overlays 且继续持有原锁；磁盘提交结果不明确时绝不能自动重试。
+- 频道补建副本尚未提升时若 Leader 不可用，可复用原有任务/元数据版本保护的 Abort，删除仅该未提升 learner 并清理该任务的 fence，下一次权威扫描再选主。已提升、嵌入式转移和版本变化不得按此路径撤销。

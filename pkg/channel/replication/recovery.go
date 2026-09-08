@@ -179,7 +179,8 @@ func validRecoveryProofResult(result ProbeResult, maxEntries int) bool {
 		if entry.Present != (entry.Identity != (ch.EntryIdentity{})) ||
 			(entry.Present && entry.Identity.Index != entry.Index) ||
 			(entry.Present && !validEntryIdentity(entry.Identity)) ||
-			entry.Present != replicaHasEntry(result.State.LEO, result.State.Prefix, entry.Index) {
+			(entry.Index <= result.State.LEO && !entry.Present) ||
+			(entry.Index > result.State.LEO && entry.Present) {
 			return false
 		}
 		if entry.Index == result.State.LEO && entry.Present && entry.Identity != result.State.TailIdentity {

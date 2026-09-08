@@ -126,7 +126,7 @@ type SendCommand struct {
 	NoPersist bool
 	// SyncOnce marks a one-shot sync command.
 	SyncOnce bool
-	// RedDot carries the client red-dot flag for future delivery side effects.
+	// RedDot carries the protocol unread-badge flag for persistence and delivery.
 	RedDot bool
 	// NormalizePersonChannel requests canonical person-channel ID normalization before append.
 	NormalizePersonChannel bool
@@ -247,6 +247,8 @@ type Message struct {
 	Payload []byte
 	// SyncOnce marks this durable message as a one-shot command-sync entry.
 	SyncOnce bool
+	// RedDot preserves the protocol unread-badge flag through storage and replication.
+	RedDot bool
 	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
 	ServerTimestampMS int64
 }

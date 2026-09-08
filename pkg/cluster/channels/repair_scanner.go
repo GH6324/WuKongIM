@@ -3,8 +3,6 @@ package channels
 import (
 	"context"
 	"fmt"
-	"slices"
-	"sync"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -76,16 +74,13 @@ type RepairScannerResult struct {
 	PagesScanned    int
 	ChannelsScanned int
 	TasksCreated    int
-	Blocked         []RepairScannerBlocked
+	// TasksAborted counts guarded pre-promotion replacements released for failover.
+	TasksAborted int
+	Blocked      []RepairScannerBlocked
 }
 
 // RepairScanner scans Slot-owned channel metadata and creates bounded repair work.
 type RepairScanner struct {
-	// One cursor survives bounded ticks so large/early Slots cannot starve
-	// later channels. A concurrent tick fails instead of racing progress.
-	mu      sync.Mutex
-	slotID  uint32
-	cursor  metadb.ChannelRuntimeMetaCursor
 	cfg     RepairScannerConfig
 	source  RepairScannerSource
 	store   RepairScannerStore
@@ -127,57 +122,29 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 	if err != nil {
 		return result, err
 	}
-	if !s.mu.TryLock() {
-		return result, ch.ErrBackpressured
-	}
-	defer s.mu.Unlock()
-	if len(slotIDs) == 0 {
-		s.slotID = 0
-		s.cursor = metadb.ChannelRuntimeMetaCursor{}
-		return s.observeRepairScan(result), nil
-	}
-	slices.Sort(slotIDs)
-	index, found := slices.BinarySearch(slotIDs, s.slotID)
-	if !found {
-		if index == len(slotIDs) {
-			index = 0
-		}
-		s.slotID = slotIDs[index]
-		s.cursor = metadb.ChannelRuntimeMetaCursor{}
-	}
-	visited := 0
-	advanceSlot := func() {
-		index = (index + 1) % len(slotIDs)
-		s.slotID = slotIDs[index]
-		s.cursor = metadb.ChannelRuntimeMetaCursor{}
-		visited++
-	}
-	for visited < len(slotIDs) && result.PagesScanned < s.cfg.MaxPagesPerTick && result.TasksCreated < s.cfg.MaxTasksPerTick {
-		page, next, done, err := s.source.ListRepairScannerRuntimeMetaPage(ctx, s.slotID, s.cursor, s.cfg.PageLimit)
-		if err != nil {
-			return result, err
-		}
-		result.PagesScanned++
-		for i, item := range page {
-			if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
+	for _, slotID := range slotIDs {
+		cursor := metadb.ChannelRuntimeMetaCursor{}
+		for result.PagesScanned < s.cfg.MaxPagesPerTick {
+			page, next, done, err := s.source.ListRepairScannerRuntimeMetaPage(ctx, slotID, cursor, s.cfg.PageLimit)
+			if err != nil {
 				return result, err
 			}
-			s.cursor = metadb.ChannelRuntimeMetaCursor{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}
-			if result.TasksCreated >= s.cfg.MaxTasksPerTick {
-				if i == len(page)-1 {
-					if done {
-						advanceSlot()
-					} else {
-						s.cursor = next
-					}
+			result.PagesScanned++
+			for _, item := range page {
+				if result.TasksCreated+result.TasksAborted >= s.cfg.MaxTasksPerTick {
+					return s.observeRepairScan(result), nil
 				}
-				return s.observeRepairScan(result), nil
+				if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
+					return result, err
+				}
 			}
+			if done {
+				break
+			}
+			cursor = next
 		}
-		if done {
-			advanceSlot()
-		} else {
-			s.cursor = next
+		if result.PagesScanned >= s.cfg.MaxPagesPerTick || result.TasksCreated+result.TasksAborted >= s.cfg.MaxTasksPerTick {
+			break
 		}
 	}
 	return s.observeRepairScan(result), nil
@@ -196,6 +163,19 @@ func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot,
 			return err
 		}
 		if active {
+			if preemptor, ok := s.store.(interface {
+				AbortReplicaReplacementForFailover(context.Context, ch.ChannelID, uint64, uint64) (bool, error)
+			}); ok {
+				aborted, err := preemptor.AbortReplicaReplacementForFailover(ctx, id, meta.Leader, meta.LeaderEpoch)
+				if err != nil {
+					return err
+				}
+				if aborted {
+					result.TasksAborted++
+				}
+			}
+			// The abort can advance the Channel epoch and remove a learner.
+			// Elect only from a new authoritative snapshot on a later tick.
 			return nil
 		}
 		return s.scanLeaderFailover(ctx, snapshot, meta, id, result)

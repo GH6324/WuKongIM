@@ -39,9 +39,14 @@ All deployments, including a single-node cluster, use these semantics.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded.
-4. Conversation hydration batch-reads lifecycle and runtime routes by physical
-   Slot, preserves alignment and item errors, and groups heads by exact Leader;
-   cold quorum reads require current-authority recovery before read retry.
+   Repair probes activate cold replicas through authoritative metadata and the
+   native reactor before inspecting progress. Native follower proofs read exact
+   durable state and recheck authority; diagnostic probes stay read-only. A dead
+   Leader can preempt an unpromoted replacement through the existing guarded
+   abort, then elect from the next authoritative scan; promoted tasks are protected.
+4. Conversation and history reads batch Slot routes and group by exact Leader,
+   preserving alignment and item errors. Cold quorum Leaders (even HW=LEO=0)
+   recover first; loaded Leaders still installing authority cannot serve HW.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read
    Controller-visible state without waiting for runtime task reconciliation.
@@ -54,9 +59,6 @@ All deployments, including a single-node cluster, use these semantics.
 - Offline generation seals reject incomplete imports and mismatched bootstrap
   configuration before native startup.
 - Event sequence reads route to the Slot leader and include durable projections.
-- Channel RPC codec v8 carries full durable message protocol fields and command
-  flags. Decoders retain v5-v7 compatibility; requests or responses containing
-  fields an older codec cannot represent must fail instead of discarding them.
 - Route authority is `(HashSlot, SlotID, LeaderNodeID, LeaderTerm,
   ConfigEpoch, RouteRevision)` from one immutable publication. Local
   `AuthorityEpoch` is diagnostic only and never a distributed fence.
@@ -78,8 +80,6 @@ All deployments, including a single-node cluster, use these semantics.
 - UID-owned membership fanout and person-directory batches have fixed
   concurrency. Directory-ready can never hide missing UID membership or
   missing append runtime metadata.
-- Repair scans retain Slot/page position across bounded ticks. Cold candidate
-  probes load current authoritative local-replica metadata before reading progress.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
 - Maintenance closes business admission before storage replacement and keeps
   only explicitly allowed restore RPC available. Backup and restore retain

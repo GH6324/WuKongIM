@@ -20,21 +20,22 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/db/transfer"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestOriginalMigrationStartsAndRestartsAsNativeSingleNodeCluster(t *testing.T) {
+func TestCompatibleMigrationStartsAndRestartsAsNativeSingleNodeCluster(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	w, err := transfer.OpenSpool(filepath.Join(t.TempDir(), "spool"), "native-cluster", 128<<20)
 	require.NoError(t, err)
 	defer w.Close()
 	r := migrationv2.Reader{}
-	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: unpackNamedFixture(t, "original-v2-server.tar.gz"), ShardCount: 2}}}, r, w, nil)
+	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: compatibleMessageFixture(t), ShardCount: 2}}}, r, w, nil)
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, w, r)
 	require.NoError(t, err)
-	selected, err := migration.SelectSources(ctx, capture, catalog, w, r)
+	selected, err := migration.SelectSources(ctx, capture, catalog, w, r, nil)
 	require.NoError(t, err)
 	report, err := migration.BuildTargetRecords(ctx, selected, w, r)
 	require.NoError(t, err)
@@ -60,24 +61,24 @@ func TestOriginalMigrationStartsAndRestartsAsNativeSingleNodeCluster(t *testing.
 			}, 15*time.Second, 50*time.Millisecond)
 			require.Equal(t, uint64(2096462572973723648), read.Messages[0].MessageID)
 			require.Equal(t, uint64(3), read.Messages[2].MessageSeq)
-			require.Equal(t, uint32(3600), read.Messages[0].Protocol.Expire)
+			require.Equal(t, int64(1788670602000), read.Messages[0].ServerTimestampMS)
 			require.Equal(t, []byte("消息0"), read.Messages[0].Payload)
 		}()
 	}
 }
 
-func TestOriginalMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster(t *testing.T) {
+func TestCompatibleMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	w, err := transfer.OpenSpool(filepath.Join(t.TempDir(), "spool"), "three-node-target", 128<<20)
 	require.NoError(t, err)
 	defer w.Close()
 	r := migrationv2.Reader{}
-	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: unpackNamedFixture(t, "original-v2-server.tar.gz"), ShardCount: 2}}}, r, w, nil)
+	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: compatibleMessageFixture(t), ShardCount: 2}}}, r, w, nil)
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, w, r)
 	require.NoError(t, err)
-	selected, err := migration.SelectSources(ctx, capture, catalog, w, r)
+	selected, err := migration.SelectSources(ctx, capture, catalog, w, r, nil)
 	require.NoError(t, err)
 	report, err := migration.BuildTargetRecords(ctx, selected, w, r)
 	require.NoError(t, err)
@@ -151,7 +152,7 @@ func TestOriginalMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster(t
 			t.Logf("last repaired read: %+v error=%v; node=%+v", read, err, nodes[failed].Snapshot())
 		}
 	}()
-	require.Eventually(t, func() bool {
+	recovered := assert.Eventually(t, func() bool {
 		rows, callErr := nodes[failed].ReadChannelCommittedBatch(ctx, []channels.CommittedRead{{ChannelID: id, Request: store.ReadCommittedRequest{FromSeq: 1, Limit: 10, MaxBytes: 1 << 20}}})
 		err = callErr
 		if callErr != nil || len(rows) != 1 {
@@ -161,7 +162,24 @@ func TestOriginalMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster(t
 		err = rows[0].Err
 		return err == nil && len(read.Messages) == 3
 	}, 25*time.Second, 50*time.Millisecond)
-	require.Equal(t, uint32(3600), read.Messages[0].Protocol.Expire)
+	if !recovered {
+		// Preserve the failed read-only acceptance result. An isolated normal
+		// append probes whether unchanged v3 recovery accepts the imported log.
+		callCtx, done := context.WithTimeout(ctx, 5*time.Second)
+		appended, appendErr := nodes[failed].AppendChannel(callCtx, ch.AppendRequest{ChannelID: id, CommitMode: ch.CommitModeQuorum, Message: ch.Message{MessageID: 2100000000000000000, FromUID: "migration-control", ClientMsgNo: "migration-control-next", ServerTimestampMS: 1788670605000, Payload: []byte("migration-control-next")}})
+		done()
+		read, err = nodes[failed].ReadChannelCommitted(ctx, id, store.ReadCommittedRequest{FromSeq: 1, Limit: 10, MaxBytes: 1 << 20})
+		t.Logf("after failed imported recovery assertion: append_seq=%d append_error=%v read_count=%d read_error=%v", appended.MessageSeq, appendErr, len(read.Messages), err)
+		require.NoError(t, appendErr)
+		require.Equal(t, uint64(4), appended.MessageSeq)
+		require.NoError(t, err)
+		require.Len(t, read.Messages, 4)
+		for i := 0; i < 3; i++ {
+			require.Equal(t, uint64(i+1), read.Messages[i].MessageSeq)
+			require.Equal(t, []byte(fmt.Sprintf("消息%d", i)), read.Messages[i].Payload)
+		}
+	}
+	require.Equal(t, int64(1788670602000), read.Messages[0].ServerTimestampMS)
 	require.Equal(t, []byte("消息0"), read.Messages[0].Payload)
 	require.Eventually(t, func() bool {
 		rows, _, _, err := nodes[failed].ReadLocalLatestMessages(ctx, 0, 10)
@@ -170,7 +188,7 @@ func TestOriginalMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster(t
 		}
 		for _, row := range rows {
 			if row.MessageID == 2096462572973723648 {
-				return row.Protocol.Expire == 3600 && string(row.Payload) == "消息0"
+				return string(row.Payload) == "消息0"
 			}
 		}
 		return false

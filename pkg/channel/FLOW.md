@@ -46,7 +46,9 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
    bounded checkpoint path; idle leaders and caught-up followers coordinate
    checkpointed stop before either runtime can be evicted.
 3. Committed reads expose only HW-covered records above the logical retention
-   floor; optional physical trim runs later when all local and replica safety
+   floor. Runtime probes distinguish a loaded Leader from completed quorum
+   recovery, including when a durable write fence permits only reads. Optional
+   physical trim runs later when all local and replica safety
    watermarks cover that boundary.
 
 ## Invariants and Failure Semantics
@@ -60,16 +62,11 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
   Install selects a quorum-identical hash-chain prefix, repairs bounded pages,
-  and makes writes ready only after the deterministic current-term barrier.
-- Full-message proposals authenticate persisted protocol fields with version 2;
-  existing version 1 hashes remain unchanged. Imported retained histories use
-  a version 3 recordless boundary bound to source evidence and Channel key.
-  Recovery frontiers retain this boundary. Quorum-proven leader recovery and
-  leader-driven trailing repair install it only on an empty replica, then copy
-  bounded ordinary proposal pages. It never represents client-visible messages
-  or evidence of historical source acknowledgements.
-  Offline proposals fit the shared recovery budget in native encoding and
-  neutral protocol bytes, preserving empty-replica repair within live I/O bounds.
+  and completes authority recovery only after the deterministic current-term
+  barrier. Non-ISR learners receive quorum-proven exact proposals through the
+  bounded repair workers without contributing votes; page progress survives
+  retry deadlines. Recovery can complete under a transfer write fence for new-leader
+  verification; business Commit stays blocked until the fence is cleared.
 - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
   only positive sequences covered by local HW and the logical retention floor.
   Committed-read results own their payload bytes beyond store-handle closure,

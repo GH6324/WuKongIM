@@ -18,9 +18,21 @@ import (
 // joins, authority selection and conversion from original rows. It does not
 // trust archived selected references as an independently derived result.
 func PrepareArchive(ctx context.Context, plan Plan, w Workspace, decoder OriginalDecoder, store artifact.ArchiveStore) (result Preflight, err error) {
+	if err := validateHistoryPolicy(plan.History); err != nil {
+		return result, err
+	}
+	if err := validatePluginArtifacts(plan); err != nil {
+		return result, err
+	}
+	if err := validatePluginNodes(plan); err != nil {
+		return result, err
+	}
+	if err := validateMetadataPolicy(plan.Metadata); err != nil {
+		return result, err
+	}
 	b := &captureBatch{ctx: ctx, workspace: w}
 	manifest, err := ReadSourceArchive(ctx, store, func(row transfer.SpoolRow) error {
-		if bytes.HasPrefix(row.Key, []byte("source/")) {
+		if bytes.HasPrefix(row.Key, []byte("source/")) || bytes.HasPrefix(row.Key, []byte("plugin-artifacts/")) {
 			return b.add(row)
 		}
 		return nil
@@ -80,6 +92,16 @@ func PrepareArchive(ctx context.Context, plan Plan, w Workspace, decoder Origina
 	result.PlanDigest = plan.Digest()
 	result.SourceCommit = plan.SourceCommit
 	result.Capture = manifest.Capture
+	if result.PluginSettings, err = PreparePluginSettings(ctx, plan, result.Capture, w, decoder); err != nil {
+		return result, err
+	}
+	if result.PluginArtifacts, err = PreparePluginArtifacts(ctx, plan, result.Capture, w); err != nil {
+		return result, err
+	}
+	decoder, err = certifyEmptyChannels(ctx, result.Capture, w, decoder, plan.Metadata)
+	if err != nil {
+		return result, err
+	}
 	result.Catalog, err = BuildSourceCatalog(ctx, result.Capture, w, decoder)
 	if err != nil {
 		return result, err
@@ -87,10 +109,10 @@ func PrepareArchive(ctx context.Context, plan Plan, w Workspace, decoder Origina
 	if !reflect.DeepEqual(result.Catalog, manifest.Catalog) {
 		return result, errors.New("rebuilt source catalog differs from archive")
 	}
-	if err = ValidateSourceIndexes(ctx, result.Capture, plan.Sources, w, decoder); err != nil {
+	if err = validateSourceIndexes(ctx, result.Capture, plan.Sources, w, decoder, plan.Metadata, plan.Messages); err != nil {
 		return result, err
 	}
-	result.Selection, err = SelectSources(ctx, result.Capture, result.Catalog, w, decoder)
+	result.Selection, err = selectSources(ctx, result.Capture, result.Catalog, w, decoder, plan.Exclusions, plan.Metadata, result.PluginArtifacts, plan.History, plan.Messages)
 	if err != nil {
 		return result, err
 	}

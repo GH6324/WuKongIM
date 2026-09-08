@@ -36,7 +36,17 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if err := validatePaths(plan, cmd); err != nil {
 			return nil, err
 		}
-		w, err := transfer.OpenSpool(cmd.WorkspacePath, plan.Digest(), 128<<20)
+		identity := plan.Digest()
+		if cmd.Verb == "dedupe-plan" {
+			identity += ":dedupe-v5"
+		}
+		if cmd.Verb == "diagnose" {
+			identity += ":diagnose-v2"
+		}
+		if cmd.Verb == "authority" {
+			identity += ":authority-v3"
+		}
+		w, err := transfer.OpenSpool(cmd.WorkspacePath, identity, 128<<20)
 		if err != nil {
 			return nil, err
 		}
@@ -49,7 +59,16 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			}
 		}
 		r := migrationv2.Reader{}
-		if cmd.Verb == "import" || cmd.Verb == "verify" {
+		if cmd.Verb == "dedupe-plan" {
+			return dedupePlan(ctx, plan, cmd.WorkspacePath, w, r, stderr)
+		}
+		if cmd.Verb == "authority" {
+			return authority(ctx, plan, cmd.WorkspacePath, w, r, stderr)
+		}
+		if cmd.Verb == "diagnose" {
+			return diagnose(ctx, plan, cmd.WorkspacePath, w, r, stderr)
+		}
+		if cmd.Verb == "import" || cmd.Verb == "verify" || cmd.Verb == "export-map" {
 			archive, err := archivefs.NewFileArchiveStore(cmd.ArchivePath)
 			if err != nil {
 				return nil, err
@@ -58,10 +77,34 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			if err != nil {
 				return nil, err
 			}
-			if cmd.Verb == "verify" {
-				return usecase.VerifyTargets(ctx, plan.Target, prepared.Selection, w, r, migrationv3.Inspector{})
+			if cmd.Verb == "export-map" {
+				mapping, err := writeSequenceMap(ctx, cmd.WorkspacePath, w, prepared)
+				if err != nil {
+					return nil, err
+				}
+				if mapping == nil {
+					return nil, errors.New("archive has no message transformation policy")
+				}
+				return mapping, nil
 			}
-			if err := migrationv3.Install(ctx, plan.Target, prepared.Conversion, w); err != nil {
+			if cmd.Verb == "verify" {
+				artifacts, err := usecase.VerifyPluginArtifacts(ctx, plan, w, migrationv3.Inspector{})
+				if err != nil {
+					return nil, err
+				}
+				settings, err := usecase.VerifyPluginSettings(ctx, plan, prepared.Capture, w, r, migrationv3.Inspector{})
+				if err != nil {
+					return nil, err
+				}
+				verified, err := usecase.VerifyTargets(ctx, plan.Target, prepared.Selection, w, r, migrationv3.Inspector{})
+				if err != nil {
+					return nil, err
+				}
+				verified.PluginSettings = &settings
+				verified.PluginArtifacts = &artifacts
+				return verified, nil
+			}
+			if err := migrationv3.Install(ctx, plan.Target, prepared.Conversion, w, migrationv3.InstallOptions{PluginSettings: prepared.PluginSettings, PluginArtifacts: prepared.PluginArtifacts}); err != nil {
 				return nil, err
 			}
 			return struct {
@@ -73,10 +116,21 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		prepared, err := usecase.Prepare(ctx, plan, w, r, r, func(node uint64, stage string) { fmt.Fprintf(stderr, "source node %d: %s\n", node, stage) })
 		if err != nil {
+			if cmd.Verb == "prepare" {
+				prepared.Status = "blocked"
+				return prepared, err
+			}
 			return nil, err
 		}
 		if cmd.Verb == "prepare" {
-			return prepared, nil
+			mapping, err := writeSequenceMap(ctx, cmd.WorkspacePath, w, prepared)
+			if err != nil {
+				return nil, err
+			}
+			return struct {
+				usecase.Preflight
+				Mapping *sequenceMapFile `json:"sequence_mapping,omitempty"`
+			}{prepared, mapping}, nil
 		}
 		archive, err := archivefs.NewFileArchiveStore(cmd.ArchivePath)
 		if err != nil {
@@ -90,6 +144,18 @@ func validatePaths(plan usecase.Plan, cmd migratecli.Command) error {
 	var sources, outputs []string
 	for _, node := range plan.Sources {
 		p, err := resolvedPath(node.DataDir)
+		if err != nil {
+			return err
+		}
+		for _, source := range sources {
+			if overlaps(p, source) {
+				return errors.New("original source directories overlap")
+			}
+		}
+		sources = append(sources, p)
+	}
+	for _, artifact := range plan.PluginArtifacts {
+		p, err := resolvedPath(artifact.Path)
 		if err != nil {
 			return err
 		}

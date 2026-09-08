@@ -2,7 +2,6 @@ package reactor
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"time"
 
@@ -60,8 +59,15 @@ func quorumAuthorityFromMeta(meta ch.Meta) (replication.Authority, error) {
 	if !leaderVoter {
 		return replication.Authority{}, ch.ErrInvalidConfig
 	}
+	var learners []ch.NodeID
+	for _, replica := range meta.Replicas {
+		if !slices.Contains(meta.ISR, replica) {
+			learners = append(learners, replica)
+		}
+	}
 	return replication.Authority{
-		Key: meta.Key, ChannelID: meta.ID,
+		Learners: learners,
+		Key:      meta.Key, ChannelID: meta.ID,
 		ID:     replication.AuthorityID{ChannelEpoch: meta.Epoch, LeaderTerm: meta.LeaderEpoch, FenceVersion: meta.RouteGeneration},
 		Leader: meta.Leader, Voters: append([]ch.NodeID(nil), meta.ISR...), WriteQuorum: meta.MinISR, WriteFence: meta.WriteFence,
 	}, nil
@@ -70,13 +76,14 @@ func quorumAuthorityFromMeta(meta ch.Meta) (replication.Authority, error) {
 func sameQuorumAuthority(left, right replication.Authority) bool {
 	return left.Key == right.Key && left.ChannelID == right.ChannelID && left.ID == right.ID &&
 		left.Leader == right.Leader && left.WriteQuorum == right.WriteQuorum && left.WriteFence == right.WriteFence &&
-		slices.Equal(left.Voters, right.Voters)
+		slices.Equal(left.Voters, right.Voters) && slices.Equal(left.Learners, right.Learners)
 }
 
 func (r *Reactor) startQuorumInstall(rc *runtimeChannel, meta ch.Meta, futures []*Future) error {
 	if !r.quorumInstallRequired(rc) {
 		return ch.ErrInvalidConfig
 	}
+	rc.quorumReadReady = false
 	authority, err := quorumAuthorityFromMeta(meta)
 	if err != nil {
 		return err
@@ -90,6 +97,7 @@ func (r *Reactor) startQuorumInstall(rc *runtimeChannel, meta ch.Meta, futures [
 		rc.quorumInstall = nil
 	}
 	if sameQuorumAuthority(rc.quorumAuthority, authority) {
+		rc.quorumReadReady = true
 		rc.state.CommitReady = !authority.WriteFence.Set()
 		r.completeFutures(futures, Result{})
 		return nil
@@ -125,15 +133,6 @@ func (r *Reactor) handleQuorumInstallResult(result worker.Result) {
 		}
 	}
 	rc.quorumInstall = nil
-	// Installing a task-owned write fence succeeds as a metadata transition.
-	// DurableQuorumLog has fenced the prior authority and rejected activation;
-	// keep admission closed while the migration worker probes the loaded
-	// durable frontier. Clearing the fence still requires normal quorum install.
-	if errors.Is(err, ch.ErrWriteFenced) && pending.authority.WriteFence.Set() {
-		rc.state.CommitReady = false
-		r.completeFutures(pending.futures, Result{})
-		return
-	}
 	if err != nil {
 		rc.state.CommitReady = false
 		r.completeFutures(pending.futures, Result{Err: err})
@@ -141,6 +140,7 @@ func (r *Reactor) handleQuorumInstallResult(result worker.Result) {
 	}
 	installed := result.QuorumInstall.Installed
 	rc.quorumAuthority = pending.authority
+	rc.quorumReadReady = true
 	rc.state.LEO = installed.LEO
 	rc.state.HW = installed.HW
 	rc.state.CheckpointHW = max(rc.state.CheckpointHW, installed.HW)

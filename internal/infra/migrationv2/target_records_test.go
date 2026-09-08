@@ -2,7 +2,6 @@ package migrationv2_test
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -13,17 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOriginalServerProducesCompleteNativeBusinessRecords(t *testing.T) {
+func TestSyntheticCompatibleSourceProducesNativeBusinessRecords(t *testing.T) {
 	ctx := context.Background()
 	w, err := transfer.OpenSpool(filepath.Join(t.TempDir(), "spool"), "native-records", 128<<20)
 	require.NoError(t, err)
 	defer w.Close()
 	r := migrationv2.Reader{}
-	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: unpackNamedFixture(t, "original-v2-server.tar.gz"), ShardCount: 2}}}, r, w, nil)
+	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: compatibleMessageFixture(t), ShardCount: 2}}}, r, w, nil)
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, w, r)
 	require.NoError(t, err)
-	selected, err := migration.SelectSources(ctx, capture, catalog, w, r)
+	selected, err := migration.SelectSources(ctx, capture, catalog, w, r, nil)
 	require.NoError(t, err)
 	report, err := migration.BuildTargetRecords(ctx, selected, w, r)
 	require.NoError(t, err)
@@ -40,31 +39,31 @@ func TestOriginalServerProducesCompleteNativeBusinessRecords(t *testing.T) {
 		switch record.Table {
 		case "channel":
 			var value meta.Channel
-			require.NoError(t, json.Unmarshal(record.Value, &value))
+			require.NoError(t, migration.UnmarshalState(record.Value, &value))
 			if value.ChannelID == "migrationgroup" {
 				group = value
 			}
 		case "membership":
 			var value meta.UserChannelMembership
-			require.NoError(t, json.Unmarshal(record.Value, &value))
+			require.NoError(t, migration.UnmarshalState(record.Value, &value))
 			if value.UID == "migrationbob" {
 				ordinary = value
 			}
 		case "cmd_membership":
 			var value meta.UserCMDChannelMembership
-			require.NoError(t, json.Unmarshal(record.Value, &value))
+			require.NoError(t, migration.UnmarshalState(record.Value, &value))
 			if value.UID == "migrationalice" {
 				cmd = value
 			}
 		case "device":
 			var value meta.Device
-			require.NoError(t, json.Unmarshal(record.Value, &value))
+			require.NoError(t, migration.UnmarshalState(record.Value, &value))
 			if value.UID == "migrationbob" {
 				device = value
 			}
 		case "subscriber":
 			var value meta.Subscriber
-			require.NoError(t, json.Unmarshal(record.Value, &value))
+			require.NoError(t, migration.UnmarshalState(record.Value, &value))
 			switch value.ChannelID {
 			case "__wk_internal_memberlist__/allow/2/bWlncmF0aW9uZ3JvdXA":
 				allow++
@@ -104,7 +103,7 @@ func TestOriginalEmptyGroupPreservesMembershipWithoutInventingAConversation(t *t
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, w, r)
 	require.NoError(t, err)
-	selected, err := migration.SelectSources(ctx, capture, catalog, w, r)
+	selected, err := migration.SelectSources(ctx, capture, catalog, w, r, nil)
 	require.NoError(t, err)
 	report, err := migration.BuildTargetRecords(ctx, selected, w, r)
 	require.NoError(t, err)
@@ -114,7 +113,7 @@ func TestOriginalEmptyGroupPreservesMembershipWithoutInventingAConversation(t *t
 			return nil
 		}
 		var member meta.UserChannelMembership
-		require.NoError(t, json.Unmarshal(row.Value, &member))
+		require.NoError(t, migration.UnmarshalState(row.Value, &member))
 		require.Equal(t, "emptyalice", member.UID)
 		require.Equal(t, "emptygroup", member.ChannelID)
 		require.Equal(t, uint64(1), member.JoinSeq)

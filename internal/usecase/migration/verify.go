@@ -8,11 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
-	"github.com/WuKongIM/WuKongIM/pkg/db/message"
+	"github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
+	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/db/transfer"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 )
 
 // TargetInspector opens only stopped, read-only native storage.
@@ -23,11 +26,15 @@ type TargetInspector interface {
 // TargetView keeps ownership and native read mechanics outside business
 // verification. Message reads must also validate ID and idempotency indexes.
 type TargetView interface {
+	// WalkPluginStates visits each native desired-state file exactly once.
+	WalkPluginStates(context.Context, func(pluginhost.DesiredState) error) error
 	OwnsMetadata(string) (bool, error)
 	OwnsMessages(ChannelIdentity) (bool, error)
 	SourceDigest() string
 	Metadata(context.Context, string, string, map[string]any) (map[string]any, bool, error)
-	Message(context.Context, ChannelIdentity, uint64) (message.Message, bool, error)
+	// WalkPluginBindings reads the native reverse index in bounded pages.
+	WalkPluginBindings(context.Context, uint16, string, func(meta.PluginUserBinding) error) error
+	Message(context.Context, ChannelIdentity, uint64) (channelcompat.Message, bool, error)
 	Progress(context.Context, ChannelIdentity) (uint64, uint64, error)
 	CheckRuntime(context.Context, ChannelIdentity, uint64) error
 	CheckBootstrap(context.Context, uint64) error
@@ -36,13 +43,17 @@ type TargetView interface {
 }
 
 type VerificationReport struct {
-	Status          string            `json:"status"`
-	CutoverReady    bool              `json:"cutover_ready"`
-	SelectionDigest string            `json:"selection_digest"`
-	Digest          string            `json:"digest"`
-	Nodes           int               `json:"nodes"`
-	Messages        uint64            `json:"verified_message_replicas"`
-	Metadata        map[string]uint64 `json:"verified_metadata_replicas"`
+	PluginArtifacts *PluginArtifactsVerification `json:"plugin_artifacts,omitempty"`
+	PluginSettings  *PluginSettingsVerification  `json:"plugin_settings,omitempty"`
+	Transformation  *MessageTransformReport      `json:"message_transformation,omitempty"`
+	Status          string                       `json:"status"`
+	CutoverReady    bool                         `json:"cutover_ready"`
+	SelectionDigest string                       `json:"selection_digest"`
+	Digest          string                       `json:"digest"`
+	Nodes           int                          `json:"nodes"`
+	Messages        uint64                       `json:"verified_message_replicas"`
+	Metadata        map[string]uint64            `json:"verified_metadata_replicas"`
+	Excluded        *ExclusionReport             `json:"excluded_from_target,omitempty"`
 }
 
 // VerifyTargets derives expected values directly from selected original rows.
@@ -53,12 +64,20 @@ func VerifyTargets(ctx context.Context, plan TargetPlan, selection SourceSelecti
 	if ctx == nil || selection.Digest == "" || w == nil || decoder == nil || inspector == nil {
 		return report, errors.New("verification requires selected original data and native target inspector")
 	}
+	transform, err := buildMessageTransform(ctx, selection, w, decoder, "message-transform/verification/")
+	if err != nil {
+		return report, err
+	}
+	if transform != nil {
+		report.Transformation = transform.report
+	}
 	report.SelectionDigest = selection.Digest
+	report.Excluded = selection.Excluded
 	report.Metadata = map[string]uint64{}
 	// Build an independent, bounded directory/count index from original rows.
 	b := &captureBatch{ctx: ctx, workspace: w}
 	put := func(key string, value any) error {
-		data, err := json.Marshal(value)
+		data, err := MarshalState(value)
 		if err != nil {
 			return err
 		}
@@ -66,7 +85,7 @@ func VerifyTargets(ctx context.Context, plan TargetPlan, selection SourceSelecti
 	}
 	err = WalkSelectedSources(ctx, w, func(record SelectedRecord) error {
 		id := record.Identity
-		if record.Row.Table == "ChannelClusterConfig" || record.Row.Table == "PluginUser" {
+		if record.Row.Table == "ChannelClusterConfig" {
 			return nil
 		}
 		if record.Row.Table == "SystemUid" {
@@ -79,6 +98,17 @@ func VerifyTargets(ctx context.Context, plan TargetPlan, selection SourceSelecti
 		facts, err := decoder.DecodeBusiness(record.Row, id)
 		if err != nil {
 			return err
+		}
+		facts, omitted, err := transform.apply(ctx, id, facts)
+		if err != nil || omitted {
+			return err
+		}
+		if p := facts.PluginBinding; p != nil {
+			if err := validatePluginBinding(p); err != nil {
+				return err
+			}
+			group := pluginBindingGroup{HashSlot: targetHashSlot(p.UID), PluginNo: p.PluginNo}
+			return put("verification/plugin-groups/"+group.key(), group)
 		}
 		if c := facts.Channel; c != nil {
 			if err := put("verification/channel-flags/"+channelTuple(c.ChannelIdentity), c); err != nil {
@@ -102,6 +132,9 @@ func VerifyTargets(ctx context.Context, plan TargetPlan, selection SourceSelecti
 		if c := facts.Conversation; c != nil && c.Type == 0 {
 			return put("verification/conversations/"+tuple(c.UID, c.Channel.ID, c.Channel.Type), true)
 		}
+		if tail := facts.Tail; tail != nil {
+			return put("verification/tails/"+channelTuple(tail.Channel), tail)
+		}
 		if m := facts.Message; m != nil {
 			return put(fmt.Sprintf("verification/sequences/%s/%020d", channelTuple(id.Channel), m.MessageSeq), m.MessageSeq)
 		}
@@ -115,12 +148,17 @@ func VerifyTargets(ctx context.Context, plan TargetPlan, selection SourceSelecti
 	}
 	h := sha256.New()
 	evidence := json.NewEncoder(h)
+	if report.Excluded != nil {
+		if err := evidence.Encode(report.Excluded); err != nil {
+			return report, err
+		}
+	}
 	for _, node := range plan.Nodes {
 		view, err := inspector.Open(ctx, plan, node)
 		if err != nil {
 			return report, err
 		}
-		verified, verifyErr := verifyNode(ctx, node.NodeID, selection, w, decoder, view, evidence)
+		verified, verifyErr := verifyNode(ctx, node.NodeID, selection, w, decoder, view, evidence, transform)
 		closeErr := view.Close()
 		if err := errors.Join(verifyErr, closeErr); err != nil {
 			return report, fmt.Errorf("verify target node %d: %w", node.NodeID, err)
@@ -136,9 +174,13 @@ func VerifyTargets(ctx context.Context, plan TargetPlan, selection SourceSelecti
 	return report, nil
 }
 
-func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w Workspace, decoder BusinessDecoder, view TargetView, evidence *json.Encoder) (report VerificationReport, err error) {
+func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w Workspace, decoder BusinessDecoder, view TargetView, evidence *json.Encoder, transform *messageTransform) (report VerificationReport, err error) {
 	if view.SourceDigest() != selection.Digest {
 		return report, errors.New("target generation belongs to a different selected source")
+	}
+	decisions, err := newMissingConversationDecisions(selection)
+	if err != nil {
+		return report, err
 	}
 	report.Metadata = map[string]uint64{}
 	prefix := fmt.Sprintf("verification/expected/%020d/", node)
@@ -152,27 +194,34 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 		if err != nil {
 			return err
 		}
-		wantBytes, err := json.Marshal(want)
+		wantBytes, err := MarshalState(want)
 		if err != nil {
 			return err
 		}
-		gotBytes, err := json.Marshal(got)
+		gotBytes, err := MarshalState(got)
 		if err != nil {
 			return err
 		}
 		if !found || !bytes.Equal(wantBytes, gotBytes) {
 			return fmt.Errorf("%s row is missing or its business fields differ", table)
 		}
-		if err := evidence.Encode(struct {
+		data, err := MarshalState(struct {
 			Node  uint64
 			Table string
 			Row   map[string]any
-		}{node, table, got}); err != nil {
+		}{node, table, got})
+		if err != nil {
+			return err
+		}
+		if err := evidence.Encode(json.RawMessage(data)); err != nil {
 			return err
 		}
 		return b.add(transfer.SpoolRow{Key: []byte(prefix + table + "/" + tuple(key)), Value: []byte("1")})
 	}
 	var expectedChannels, sourceMaxMessageID uint64
+	if transform != nil {
+		sourceMaxMessageID = transform.report.MaxSourceMessageID
+	}
 	err = WalkSelectedSources(ctx, w, func(record SelectedRecord) error {
 		id := record.Identity
 		channelKey := func() map[string]any {
@@ -181,8 +230,6 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 		switch record.Row.Table {
 		case "ChannelClusterConfig", "ChannelInfo":
 			return nil
-		case "PluginUser":
-			return errors.New("plugin compatibility verification is required")
 		case "SystemUid":
 			key := map[string]any{"channel_id": "__wk_internal_system_uids__", "channel_type": uint8(protocolmeta.ChannelTypeSystemUIDRegistry), "uid": id.UID}
 			return check("subscriber", "__wk_internal_system_uids__", key, key)
@@ -191,8 +238,35 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 		if err != nil {
 			return err
 		}
+		facts, omitted, err := transform.apply(ctx, id, facts)
+		if err != nil || omitted {
+			return err
+		}
 		switch {
+		case facts.PluginBinding != nil:
+			p := facts.PluginBinding
+			if err := validatePluginBinding(p); err != nil {
+				return err
+			}
+			key := map[string]any{"uid": p.UID, "plugin_no": p.PluginNo}
+			want := map[string]any{"uid": p.UID, "plugin_no": p.PluginNo, "created_at_ms": time.Unix(0, p.CreatedAtNS).UnixMilli(), "updated_at_ms": time.Unix(0, p.UpdatedAtNS).UnixMilli()}
+			if err := check("plugin_binding", p.UID, key, want); err != nil {
+				return err
+			}
+			owned, err := view.OwnsMetadata(p.UID)
+			if err != nil || !owned {
+				return err
+			}
+			data, err := MarshalState(want)
+			if err != nil {
+				return err
+			}
+			group := pluginBindingGroup{HashSlot: targetHashSlot(p.UID), PluginNo: p.PluginNo}
+			return b.add(transfer.SpoolRow{Key: []byte(pluginBindingExpectedPrefix(node, group) + tuple(p.UID)), Value: data})
 		case facts.User != nil:
+			if facts.User.PluginNo != "" {
+				return errors.New("legacy user plugin binding requires a verified compatibility mapping")
+			}
 			return check("user", id.UID, map[string]any{"uid": id.UID}, map[string]any{"uid": id.UID, "token": "", "device_flag": 0, "device_level": 0})
 		case facts.Device != nil:
 			d := facts.Device
@@ -216,7 +290,21 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 					return err
 				}
 				if !hasConversation {
-					return check("user_channel_membership", m.UID, map[string]any{"uid": m.UID, "channel_id": m.Channel.ID, "channel_type": m.Channel.Type}, map[string]any{"uid": m.UID, "channel_id": m.Channel.ID, "channel_type": m.Channel.Type, "join_seq": 1, "read_seq": 0, "deleted_to_seq": 0, "activated_at": 0, "tombstone": false, "tombstone_at": 0, "source_version": 1, "updated_at": 0})
+					data, found, err := w.Get(ctx, []byte("verification/tails/"+channelTuple(m.Channel)))
+					if err != nil {
+						return err
+					}
+					var tail SourceMessageTail
+					if found {
+						if err := UnmarshalState(data, &tail); err != nil {
+							return err
+						}
+					}
+					readSeq, err := decisions.readSeq(*m, tail.LastSeq)
+					if err != nil {
+						return err
+					}
+					return check("user_channel_membership", m.UID, map[string]any{"uid": m.UID, "channel_id": m.Channel.ID, "channel_type": m.Channel.Type}, map[string]any{"uid": m.UID, "channel_id": m.Channel.ID, "channel_type": m.Channel.Type, "join_seq": 1, "read_seq": readSeq, "deleted_to_seq": 0, "activated_at": 0, "tombstone": false, "tombstone_at": 0, "source_version": 1, "updated_at": 0})
 				}
 			}
 			return nil
@@ -237,14 +325,15 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 			if err != nil {
 				return err
 			}
-			p := got.Protocol
-			if !found || got.MessageID != m.MessageID || got.MessageSeq != m.MessageSeq || got.ChannelID != m.ChannelID || got.ChannelType != m.ChannelType || got.ClientMsgNo != m.ClientMsgNo || got.FromUID != m.FromUID || got.ServerTimestampMS != m.ServerTimestampMS || !bytes.Equal(got.Payload, m.Payload) || got.Setting != uint8(m.Setting) || got.SyncOnce != m.Framer.SyncOnce || p.Timestamp != m.Timestamp || p.Expire != m.Expire || p.ClientSeq != m.ClientSeq || p.MsgKey != m.MsgKey || p.StreamNo != m.StreamNo || p.StreamID != m.StreamID || p.StreamFlag != uint8(m.StreamFlag) || p.Topic != m.Topic || ((p.FramerFlags&1) != 0) != m.Framer.NoPersist || ((p.FramerFlags&2) != 0) != m.Framer.RedDot || ((p.FramerFlags&8) != 0) != m.Framer.DUP || ((p.FramerFlags&16) != 0) != m.Framer.HasServerVersion || ((p.FramerFlags&32) != 0) != m.Framer.End {
+			// The original second timestamp is represented by the existing v3
+			// server-millisecond field; no new durable protocol fields are required.
+			if !found || got.MessageID != m.MessageID || got.MessageSeq != m.MessageSeq || got.ChannelID != m.ChannelID || got.ChannelType != m.ChannelType || got.ClientMsgNo != m.ClientMsgNo || got.FromUID != m.FromUID || got.ServerTimestampMS != m.ServerTimestampMS || int64(m.Timestamp)*1000 != got.ServerTimestampMS || !bytes.Equal(got.Payload, m.Payload) || got.Setting != m.Setting || got.Framer != m.Framer || got.Timestamp != 0 || got.Expire != m.Expire || got.ClientSeq != m.ClientSeq || got.MsgKey != m.MsgKey || got.StreamNo != m.StreamNo || got.StreamID != m.StreamID || got.StreamFlag != m.StreamFlag || got.Topic != m.Topic {
 				return fmt.Errorf("message %q/%d/%d differs from original source", id.Channel.ID, id.Channel.Type, m.MessageSeq)
 			}
 			report.Messages++
 			return evidence.Encode(struct {
 				Node    uint64
-				Message message.Message
+				Message channelcompat.Message
 			}{node, got})
 		case facts.Tail != nil:
 			var first uint64
@@ -252,7 +341,7 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 				if first != 0 {
 					return nil
 				}
-				return json.Unmarshal(row.Value, &first)
+				return UnmarshalState(row.Value, &first)
 			}); err != nil {
 				return err
 			}
@@ -305,12 +394,15 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 			return fmt.Errorf("verification is unavailable for selected %s", record.Row.Table)
 		}
 	})
+	if err == nil {
+		err = decisions.complete()
+	}
 	if err != nil {
 		return report, err
 	}
 	err = w.Walk(ctx, []byte("verification/channels/"), func(row transfer.SpoolRow) error {
 		var id ChannelIdentity
-		if err := json.Unmarshal(row.Value, &id); err != nil {
+		if err := UnmarshalState(row.Value, &id); err != nil {
 			return err
 		}
 		flags := SourceChannel{ChannelIdentity: id}
@@ -319,7 +411,7 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 			return err
 		}
 		if exists {
-			if err := json.Unmarshal(data, &flags); err != nil {
+			if err := UnmarshalState(data, &flags); err != nil {
 				return err
 			}
 		}
@@ -334,6 +426,9 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 		return report, err
 	}
 	if err := b.flush(); err != nil {
+		return report, err
+	}
+	if err := verifyPluginBindingIndexes(ctx, node, w, view); err != nil {
 		return report, err
 	}
 	if err := w.Walk(ctx, []byte(prefix), func(row transfer.SpoolRow) error {
@@ -353,7 +448,7 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 		return report, err
 	}
 	if messages != report.Messages || channels != expectedChannels {
-		return report, errors.New("unexpected or missing target message rows or channels")
+		return report, fmt.Errorf("unexpected or missing target message rows or channels: messages actual=%d expected=%d, channels actual=%d expected=%d", messages, report.Messages, channels, expectedChannels)
 	}
 	for table, count := range actual {
 		if report.Metadata[table] != count {

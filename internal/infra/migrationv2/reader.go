@@ -188,7 +188,13 @@ func scanShard(ctx context.Context, db *pebble.DB, shard, maxBytes int, visit fu
 		if kind == Primary && ((table.keyBytes > 0 && len(key) != table.keyBytes) || len(key) < 12) {
 			return fmt.Errorf("%s: invalid primary key length", table.name)
 		}
-		if err := visit(Row{Shard: shard, Table: table.name, Kind: kind, Key: bytes.Clone(key), Value: bytes.Clone(val)}); err != nil {
+		record := Row{Shard: shard, Table: table.name, Kind: kind, Key: bytes.Clone(key), Value: bytes.Clone(val)}
+		if isLegacyStream(record) {
+			if _, err := decodeLegacyStream(record); err != nil {
+				return err
+			}
+		}
+		if err := visit(record); err != nil {
 			return err
 		}
 	}

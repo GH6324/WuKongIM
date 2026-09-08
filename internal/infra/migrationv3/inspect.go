@@ -20,6 +20,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/statefile"
 	"github.com/WuKongIM/WuKongIM/pkg/db/inspect"
 	"github.com/WuKongIM/WuKongIM/pkg/db/message"
+	"github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
@@ -115,6 +116,26 @@ func (v *nativeView) Metadata(ctx context.Context, table, owner string, filters 
 	if err != nil {
 		return nil, false, err
 	}
+	if table == "plugin_binding" {
+		uid, uidOK := filters["uid"].(string)
+		no, noOK := filters["plugin_no"].(string)
+		if !uidOK || !noOK || uid != owner {
+			return nil, false, errors.New("invalid plugin binding verification key")
+		}
+		s := v.store.Meta().HashSlot(route.HashSlot)
+		p, found, err := s.GetPluginUserBinding(ctx, uid, no)
+		if err != nil || !found {
+			return nil, found, err
+		}
+		exists, err := s.ExistPluginBindingByUID(ctx, uid)
+		if err != nil {
+			return nil, false, err
+		}
+		if !exists {
+			return nil, false, errors.New("plugin binding UID lookup is missing")
+		}
+		return map[string]any{"uid": p.UID, "plugin_no": p.PluginNo, "created_at_ms": p.CreatedAtMS, "updated_at_ms": p.UpdatedAtMS}, true, nil
+	}
 	req := meta.InspectScanRequest{Table: table, HashSlot: route.HashSlot, HashSlotSet: true, Filters: filters, Limit: 2}
 	var row map[string]any
 	for {
@@ -138,6 +159,34 @@ func (v *nativeView) Metadata(ctx context.Context, table, owner string, filters 
 	}
 }
 
+// WalkPluginBindings exercises the public reverse index without materializing
+// an entire plugin's user population in memory.
+func (v *nativeView) WalkPluginBindings(ctx context.Context, hashSlot uint16, pluginNo string, visit func(meta.PluginUserBinding) error) error {
+	if hashSlot >= v.layout.state.Config.HashSlotCount {
+		return errors.New("plugin binding hash slot exceeds target layout")
+	}
+	s := v.store.Meta().HashSlot(hashSlot)
+	var cursor meta.PluginUserBindingCursor
+	for {
+		rows, next, done, err := s.ScanPluginBindingsByPluginNo(ctx, pluginNo, cursor, 128)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			if err := visit(row); err != nil {
+				return err
+			}
+		}
+		if done {
+			return nil
+		}
+		if next.PluginNo != pluginNo || len(next.UID) < len(cursor.UID) || (len(next.UID) == len(cursor.UID) && next.UID <= cursor.UID) {
+			return errors.New("plugin binding reverse index did not advance")
+		}
+		cursor = next
+	}
+}
+
 func (v *nativeView) channel(id migration.ChannelIdentity) (*message.ChannelLog, error) {
 	if v.log != nil && v.logID == id {
 		return v.log, nil
@@ -157,12 +206,12 @@ func (v *nativeView) channel(id migration.ChannelIdentity) (*message.ChannelLog,
 	return log, nil
 }
 
-func (v *nativeView) Message(ctx context.Context, id migration.ChannelIdentity, seq uint64) (message.Message, bool, error) {
+func (v *nativeView) Message(ctx context.Context, id migration.ChannelIdentity, seq uint64) (channelcompat.Message, bool, error) {
 	log, err := v.channel(id)
 	if err != nil {
-		return message.Message{}, false, err
+		return channelcompat.Message{}, false, err
 	}
-	m, found, err := log.GetBySeq(ctx, seq)
+	m, found, err := log.ReadOfflineMessage(ctx, seq)
 	if err != nil || !found {
 		return m, found, err
 	}
@@ -170,7 +219,7 @@ func (v *nativeView) Message(ctx context.Context, id migration.ChannelIdentity, 
 	if err != nil {
 		return m, false, err
 	}
-	if !found || !reflect.DeepEqual(indexed, m) {
+	if !found || indexed.MessageSeq != seq {
 		return m, false, errors.New("message ID index differs from primary row")
 	}
 	if m.ClientMsgNo != "" {

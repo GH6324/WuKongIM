@@ -19,6 +19,27 @@ func (Reader) DescribeIndexes(row Row, id RecordIdentity, shards int) (facts mig
 	if row.Shard < 0 || row.Shard >= shards {
 		return facts, errors.New("source index row is outside shard inventory")
 	}
+	if counters, err := channelCountersOnly(row); counters || err != nil {
+		if err != nil {
+			return facts, err
+		}
+		if row.Shard != int(row.ID%uint64(shards)) {
+			return facts, errors.New("original channel counter is in the wrong shard")
+		}
+		return facts, nil
+	}
+	if isLegacyStream(row) {
+		name, err := decodeLegacyStream(row)
+		if err != nil {
+			return facts, err
+		}
+		h := fnv.New32()
+		_, _ = h.Write([]byte(name))
+		if int(h.Sum32()%uint32(shards)) != row.Shard {
+			return facts, errors.New("legacy stream record is in the wrong original shard")
+		}
+		return facts, nil
+	}
 	if row.Kind == Index || row.Kind == SecondaryIndex {
 		return describeStoredIndex(row)
 	}
@@ -52,6 +73,11 @@ func (Reader) DescribeIndexes(row Row, id RecordIdentity, shards int) (facts mig
 	switch row.Table {
 	case "Device":
 		add(0x0301, SecondaryIndex, 0x0301, nil, stringHash(id.UID), row.ID)
+	case "PluginUser":
+		// Both directions are live original lookups. The legacy writer uses
+		// Index kind even though its method calls them second indexes.
+		add(0x1601, Index, 0x1601, nil, stringHash(id.UID), row.ID)
+		add(0x1601, Index, 0x1602, nil, stringHash(string(row.Fields["PluginNo"])), row.ID)
 	case "Subscriber":
 		add(0x0401, Index, 0x0404, uint64Bytes(row.ID), row.Owner, row.ID)
 	case "Allowlist":
@@ -67,6 +93,7 @@ func (Reader) DescribeIndexes(row Row, id RecordIdentity, shards int) (facts mig
 		}
 		primary := append(uint64Bytes(row.Owner), uint64Bytes(row.ID)...)
 		add(0x0101, Index, 0x0101, primary, messageID)
+		facts.Expected[len(facts.Expected)-1].LatestMessageSeq = row.ID
 		add(0x0101, SecondaryIndex, 0x0101, nil, stringHash(string(row.Fields["FromUid"])), row.Owner, row.ID)
 		sender := &facts.Expected[len(facts.Expected)-1]
 		sender.SenderKey = bytes.Clone(sender.Key[:22])
@@ -151,7 +178,7 @@ func describeStoredIndex(row Row) (facts migration.SourceIndexFacts, err error) 
 		}
 	case "PluginUser":
 		if row.Kind == Index && (name == 0x1601 || name == 0x1602) {
-			keySize = 22
+			keySize, operational = 22, true
 		}
 	}
 	if keySize == 0 || len(row.Key) != keySize || len(row.Value) != valueSize {
@@ -169,6 +196,16 @@ func describeStoredIndex(row Row) (facts migration.SourceIndexFacts, err error) 
 			return facts, errors.New("source message index has a zero sequence")
 		}
 		primary = append([]byte{0x01, 0x01, byte(Primary), 0}, ref...)
+	}
+	if row.Table == "PluginUser" {
+		primary = append([]byte{0x16, 0x01, byte(Primary), 0}, row.Key[14:22]...)
+	}
+	if row.Table == "Conversation" {
+		if binary.BigEndian.Uint64(row.Value) == 0 {
+			return facts, errors.New("source conversation index has a zero primary ID")
+		}
+		primary = append([]byte{0x09, 0x01, byte(Primary), 0}, row.Key[6:14]...)
+		primary = append(primary, row.Value...)
 	}
 	facts.Actual = &migration.SourceIndexEntry{Key: bytes.Clone(row.Key), Value: bytes.Clone(row.Value), PrimaryKey: primary, AllowAbsentPrimary: allowAbsent, NodeUnique: unique}
 	if row.Table == "Message" && row.Kind == SecondaryIndex && name == 0x0101 {

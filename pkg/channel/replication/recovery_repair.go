@@ -6,7 +6,6 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 // recoveryRepairRequest binds bounded local suffix repair to one completed
@@ -59,19 +58,6 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 	selection := request.Selection
 	if local.Committed > selection.Index {
 		return ReplicaState{}, ch.ErrLogConflict
-	}
-	var prefix ch.ProposalManifest
-	if len(selection.Supporters) > 0 {
-		prefix = selection.Supporters[0].State.Prefix
-	}
-	if local.Prefix != prefix {
-		if local.Committed != 0 || local.Prefix != (ch.ProposalManifest{}) {
-			return ReplicaState{}, ch.ErrLogConflict
-		}
-		local, err = repairImportedPrefix(operationContext, request, store, local, prefix)
-		if err != nil {
-			return ReplicaState{}, err
-		}
 	}
 	keepThrough := local.Committed
 	previous := ch.EntryIdentity{}
@@ -136,7 +122,7 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 		if loadErr != nil {
 			return ReplicaState{}, loadErr
 		}
-		want := ReplicaState{Prefix: prefix, LEO: last, Committed: committed, Manifest: page.Proposals[len(page.Proposals)-1].Manifest, TailIdentity: tail}
+		want := ReplicaState{LEO: last, Committed: committed, Manifest: page.Proposals[len(page.Proposals)-1].Manifest, TailIdentity: tail}
 		if loaded.State != want {
 			return ReplicaState{}, ch.ErrLogConflict
 		}
@@ -197,13 +183,9 @@ func validRecoveryRepairSelection(selection recoverySelection, configured map[ch
 	} else if !validEntryIdentity(selection.CertifiedIdentity) || selection.CertifiedIdentity.Index != selection.CertifiedCommitted {
 		return false
 	}
-	prefix := selection.Supporters[0].State.Prefix
-	if prefix != (ch.ProposalManifest{}) && prefix.LastOffset > selection.CertifiedCommitted {
-		return false
-	}
 	seen := make(map[ch.NodeID]struct{}, len(selection.Supporters))
 	for _, supporter := range selection.Supporters {
-		if _, ok := configured[supporter.Voter]; !ok || !validReplicaState(supporter.State) || supporter.State.LEO < selection.Index || supporter.State.Prefix != prefix {
+		if _, ok := configured[supporter.Voter]; !ok || !validReplicaState(supporter.State) || supporter.State.LEO < selection.Index {
 			return false
 		}
 		if _, duplicate := seen[supporter.Voter]; duplicate {
@@ -288,34 +270,4 @@ func recoveryPageTail(from, through uint64, previous ch.EntryIdentity, proposals
 		return 0, ch.EntryIdentity{}, ch.ErrLogConflict
 	}
 	return lastProposal.Manifest.LastOffset, entries[len(entries)-1], nil
-}
-
-// repairImportedPrefix installs only a quorum-proven committed boundary. An
-// empty follower never fetches or fabricates individual retired message rows.
-func repairImportedPrefix(ctx context.Context, request recoveryRepairRequest, store ReplicaStore, local ReplicaState, prefix ch.ProposalManifest) (ReplicaState, error) {
-	boundary, ok := quorumlog.ImportedPrefixEntry(prefix)
-	if !ok || prefix.LastOffset > request.Selection.CertifiedCommitted || local.Committed != 0 || local.Prefix != (ch.ProposalManifest{}) {
-		return ReplicaState{}, ch.ErrLogConflict
-	}
-	if local.LEO > 0 {
-		result := store.Replace(ctx, []RecoveryReplacement{{ChannelKey: request.ChannelKey, ChannelID: request.ChannelID, Expected: local}})
-		if len(result) != 1 || result[0].Err != nil || !result[0].Outcome.Durable() || result[0].LastOffset != 0 {
-			return ReplicaState{}, ch.ErrLogConflict
-		}
-		local = ReplicaState{}
-	}
-	result := store.Replace(ctx, []RecoveryReplacement{{ChannelKey: request.ChannelKey, ChannelID: request.ChannelID, Expected: local,
-		Proposals: []RecoveryProposal{{Manifest: prefix}}, Committed: prefix.LastOffset}})
-	if len(result) != 1 || result[0].Err != nil || !result[0].Outcome.Durable() || result[0].LastOffset != prefix.LastOffset {
-		return ReplicaState{}, ch.ErrLogConflict
-	}
-	loaded, err := loadRecoveryReplicaState(ctx, store, request.ChannelKey, request.ChannelID, nil)
-	if err != nil {
-		return ReplicaState{}, err
-	}
-	want := ReplicaState{Prefix: prefix, Manifest: prefix, TailIdentity: boundary, LEO: prefix.LastOffset, Committed: prefix.LastOffset}
-	if loaded.State != want {
-		return ReplicaState{}, ch.ErrLogConflict
-	}
-	return loaded.State, nil
 }

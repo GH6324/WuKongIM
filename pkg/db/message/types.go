@@ -1,7 +1,5 @@
 package message
 
-import "github.com/WuKongIM/WuKongIM/pkg/quorumlog"
-
 // ChannelKey is the stable partition key for one channel log.
 type ChannelKey string
 
@@ -41,11 +39,6 @@ type AppendResult struct {
 
 // Message is one materialized persisted message.
 type Message struct {
-	// Protocol retains the complete durable protocol projection for inspection
-	// and global latest-message reads, including imported historical fields.
-	Protocol quorumlog.ProtocolFields
-	Setting  uint8
-	SyncOnce bool
 	// MessageSeq is the durable channel sequence.
 	MessageSeq uint64
 	// MessageID is the stable message ID.
@@ -54,6 +47,8 @@ type Message struct {
 	ChannelID string
 	// ChannelType identifies the channel namespace.
 	ChannelType uint8
+	// RedDot is the unread-badge flag decoded from the existing message header.
+	RedDot bool
 	// ClientMsgNo is the optional client-provided message number.
 	ClientMsgNo string
 	// FromUID is the optional sender UID used with ClientMsgNo for idempotency.

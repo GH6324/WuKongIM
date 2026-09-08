@@ -31,6 +31,10 @@ type NodeSnapshot = migration.NodeSnapshot
 // Only one source reader may run in this process; different nodes are scanned
 // sequentially and must be rechecked against their bound digests at export.
 func ReadStoppedNode(ctx context.Context, opts NodeOptions, visit func(Row) error, files func(SourceFile) error) (snapshot NodeSnapshot, err error) {
+	return readStoppedNode(ctx, opts, visit, files, nil)
+}
+
+func readStoppedNode(ctx context.Context, opts NodeOptions, visit func(Row) error, files func(SourceFile) error, logs func(uint32, uint64, uint32, []byte) error) (snapshot NodeSnapshot, err error) {
 	if ctx == nil || opts.NodeID == 0 || opts.DataDir == "" || opts.ShardCount < 1 || opts.ShardCount > 1024 || visit == nil {
 		return snapshot, errors.New("stopped v2 reader requires node identity, directory, 1..1024 shards and visitor")
 	}
@@ -129,7 +133,7 @@ func ReadStoppedNode(ctx context.Context, opts NodeOptions, visit func(Row) erro
 	if err := scanConversationTail(ctx, root, opts.MaxRowBytes, func(row Row) error { snapshot.RowCount++; return visit(row) }); err != nil {
 		return snapshot, err
 	}
-	snapshot.SlotProgress, err = readRaftProgress(ctx, slotPaths, locks[len(business):len(business)+len(slotPaths)], snapshot.Config.SlotCount, opts.MaxRowBytes, cache)
+	snapshot.SlotProgress, err = readRaftProgressVisit(ctx, slotPaths, locks[len(business):len(business)+len(slotPaths)], snapshot.Config.SlotCount, opts.MaxRowBytes, cache, logs)
 	if err != nil {
 		return snapshot, err
 	}

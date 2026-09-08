@@ -37,6 +37,17 @@ func RunMigrationCLI(t testing.TB, ctx context.Context, path string, args ...str
 	return output
 }
 
+// RunMigrationCLIExpectFailure observes CLI rejection through its real process
+// exit and bounded output, without opening any source or target database.
+func RunMigrationCLIExpectFailure(t testing.TB, ctx context.Context, path string, args ...string) []byte {
+	t.Helper()
+	cmd := exec.CommandContext(ctx, path, args...)
+	output, err := cmd.CombinedOutput()
+	require.Error(t, err, "wkmigrate must reject unsupported input")
+	require.NoError(t, ctx.Err(), "a timeout is not a successful refusal")
+	return boundedTail(output)
+}
+
 func boundedTail(data []byte) []byte {
 	if len(data) > 8192 {
 		return data[len(data)-8192:]

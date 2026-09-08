@@ -48,11 +48,13 @@ typed bounded workers and returns as `EventWorkerResult`.
   leader epoch, and operation ID. Stale results cannot advance or evict a newer
   incarnation.
 - Quorum install remains pending work and keeps append admission closed until
-  recovery plus the current-authority barrier succeeds. Each accepted append
+  recovery plus the current-authority barrier succeeds. Runtime probes mark
+  pending or failed installation as requiring recovery, so reads cannot mistake
+  metadata loading for a recovered HW. A write fence still permits recovered
+  reads. Each accepted append
   completes directly from its exact quorum-commit receipt, without hot-path
-  PullHint or AckOffset signals. An explicit write-fence install may complete
-  the metadata transition with admission still closed. Runtime probes mark
-  recovering state; clearing the fence still requires normal quorum recovery.
+  PullHint or AckOffset signals. Metadata projects ISR voters separately from
+  non-voting replica learners into the native replication owner.
 - One loaded runtime has one lifecycle controller. Hot follower replication
   remains separate but exposes pending-work evidence to lifecycle guards.
 - Cold activation is not loaded state and does not consume `MaxChannels` until

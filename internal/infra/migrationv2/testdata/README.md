@@ -110,3 +110,105 @@ original plugin runtime determines availability from its live RPC connection.
 All values are synthetic; errors must not expose configuration contents.
 
 SHA-256: `97a91d64d827d6fb2816efc4adc8709a05e8892760ca03ae91d621b5ac5b37f9`.
+
+## Original channel edge semantics
+
+`channel_semantics.go.txt` is an external caller of the same unmodified source;
+run its `.go` copy with a new output-directory argument. It uses original public
+Save/Get/Exists/Search methods, closes and reopens the DB, and drives the original
+Raft ConfChange entrypoint. `original-v2-channel-semantics.json` records observations.
+The 377 original pkg Go and module files were byte-checked against SourceCommit
+before the harness ran. All data is synthetic; no deployed source was opened.
+
+Version zero persists and can initialize a leader. A later downgrade leaves the
+newer configuration unchanged; Step itself returns nil despite logging rejection.
+A nonempty type-zero source configuration also survives reopen. Empty channel
+rows are considered absent by Exists, but remain visible in management search;
+empty control rows return not-found on point reads yet appear in config listing.
+These observations do not prove any historical production commit or authorize
+discarding the empty rows. Migration retains strict replica comparison and rejects empty identities. The
+original observations do not justify a special record or weaker validation in
+the existing v3 storage model.
+
+## Original runtime plugin bindings
+
+`plugin_bindings.go.txt` creates one synthetic binding through the unmodified
+original public writer, closes/reopens it, and calls the original existence,
+highest-priority and plugin-user directory readers. The 377 original pkg Go and
+module files were byte-compared with SourceCommit before execution.
+`original-v2-plugin-bindings.json` records the six original primary/index pairs
+and nanosecond timestamp: User.PluginNo is empty while the runtime binding exists.
+Migration now validates the composite primary hash and both live indexes, and
+decodes binding timestamps without truncation. This does not bypass the remaining
+plugin process/config compatibility gate.
+
+SHA-256: `47c2453834b52a3aa8bf2ffaa745a142debc2e6e544cf05efcdf775d6e6cd4c2`.
+
+## Existing v3 contract tests
+
+Original archives remain unchanged. `compatibleMessageFixture` makes explicitly
+synthetic private copies with optional message headers/settings, expiration,
+StreamNo and topic zeroed so metadata/import/retry tests can isolate their own
+contracts. This is test construction, never a migration conversion rule or proof
+of original full-message compatibility. Unmodified source archives separately
+prove decoding fidelity and CLI refusal for unrepresentable messages. The old
+stream-table exclusion still preserves every primary Message in source selection
+and archival; unsupported parent fields block conversion rather than being erased.
+
+## Historical configuration authority probes
+
+`historical_authority_replica_test.go.txt` and
+`historical_authority_store_test.go.txt` are synthetic probes for the unmodified
+original tree at `9b699e31a58fccb09a00fd9d326a78f40bbfcc7e`. In a separate checkout,
+copy them to `pkg/cluster/replica/migration_history_test.go` and
+`pkg/cluster/clusterstore/migration_history_test.go`, respectively, then run:
+
+```sh
+GOWORK=off go test -mod=mod ./pkg/cluster/replica ./pkg/cluster/clusterstore -run TestMigrationHistorical -count=1 -v
+```
+
+These probes exercise old encoded-version persistence at Slot index 305 and
+compare self-Leader markers with a real follower-transfer positive control.
+They use synthetic data and temporary storage only; they never open production
+backups. `-mod=mod` fills the old tree's missing dependency sums; no original
+runtime source is changed. Evidence and exact source/dependency hashes are in
+`tmp/server-rehearsal-20260907/authority-23/history/` for the recorded run.
+
+## Original metadata lookup probe
+
+`original_metadata_lookup_test.go.txt` is a synthetic test for the unmodified
+fixed SourceCommit. Copy it to `pkg/wkdb/migration_original_metadata_test.go` in
+an extracted original source tree and run:
+
+```sh
+GOWORK=off go test -mod=mod ./pkg/wkdb -run '^TestMigrationOriginalMetadataLookups$' -count=1 -v
+```
+
+The probe exercises hot versus cold device lookup, conversation unique-index
+versus recent-list lookup, indexed delete-boundary updates and deletion of every
+duplicate primary. It uses temporary synthetic databases only. Production
+backups are never opened by the original runtime. The migration fixture tests
+separately exercise explicit cold-device selection, damaged-index refusal,
+replica disagreement, archive reconstruction with source paths unmounted and
+native offline target verification for 1→1, 3→1 and 3→3 clusters.
+
+## Ordinary history without unsupported extensions
+
+`original-v2-ordinary.tar.gz` is a successful single-node cluster source generated
+by `generate_ordinary.py.txt` through the unchanged original HTTP API. The source
+was rebuilt from `git archive a888f89533d0e7d1b2030e06504ca97f1ad891d4`; all 976
+archived source files were byte-checked after the build. Build/fixture hashes are
+recorded in `original-v2-ordinary-provenance.json`.
+
+The source has four Slots, two business shards, two synthetic users and three
+ordinary RedDot messages with no expiration, topic or stream extensions. Original
+send requests/acknowledgements, the complete forward history, conversations and
+converged Slot API positions are in `original-v2-ordinary-api.json`. The process
+was stopped normally before packaging. No existing fixture was rewritten.
+
+The first generation attempts exposed the original startup banner preceding Slot
+creation and the different forward-history starting position. The retained
+harness waits for source configuration and requests forward history from zero;
+failed attempts were not published as fixtures. The existing expiration-bearing
+single-node fixture remains a refusal case. Positive multi-node source coverage
+uses the existing unchanged healthy `original-v2-three-{1,2,3}.tar.gz` archives.

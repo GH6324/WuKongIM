@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -36,15 +35,92 @@ type sourceCandidate struct {
 // SelectSources compares every configured replica to the persisted authority.
 // No union or maximum sequence can create a business record. Source indexes,
 // runtime metadata and obsolete management rows remain in the bound capture.
-func SelectSources(ctx context.Context, capture SourceCapture, catalog SourceCatalog, workspace Workspace, decoder RecordDecoder) (selection SourceSelection, err error) {
+func SelectSources(ctx context.Context, capture SourceCapture, catalog SourceCatalog, workspace Workspace, decoder RecordDecoder, exclusions *Exclusions, policies ...*MessagePolicy) (selection SourceSelection, err error) {
+	return selectSources(ctx, capture, catalog, workspace, decoder, exclusions, nil, nil, nil, policies...)
+}
+
+func selectSources(ctx context.Context, capture SourceCapture, catalog SourceCatalog, workspace Workspace, decoder RecordDecoder, exclusions *Exclusions, metadata *MetadataPolicy, artifacts *PluginArtifactsReport, history *HistoryPolicy, policies ...*MessagePolicy) (selection SourceSelection, err error) {
+	// Retain the original history decoding capability before the later record
+	// projection decorators. Empty-channel certification wraps this same reader.
+	historyDecoder, _ := decoder.(HistoryPrefixDecoder)
+	if empty, ok := decoder.(*emptyChannelDecoder); ok {
+		historyDecoder, _ = empty.OriginalDecoder.(HistoryPrefixDecoder)
+	}
+	if err := validateHistoryPolicy(history); err != nil {
+		return selection, err
+	}
+	var prefixComparison *historyPrefixComparison
+	if history != nil && history.LeaderQuorumPrefixes {
+		if historyDecoder == nil {
+			return selection, errors.New("source history policy requires original history evidence decoder")
+		}
+		prefixComparison = &historyPrefixComparison{ctx: ctx, capture: capture, w: workspace, decoder: historyDecoder, policy: *history}
+	}
+	selection.PluginArtifacts = artifacts
+	if artifacts != nil {
+		if artifacts.Compatibility == nil {
+			selection.PluginArtifactCompatibilityPending = uint64(len(artifacts.Files))
+		}
+	}
+	// Plugin compatibility does not decide replica authority. Keep its gate
+	// closed, but do not let it hide an independent source inconsistency.
+	defer func() {
+		if selection.PluginArtifactCompatibilityPending > 0 {
+			selection.Digest = ""
+			err = errors.Join(err, errors.New("plugin executables require a verified business compatibility profile"))
+		}
+		if selection.PluginBusinessRows > 0 {
+			selection.Digest = ""
+			err = errors.Join(err, errors.New("source plugin business methods/config require a verified v3 compatibility mapping"))
+		}
+	}()
 	if ctx == nil || workspace == nil || decoder == nil || capture.Digest == "" || catalog.Digest == "" {
 		return selection, errors.New("source selection requires completed capture and catalog")
 	}
 	if err := validateCapturedAuthority(capture.Nodes); err != nil {
 		return selection, err
 	}
+	if proof, ok := decoder.(interface{ EmptyChannelProof() *EmptyChannelProof }); ok {
+		selection.EmptyChannels = proof.EmptyChannelProof()
+	}
+	selection.Metadata, err = reduceDeviceLookups(ctx, capture, workspace, decoder, metadata)
+	if err != nil {
+		return selection, err
+	}
+	if selection.Metadata != nil {
+		selection.Metadata.Conversations, err = reduceConversationLookups(ctx, capture, workspace, decoder, metadata)
+		if err != nil {
+			return selection, err
+		}
+	}
+	decoder, selection.AuthorityDigest, err = certifyCapturedTransitions(ctx, capture, workspace, decoder)
+	if err != nil {
+		return selection, err
+	}
+	if artifacts != nil && artifacts.Compatibility != nil {
+		decoder = withPluginProfile(decoder, artifacts.Compatibility)
+	}
+	if len(policies) > 1 {
+		return selection, errors.New("one message policy is required")
+	}
+	if len(policies) == 1 {
+		selection.Messages = policies[0]
+	}
+	if err := validateMessagePolicy(selection.Messages); err != nil {
+		return selection, err
+	}
 	selection.Tables = map[string]uint64{}
 	selection.Preserved = map[string]uint64{}
+	excludedHash := sha256.New()
+	excludedEncoder := json.NewEncoder(excludedHash)
+	userTimestampHash := sha256.New()
+	userTimestampEncoder := json.NewEncoder(userTimestampHash)
+	if metadata != nil && metadata.ArchiveUserTimestamps {
+		selection.UserTimestamps = &UserTimestampArchive{}
+	}
+	if exclusions != nil && exclusions.LegacyStreamStorage {
+		selection.Excluded = &ExclusionReport{Policy: *exclusions, PhysicalRows: map[string]uint64{}}
+	}
 	slots := make(map[uint32]SourceSlot, len(capture.Nodes[0].Config.Slots))
 	knownNodes := make(map[uint64]bool, len(capture.Nodes))
 	for _, slot := range capture.Nodes[0].Config.Slots {
@@ -57,21 +133,31 @@ func SelectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 	for _, phase := range []string{"metadata", "messages"} {
 		for _, node := range capture.Nodes {
 			err := walkSourceRows(ctx, workspace, node.NodeID, func(row Row) error {
-				category, reason, err := sourceCategory(row)
+				category, reason, err := sourceCategory(row, exclusions)
 				if err != nil {
 					return err
 				}
 				if reason != "" {
 					if phase == "metadata" {
+						if reason == "excluded_legacy_stream_storage" {
+							selection.Excluded.PhysicalRows[row.Table]++
+							if err := excludedEncoder.Encode(struct {
+								NodeID uint64
+								Row    Row
+							}{node.NodeID, row}); err != nil {
+								return err
+							}
+						}
 						if row.Table == "Plugin" && row.Kind == Primary {
 							description, err := decoder.Describe(row, RecordIdentity{})
 							if err != nil {
 								return err
 							}
 							// Persisted status does not prove that an original global
-							// hook was inactive. No v3 plugin mapping is implemented.
-							if description.Plugin == nil || len(description.Plugin.Methods) != 0 || description.Plugin.HasConfig {
-								return errors.New("source plugin business methods/config require a verified v3 compatibility mapping")
+							// hook was inactive. Check all business copies before
+							// returning the still-mandatory compatibility failure.
+							if description.Plugin == nil || (description.Plugin.CompatibilityProfile == "" && (len(description.Plugin.Methods) != 0 || description.Plugin.HasConfig)) {
+								selection.PluginBusinessRows++
 							}
 						}
 						selection.Preserved[reason]++
@@ -92,6 +178,34 @@ func SelectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 				description, err := decoder.Describe(row, id)
 				if err != nil {
 					return err
+				}
+				if description.ArchivedEmptyChannel {
+					selection.Preserved["unreferenced_empty_channel_administration"]++
+					return nil
+				}
+				if description.DerivedChannelCounters {
+					selection.Preserved["derived_channel_counters"]++
+					return nil
+				}
+				if row.Table == "User" && selection.UserTimestamps != nil {
+					if len(description.UserWithoutTimestamps) == 0 {
+						return errors.New("user timestamp archival requires a proven original field projection")
+					}
+					// Bind every captured original User row, including copies
+					// outside current ownership. No source timestamp is rewritten.
+					if err := userTimestampEncoder.Encode(struct {
+						NodeID uint64
+						Row    Row
+					}{node.NodeID, row}); err != nil {
+						return err
+					}
+					selection.UserTimestamps.Rows++
+					for _, field := range []string{"CreatedAt", "UpdatedAt"} {
+						if _, exists := row.Fields[field]; exists {
+							selection.UserTimestamps.Fields++
+						}
+					}
+					description.Comparable = description.UserWithoutTimestamps
 				}
 				var group sourceGroup
 				if phase == "metadata" {
@@ -119,12 +233,36 @@ func SelectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 					selection.Preserved["outside_current_replica_group"]++
 					return nil
 				}
+				if row.Table == "Device" && selection.Metadata != nil {
+					keep, err := keepsColdDevice(ctx, workspace, capture.Digest, metadata, node.NodeID, row, description.Key)
+					if err != nil {
+						return err
+					}
+					if !keep {
+						selection.Preserved["device_rows_shadowed_on_v2_cold_start"]++
+						return nil
+					}
+				}
+				if row.Table == "Conversation" && selection.Metadata != nil && selection.Metadata.Conversations != nil {
+					keep, err := keepsConversation(ctx, workspace, capture.Digest, metadata, node.NodeID, row, description.Key)
+					if err != nil {
+						return err
+					}
+					if !keep {
+						selection.Preserved["conversation_rows_shadowed_by_original_lookups"]++
+						return nil
+					}
+					if description.ConversationLookup == nil {
+						return errors.New("selected conversation lacks original state")
+					}
+					description.Comparable = description.ConversationLookup.State
+				}
 				sum := sha256.Sum256(description.Comparable)
 				candidate := sourceCandidate{
 					NodeID: node.NodeID, SourceKey: sourceRowKey(node.NodeID, row), Table: row.Table, Kind: row.Kind,
 					Identity: id, LogicalKey: description.Key, Digest: hex.EncodeToString(sum[:]), Group: group,
 				}
-				value, err := json.Marshal(candidate)
+				value, err := MarshalState(candidate)
 				if err != nil {
 					return err
 				}
@@ -137,35 +275,108 @@ func SelectSources(ctx context.Context, capture SourceCapture, catalog SourceCat
 		if err := batch.flush(); err != nil {
 			return selection, err
 		}
-		if err := compareCandidates(ctx, workspace, phase, batch); err != nil {
-			return selection, err
+		if phase == "metadata" && selection.UserTimestamps != nil {
+			selection.UserTimestamps.SHA256 = hex.EncodeToString(userTimestampHash.Sum(nil))
+		}
+		var accept func(sourceCandidate) (uint64, error)
+		if phase == "messages" && prefixComparison != nil {
+			accept = prefixComparison.source
+		}
+		comparisonErr := compareCandidatesWithHistory(ctx, workspace, phase, batch, accept)
+		if phase == "messages" && prefixComparison != nil {
+			selection.HistoryPrefixes, err = prefixComparison.report()
+			comparisonErr = errors.Join(comparisonErr, err)
+		}
+		if comparisonErr != nil {
+			return selection, comparisonErr
 		}
 		if err := batch.flush(); err != nil {
 			return selection, err
 		}
 	}
+	selection.ReplicaComparisonComplete = true
 	if err := recoverSourceConversations(ctx, capture, workspace, decoder, batch, &selection); err != nil {
 		return selection, err
 	}
 	if err := batch.flush(); err != nil {
 		return selection, err
 	}
+	if selection.Metadata != nil {
+		if err := includePendingConversationList(ctx, capture, workspace, decoder, metadata, selection.Metadata.Conversations); err != nil {
+			return selection, err
+		}
+	}
 	h := sha256.New()
 	enc := json.NewEncoder(h)
+	if selection.HistoryPrefixes != nil {
+		if err := enc.Encode(selection.HistoryPrefixes); err != nil {
+			return selection, err
+		}
+	}
+	if selection.PluginArtifacts != nil {
+		if err := enc.Encode(selection.PluginArtifacts); err != nil {
+			return selection, err
+		}
+	}
+	if selection.UserTimestamps != nil {
+		if err := enc.Encode(selection.UserTimestamps); err != nil {
+			return selection, err
+		}
+	}
+	if selection.Metadata != nil {
+		if err := enc.Encode(selection.Metadata); err != nil {
+			return selection, err
+		}
+	}
+	if selection.EmptyChannels != nil {
+		if err := enc.Encode(selection.EmptyChannels); err != nil {
+			return selection, err
+		}
+	}
+	if selection.AuthorityDigest != "" {
+		if err := enc.Encode(selection.AuthorityDigest); err != nil {
+			return selection, err
+		}
+	}
+	if selection.Messages != nil {
+		if err := enc.Encode(selection.Messages); err != nil {
+			return selection, err
+		}
+	}
+	if selection.Excluded != nil {
+		selection.Excluded.SHA256 = hex.EncodeToString(excludedHash.Sum(nil))
+		if err := enc.Encode(selection.Excluded); err != nil {
+			return selection, err
+		}
+	}
 	err = WalkSelectedSources(ctx, workspace, func(record SelectedRecord) error {
 		if record.Row.Kind == Primary {
 			selection.Tables[record.Row.Table]++
 		}
-		return enc.Encode(record)
+		data, err := MarshalState(record)
+		if err != nil {
+			return err
+		}
+		return enc.Encode(json.RawMessage(data))
 	})
 	if err != nil {
 		return selection, err
 	}
-	selection.Digest = hex.EncodeToString(h.Sum(nil))
+	if selection.PluginBusinessRows == 0 && selection.PluginArtifactCompatibilityPending == 0 {
+		selection.Digest = hex.EncodeToString(h.Sum(nil))
+	}
 	return selection, nil
 }
 
-func sourceCategory(row Row) (category, reason string, err error) {
+func sourceCategory(row Row, exclusions *Exclusions) (category, reason string, err error) {
+	// Legacy Stream chunks use the index kind for actual business payloads.
+	// Handle them before the generic index preservation rule.
+	if row.Table == "LegacyStream" || row.Table == "LegacyStreamMeta" {
+		if exclusions == nil || !exclusions.LegacyStreamStorage {
+			return "", "", errors.New("legacy stream storage is unsupported; explicit exclusions.legacy_stream_storage is required to archive it without target import")
+		}
+		return "", "excluded_legacy_stream_storage", nil
+	}
 	if row.Kind == Index || row.Kind == SecondaryIndex {
 		return "", "original_indexes", nil
 	}
@@ -182,6 +393,8 @@ func sourceCategory(row Row) (category, reason string, err error) {
 		return "", "obsolete_subscriber_directory", nil
 	case "PendingConversation":
 		return "", "", nil
+	case "IgnoredConversation":
+		return "", "originally_ignored_empty_uid_conversation", nil
 	case "Message":
 		if row.Kind == Primary || row.Kind == Other {
 			return "messages", "", nil
@@ -207,14 +420,19 @@ func candidateKey(phase string, nodeID uint64, table, key string) []byte {
 func selectedKey(table, key string) []byte { return []byte("selected/" + table + "/" + key) }
 
 func compareCandidates(ctx context.Context, workspace Workspace, phase string, batch *captureBatch) error {
+	return compareCandidatesWithHistory(ctx, workspace, phase, batch, nil)
+}
+
+func compareCandidatesWithHistory(ctx context.Context, workspace Workspace, phase string, batch *captureBatch, accept func(sourceCandidate) (uint64, error)) error {
 	return workspace.Walk(ctx, []byte("candidate/"+phase+"/"), func(record transfer.SpoolRow) error {
 		var row sourceCandidate
-		if err := json.Unmarshal(record.Value, &row); err != nil {
+		if err := UnmarshalState(record.Value, &row); err != nil {
 			return err
 		}
 		if !bytes.Equal(record.Key, candidateKey(phase, row.NodeID, row.Table, row.LogicalKey)) {
 			return errors.New("source comparison key mismatch")
 		}
+		selectedNode := row.Group.Leader
 		ids := []uint64{row.Group.Leader}
 		if row.NodeID == row.Group.Leader {
 			ids = row.Group.Replicas
@@ -225,17 +443,33 @@ func compareCandidates(ctx context.Context, workspace Workspace, phase string, b
 				return err
 			}
 			if !ok {
+				if phase == "messages" && accept != nil {
+					var err error
+					selectedNode, err = accept(row)
+					if err != nil {
+						return err
+					}
+					break
+				}
 				return fmt.Errorf("source %s record is missing on configured replica node %d", row.Table, id)
 			}
 			var other sourceCandidate
-			if err := json.Unmarshal(data, &other); err != nil {
+			if err := UnmarshalState(data, &other); err != nil {
 				return err
 			}
 			if other.Digest != row.Digest {
+				if phase == "messages" && accept != nil {
+					var err error
+					selectedNode, err = accept(row)
+					if err != nil {
+						return err
+					}
+					break
+				}
 				return fmt.Errorf("source %s record conflicts between replica nodes %d and %d", row.Table, row.NodeID, id)
 			}
 		}
-		if row.NodeID != row.Group.Leader {
+		if row.NodeID != selectedNode {
 			return nil
 		}
 		return batch.add(transfer.SpoolRow{Key: selectedKey(row.Table, row.LogicalKey), Value: record.Value})
@@ -269,7 +503,7 @@ func resolveIdentity(ctx context.Context, workspace Workspace, id RecordIdentity
 		if err != nil {
 			return id, err
 		}
-		if err := json.Unmarshal(data, &id.Channel); err != nil {
+		if err := UnmarshalState(data, &id.Channel); err != nil {
 			return id, err
 		}
 	}
@@ -284,11 +518,7 @@ func resolveIdentity(ctx context.Context, workspace Workspace, id RecordIdentity
 }
 
 func messageGroup(ctx context.Context, workspace Workspace, decoder RecordDecoder, channel ChannelIdentity, nodes map[uint64]bool) (group sourceGroup, err error) {
-	data, err := json.Marshal([]any{channel.ID, channel.Type})
-	if err != nil {
-		return group, err
-	}
-	encoded, ok, err := workspace.Get(ctx, selectedKey("ChannelClusterConfig", base64.RawURLEncoding.EncodeToString(data)))
+	encoded, ok, err := workspace.Get(ctx, selectedKey("ChannelClusterConfig", IdentityKey(channel.ID, channel.Type)))
 	if err != nil {
 		return group, err
 	}
@@ -331,7 +561,7 @@ func walkSelected(ctx context.Context, workspace Workspace, prefix []byte, visit
 }
 func loadSelectedRecord(ctx context.Context, workspace Workspace, data []byte) (record SelectedRecord, err error) {
 	var reference sourceCandidate
-	if err := json.Unmarshal(data, &reference); err != nil {
+	if err := UnmarshalState(data, &reference); err != nil {
 		return record, err
 	}
 	value, ok, err := workspace.Get(ctx, reference.SourceKey)

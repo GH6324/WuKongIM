@@ -24,7 +24,7 @@ func testStoreContract(t *testing.T, factory Factory) {
 	require.NoError(t, err)
 	require.Zero(t, initial.LEO)
 
-	appendRes, err := cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Payload: []byte("a"), SizeBytes: 1, SyncOnce: true}, {ID: 2, Payload: []byte("b"), SizeBytes: 1}}})
+	appendRes, err := cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Payload: []byte("a"), SizeBytes: 1, SyncOnce: true, RedDot: true}, {ID: 2, Payload: []byte("b"), SizeBytes: 1}}})
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), appendRes.BaseOffset)
 	require.Equal(t, uint64(2), appendRes.LastOffset)
@@ -69,6 +69,8 @@ func testStoreContract(t *testing.T, factory Factory) {
 	require.NoError(t, err)
 	require.Len(t, logRes.Records, 2)
 	require.True(t, logRes.Records[0].SyncOnce)
+	require.True(t, logRes.Records[0].RedDot)
+	require.False(t, logRes.Records[1].RedDot)
 	require.False(t, logRes.Records[1].SyncOnce)
 
 	committed, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 1, Limit: 10, MaxBytes: 1024})
@@ -76,6 +78,7 @@ func testStoreContract(t *testing.T, factory Factory) {
 	require.Len(t, committed.Messages, 1)
 	require.Equal(t, uint64(2), committed.NextSeq)
 	require.True(t, committed.Messages[0].SyncOnce)
+	require.True(t, committed.Messages[0].RedDot)
 	committed.Messages[0].Payload[0] = 'z'
 	reread, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 1, Limit: 10, MaxBytes: 1024})
 	require.NoError(t, err)

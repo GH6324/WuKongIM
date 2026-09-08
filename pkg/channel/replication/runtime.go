@@ -9,7 +9,6 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
-	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
@@ -55,8 +54,8 @@ type RuntimeConfig struct {
 	// for cross-channel batching before transport admission.
 	TrailingFlushInterval time.Duration
 	RepairWorkers         int
-	// MaxVoters bounds one installed Channel authority and therefore the
-	// runtime-owned follower-repair ledger.
+	// MaxVoters bounds voting membership. Background repair admits at most
+	// MaxVoters+1 total replicas for one bounded replacement learner.
 	MaxVoters   int
 	QueueItems  int
 	QueueBytes  int
@@ -170,7 +169,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	cfg = normalizeRuntimeConfig(cfg)
 	if cfg.LocalNode == 0 || cfg.Store == nil || cfg.Link == nil ||
 		cfg.LocalWorkers <= 0 || cfg.PeerWorkers <= 0 || cfg.PeerTargetFlight <= 0 || cfg.PeerTargetFlight > cfg.PeerWorkers ||
-		cfg.RepairWorkers <= 0 || cfg.MaxVoters <= 0 || cfg.MaxVoters > 256 || cfg.MaxChannels > int(^uint(0)>>1)/cfg.MaxVoters ||
+		cfg.RepairWorkers <= 0 || cfg.MaxVoters <= 0 || cfg.MaxVoters > 256 || cfg.MaxChannels > int(^uint(0)>>1)/(cfg.MaxVoters+1) ||
 		cfg.QueueItems < cfg.BatchItems || cfg.QueueBytes < cfg.BatchBytes ||
 		cfg.TargetItems < cfg.BatchItems || cfg.TargetItems > cfg.QueueItems-cfg.BatchItems ||
 		cfg.TargetBytes < cfg.BatchBytes || cfg.TargetBytes > cfg.QueueBytes-cfg.BatchBytes ||
@@ -214,7 +213,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	repairs, err := newRuntimeRepairOwner(runtimeRepairOwnerConfig{
 		Context: ctx, Store: cfg.Store, Peers: peers, Goroutines: cfg.Goroutines,
 		Workers: cfg.RepairWorkers, Timeout: cfg.RecoveryTimeout, RetryDelay: defaultRuntimeRepairRetry,
-		MaxPageBytes: cfg.RecoveryPageBytes, MaxPending: cfg.MaxChannels * cfg.MaxVoters,
+		MaxPageBytes: cfg.RecoveryPageBytes, MaxPending: cfg.MaxChannels * (cfg.MaxVoters + 1),
 	})
 	if err != nil {
 		cancel()
@@ -330,7 +329,7 @@ func normalizeRuntimeConfig(cfg RuntimeConfig) RuntimeConfig {
 		cfg.BatchBytes = defaultRuntimeBatchBytes
 	}
 	if cfg.RecoveryPageBytes == 0 {
-		cfg.RecoveryPageBytes = quorumlog.DefaultRecoveryPageBytes
+		cfg.RecoveryPageBytes = 1 << 20
 	}
 	if cfg.ExchangeTimeout == 0 {
 		cfg.ExchangeTimeout = 5 * time.Second
@@ -513,7 +512,7 @@ func newRuntimeRepairOwner(cfg runtimeRepairOwnerConfig) (*runtimeRepairOwner, e
 }
 
 // RecordFollowerRepair retains exact evidence until a fixed worker proves the
-// follower durable. The ledger bound is derived from MaxChannels*MaxVoters;
+// follower durable. The ledger bound is derived from MaxChannels*(MaxVoters+1);
 // reaching it with a new valid key is therefore an internal invariant breach.
 func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
 	if o == nil || o.ctx.Err() != nil || !validFollowerRepair(repair) {
@@ -549,7 +548,7 @@ func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
 	o.signal()
 }
 
-// InstallAuthority replaces the complete voter repair generation for one
+// InstallAuthority replaces the complete voter and learner repair generation for one
 // Channel. Older ready and running repairs are canceled before a newer
 // authority can publish repair evidence, so membership rotation cannot grow
 // the bounded ledger across generations.
@@ -558,7 +557,7 @@ func (o *runtimeRepairOwner) InstallAuthority(authority Authority) {
 		return
 	}
 	next := runtimeRepairAuthority{
-		channelID: authority.ChannelID, id: authority.ID, voters: append([]ch.NodeID(nil), authority.Voters...),
+		channelID: authority.ChannelID, id: authority.ID, voters: append(append([]ch.NodeID(nil), authority.Voters...), authority.Learners...),
 	}
 	o.mu.Lock()
 	if o.authorities == nil {
@@ -615,7 +614,8 @@ func repairAuthorityHasVoter(authority runtimeRepairAuthority, voter ch.NodeID) 
 func validFollowerRepair(repair followerRepair) bool {
 	return repair.channelKey != "" && repair.channelID.ID != "" && repair.leader != 0 && repair.follower != 0 &&
 		repair.follower != repair.leader && repair.needFrom > 0 && repair.manifest.LastOffset >= repair.needFrom &&
-		repair.manifest.ChannelEpoch > 0 && repair.manifest.LeaderTerm > 0 && repair.manifest.FenceVersion > 0
+		repair.manifest.ChannelEpoch > 0 && repair.manifest.LeaderTerm > 0 && repair.manifest.FenceVersion > 0 &&
+		repair.committed <= repair.manifest.LastOffset
 }
 
 func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool) {
@@ -634,6 +634,9 @@ func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool
 		merged.channelID = incoming.channelID
 		merged.leader = incoming.leader
 		merged.manifest = incoming.manifest
+	}
+	if incoming.committed > merged.committed {
+		merged.committed = incoming.committed
 	}
 	return merged, merged != current
 }
@@ -762,10 +765,9 @@ func (o *runtimeRepairOwner) waitForRepairFrontier(ctx context.Context, repair f
 		loaded, err := o.store.Load(ctx, LoadBatch{Items: []LoadRequest{{
 			ChannelKey: repair.channelKey, ChannelID: repair.channelID, ProbeIndexes: indexes,
 		}}})
-		if err == nil && len(loaded.Items) == 1 && loaded.Items[0].Err == nil {
-			if (loaded.Items[0].State.LEO >= repair.needFrom && loaded.Items[0].State.LEO >= repair.manifest.LastOffset) || o.repairCommandAlreadyStored(ctx, repair, loaded.Items[0].State.LEO) {
-				return loaded.Items[0], true
-			}
+		if err == nil && len(loaded.Items) == 1 && loaded.Items[0].Err == nil &&
+			loaded.Items[0].State.LEO >= repair.manifest.LastOffset && loaded.Items[0].State.LEO >= repair.needFrom {
+			return loaded.Items[0], true
 		}
 		select {
 		case <-ctx.Done():
@@ -777,31 +779,15 @@ func (o *runtimeRepairOwner) waitForRepairFrontier(ctx context.Context, repair f
 
 func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair followerRepair, loaded LoadResult) bool {
 	state := loaded.State
-	// waitForRepairFrontier permits this only when the command index proves
-	// the newer requested range was a rejected replay, with no durable suffix.
-	if repair.needFrom > state.LEO {
-		return true
-	}
 	previous := ch.EntryIdentity{}
-	from := repair.needFrom
-	if state.Prefix != (ch.ProposalManifest{}) && from <= state.Prefix.LastOffset {
-		boundary, ok := quorumlog.ImportedPrefixEntry(state.Prefix)
-		if !ok || state.Committed < state.Prefix.LastOffset {
-			return false
-		}
-		if !o.replicateRepairProposal(ctx, ReplicateRequest{ChannelKey: repair.channelKey, ChannelID: repair.channelID,
-			Leader: repair.leader, Follower: repair.follower, Manifest: state.Prefix, Committed: state.Prefix.LastOffset}) {
-			return false
-		}
-		previous = boundary
-		from = boundary.Index + 1
-	} else if repair.needFrom > 1 {
+	if repair.needFrom > 1 {
 		if len(loaded.Entries) != 1 || !loaded.Entries[0].Present {
 			return false
 		}
 		previous = loaded.Entries[0].Identity
 	}
-	through := minUint64(repair.manifest.LastOffset, state.LEO)
+	from := repair.needFrom
+	through := repair.manifest.LastOffset
 	for from <= through {
 		pageThrough := through
 		if pageThrough-from >= maxRecoveryProbeIndexes {
@@ -819,10 +805,28 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 				ChannelKey: repair.channelKey, ChannelID: repair.channelID,
 				Leader: repair.leader, Follower: repair.follower,
 				Manifest: proposal.Manifest, Records: proposal.Records,
-				Committed: minUint64(state.Committed, proposal.Manifest.LastOffset),
+				Committed: minUint64(max(state.Committed, repair.committed), proposal.Manifest.LastOffset),
 			}
-			if !o.replicateRepairProposal(ctx, request) {
+			resultCh := make(chan ReplicateResult, 1)
+			errCh := make(chan error, 1)
+			if err := o.peers.submit(ctx, repair.follower, request, func(result ReplicateResult, err error) {
+				if err != nil {
+					errCh <- err
+					return
+				}
+				resultCh <- result
+			}); err != nil {
 				return false
+			}
+			select {
+			case <-ctx.Done():
+				return false
+			case <-errCh:
+				return false
+			case result := <-resultCh:
+				if !result.Status.Durable() {
+					return false
+				}
 			}
 			_, entries, ok := ch.SealProposalManifest(proposal.Manifest, proposal.Records)
 			if !ok || len(entries) == 0 {
@@ -830,6 +834,7 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 			}
 			previous = entries[len(entries)-1]
 			from = proposal.Manifest.LastOffset + 1
+			o.advanceRepair(repair, from)
 		}
 	}
 	return true
@@ -842,45 +847,16 @@ func minUint64(left, right uint64) uint64 {
 	return right
 }
 
-func (o *runtimeRepairOwner) replicateRepairProposal(ctx context.Context, request ReplicateRequest) bool {
-	resultCh := make(chan ReplicateResult, 1)
-	errCh := make(chan error, 1)
-	if err := o.peers.submit(ctx, request.Follower, request, func(result ReplicateResult, err error) {
-		if err != nil {
-			errCh <- err
-			return
-		}
-		resultCh <- result
-	}); err != nil {
-		return false
+// advanceRepair retains successful page progress across bounded retries. Newer
+// generations have independent entries and cannot be advanced by this worker.
+func (o *runtimeRepairOwner) advanceRepair(repair followerRepair, from uint64) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	entry := o.pending[runtimeRepairKey{channel: repair.channelKey, follower: repair.follower}]
+	if entry == nil || compareRepairAuthority(entry.repair.manifest, repair.manifest) != 0 {
+		return
 	}
-	select {
-	case <-ctx.Done():
-		return false
-	case <-errCh:
-		return false
-	case result := <-resultCh:
-		if !result.Status.Durable() {
-			return false
-		}
+	if from > entry.repair.needFrom && from <= entry.repair.manifest.LastOffset {
+		entry.repair.needFrom = from
 	}
-	return true
-}
-
-// A retry after cache eviction may propose an already durable command at a
-// newer tentative range. Its conflict must not make trailing repair wait for
-// a range that will never be written. Resolve the command in bounded storage
-// reads off the append path, then repair the actual durable leader frontier.
-func (o *runtimeRepairOwner) repairCommandAlreadyStored(ctx context.Context, repair followerRepair, leo uint64) bool {
-	commands, ok := o.store.(commandStore)
-	if !ok {
-		return false
-	}
-	results := commands.LookupCommands(ctx, []CommandLookup{{ChannelKey: repair.channelKey, ChannelID: repair.channelID, CommandID: repair.manifest.CommandID,
-		MaxRecords: maxRecoveryProbeIndexes, MaxBytes: o.maxPageBytes}})
-	if len(results) != 1 || results[0].Err != nil || !results[0].Found {
-		return false
-	}
-	m := results[0].Manifest
-	return m.StructurallyValid() && m.CommandID == repair.manifest.CommandID && m.LastOffset <= leo
 }

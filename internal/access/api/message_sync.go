@@ -138,14 +138,9 @@ func (s *Server) bindMessageCMDBinding(c *gin.Context) (messageCMDBindingRequest
 }
 
 func cmdSyncMessageToLegacy(msg cmdsyncusecase.SyncedMessage) messageusecase.SyncedMessage {
-	timestamp := msg.Protocol.Timestamp
-	if timestamp == 0 && msg.ServerTimestampMS != 0 {
-		timestamp = int32(msg.ServerTimestampMS / 1000)
-	}
 	return messageusecase.SyncedMessage{
-		Setting: msg.Setting, Topic: msg.Protocol.Topic, Expire: msg.Protocol.Expire,
 		Flags: messageusecase.MessageFlags{
-			NoPersist: msg.Protocol.FramerFlags&1 != 0, RedDot: msg.Protocol.FramerFlags&2 != 0, SyncOnce: msg.SyncOnce,
+			SyncOnce: msg.SyncOnce,
 		},
 		MessageID:   msg.MessageID,
 		ClientMsgNo: msg.ClientMsgNo,
@@ -153,7 +148,7 @@ func cmdSyncMessageToLegacy(msg cmdsyncusecase.SyncedMessage) messageusecase.Syn
 		FromUID:     msg.FromUID,
 		ChannelID:   msg.ChannelID,
 		ChannelType: msg.ChannelType,
-		Timestamp:   timestamp,
+		Timestamp:   int32(msg.ServerTimestampMS / 1000),
 		Payload:     append([]byte(nil), msg.Payload...),
 	}
 }

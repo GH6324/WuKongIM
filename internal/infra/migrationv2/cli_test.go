@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigrationCLIPreparesAndExportsUnmodifiedOriginalData(t *testing.T) {
+func TestMigrationCLIProcessesSyntheticCompatibleSource(t *testing.T) {
 	dir := t.TempDir()
-	source := unpackNamedFixture(t, "original-v2-server.tar.gz")
+	source := compatibleMessageFixture(t)
 	plan := migration.Plan{Version: 1, SourceCommit: migrationv2.SourceCommit, Sources: []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: source, ShardCount: 2}}}, Target: migration.TargetPlan{ClusterID: "cli-fixture", CreatedAt: time.Unix(1788670602, 0).UTC(), SlotCount: 4, HashSlotCount: 256, Replicas: 1, ChannelReplicas: 1, Nodes: []migration.TargetNode{{NodeID: 101, Addr: "127.0.0.1:57881", DataDir: filepath.Join(dir, "target")}}}}
 	data, err := json.Marshal(plan)
 	require.NoError(t, err)

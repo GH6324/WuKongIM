@@ -260,9 +260,6 @@ func (f *MessageDBFactory) ListLatestMessages(ctx context.Context, beforeMessage
 	out := make([]ch.Message, 0, len(page.Messages))
 	for _, msg := range page.Messages {
 		out = append(out, ch.Message{
-			Protocol:          msg.Protocol,
-			Setting:           msg.Setting,
-			SyncOnce:          msg.SyncOnce,
 			MessageID:         msg.MessageID,
 			MessageSeq:        msg.MessageSeq,
 			ChannelID:         msg.ChannelID,
@@ -271,6 +268,7 @@ func (f *MessageDBFactory) ListLatestMessages(ctx context.Context, beforeMessage
 			ClientMsgNo:       msg.ClientMsgNo,
 			Payload:           cloneBytes(msg.Payload),
 			ServerTimestampMS: msg.ServerTimestampMS,
+			RedDot:            msg.RedDot,
 		})
 	}
 	return out, page.HasMore, page.NextBeforeMessageID, nil
@@ -557,7 +555,7 @@ func (a *messageDBChannelStoreAdapter) LoadExactState(ctx context.Context) (Exac
 		InitialState: InitialState{
 			LEO: frontier.LEO, HW: frontier.Committed, CheckpointHW: frontier.Committed,
 		},
-		Prefix: frontier.Prefix, Manifest: frontier.Manifest, TailIdentity: frontier.TailIdentity,
+		Manifest: frontier.Manifest, TailIdentity: frontier.TailIdentity,
 	}, nil
 }
 
@@ -576,7 +574,7 @@ func (a *messageDBChannelStoreAdapter) LoadExactRecoveryState(ctx context.Contex
 			InitialState: InitialState{
 				LEO: recovery.LEO, HW: recovery.Committed, CheckpointHW: recovery.Committed,
 			},
-			Prefix: recovery.Prefix, Manifest: recovery.Manifest, TailIdentity: recovery.TailIdentity,
+			Manifest: recovery.Manifest, TailIdentity: recovery.TailIdentity,
 		},
 		Entries: make([]ExactEntryProbe, len(recovery.Entries)),
 	}
@@ -624,7 +622,7 @@ func (a *messageDBChannelStoreAdapter) ReplaceRecoverySuffix(ctx context.Context
 	result, err := a.store.ReplaceRecoverySuffix(ctx, messagedb.ReplaceRecoverySuffixRequest{
 		Expected: messagedb.DurableFrontier{
 			LEO: req.Expected.LEO, Committed: req.Expected.HW,
-			Prefix: req.Expected.Prefix, Manifest: req.Expected.Manifest, TailIdentity: req.Expected.TailIdentity,
+			Manifest: req.Expected.Manifest, TailIdentity: req.Expected.TailIdentity,
 		},
 		KeepThrough: req.KeepThrough,
 		Proposals:   proposals,
@@ -651,7 +649,7 @@ func (a *messageDBChannelStoreAdapter) ReadExactRecoveryPage(ctx context.Context
 			InitialState: InitialState{
 				LEO: page.LEO, HW: page.Committed, CheckpointHW: page.Committed,
 			},
-			Prefix: page.Prefix, Manifest: page.Manifest, TailIdentity: page.TailIdentity,
+			Manifest: page.Manifest, TailIdentity: page.TailIdentity,
 		},
 		Records: make([]ch.Record, len(page.Records)),
 		Entries: make([]ExactEntryProbe, len(page.Entries)),
@@ -966,7 +964,7 @@ func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.R
 		msg := channel.Message{
 			MessageID:         record.ID,
 			MessageSeq:        record.Index,
-			Framer:            frame.Framer{SyncOnce: record.SyncOnce},
+			Framer:            frame.Framer{SyncOnce: record.SyncOnce, RedDot: record.RedDot},
 			Setting:           frame.Setting(record.Setting),
 			ChannelID:         id.ID,
 			ChannelType:       id.Type,
@@ -975,16 +973,6 @@ func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.R
 			ServerTimestampMS: record.ServerTimestampMS,
 			Payload:           cloneBytes(record.Payload),
 		}
-		msg.Framer = decodeDBCompatibleFramerFlags(record.Protocol.FramerFlags)
-		msg.Framer.SyncOnce = record.SyncOnce
-		msg.Expire = record.Protocol.Expire
-		msg.ClientSeq = record.Protocol.ClientSeq
-		msg.StreamID = record.Protocol.StreamID
-		msg.StreamFlag = frame.StreamFlag(record.Protocol.StreamFlag)
-		msg.Timestamp = record.Protocol.Timestamp
-		msg.MsgKey = record.Protocol.MsgKey
-		msg.StreamNo = record.Protocol.StreamNo
-		msg.Topic = record.Protocol.Topic
 		payload, _ := encodeDBCompatibleMessage(msg)
 		out[i] = channel.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: payload, SizeBytes: len(payload)}
 	}
@@ -1010,7 +998,6 @@ func fromDBRecord(record channel.Record) ch.Record {
 	msg, err := decodeDBCompatibleMessage(record.Payload)
 	if err == nil {
 		return ch.Record{
-			Protocol:          protocolFieldsFromDB(msg),
 			ID:                msg.MessageID,
 			Index:             record.Index,
 			Epoch:             record.Epoch,
@@ -1018,23 +1005,17 @@ func fromDBRecord(record channel.Record) ch.Record {
 			ClientMsgNo:       msg.ClientMsgNo,
 			Setting:           uint8(msg.Setting),
 			Payload:           cloneBytes(msg.Payload),
-			SizeBytes:         len(msg.Payload) + protocolFieldsFromDB(msg).SizeBytes(),
+			SizeBytes:         len(msg.Payload),
 			ServerTimestampMS: msg.ServerTimestampMS,
 			SyncOnce:          msg.Framer.SyncOnce,
+			RedDot:            msg.Framer.RedDot,
 		}
 	}
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
 }
 
 func fromDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{Protocol: protocolFieldsFromDB(msg), MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce}
-}
-
-func protocolFieldsFromDB(msg channel.Message) ch.ProtocolFields {
-	return ch.ProtocolFields{FramerFlags: encodeDBCompatibleFramerFlags(msg.Framer) &^ 4,
-		Expire: msg.Expire, ClientSeq: msg.ClientSeq, StreamID: msg.StreamID,
-		StreamFlag: uint8(msg.StreamFlag), Timestamp: msg.Timestamp, MsgKey: msg.MsgKey,
-		StreamNo: msg.StreamNo, Topic: msg.Topic}
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot}
 }
 
 const durableMessageHeaderSize = 45

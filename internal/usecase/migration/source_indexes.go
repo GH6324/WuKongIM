@@ -14,9 +14,12 @@ import (
 // SourceIndexEntry describes an original operational lookup, independent of
 // target indexes. PrimaryKey addresses an aggregated captured source row.
 type SourceIndexEntry struct {
-	Key        []byte `json:"key"`
-	Value      []byte `json:"value"`
-	PrimaryKey []byte `json:"primary_key,omitempty"`
+	// LatestMessageSeq is limited to the original message-ID index, whose
+	// last write points to the greatest sequence within the same channel.
+	LatestMessageSeq uint64 `json:"latest_message_seq,omitempty"`
+	Key              []byte `json:"key"`
+	Value            []byte `json:"value"`
+	PrimaryKey       []byte `json:"primary_key,omitempty"`
 	// AllowAbsentPrimary is restricted to original message lookups that return
 	// not found for primary rows removed by the original truncation writer.
 	AllowAbsentPrimary bool `json:"allow_absent_primary,omitempty"`
@@ -46,9 +49,26 @@ type SourceIndexDecoder interface {
 // ValidateSourceIndexes checks the original read paths before conversion, and
 // again when rebuilding from an archive. Both directions of the disk-backed
 // join must match; target index reconstruction cannot certify a corrupt source.
-func ValidateSourceIndexes(ctx context.Context, capture SourceCapture, sources []NodeOptions, w Workspace, decoder SourceIndexDecoder) error {
+func ValidateSourceIndexes(ctx context.Context, capture SourceCapture, sources []NodeOptions, w Workspace, decoder SourceIndexDecoder, policies ...*MessagePolicy) error {
+	return validateSourceIndexes(ctx, capture, sources, w, decoder, nil, policies...)
+}
+
+func validateSourceIndexes(ctx context.Context, capture SourceCapture, sources []NodeOptions, w Workspace, decoder SourceIndexDecoder, metadata *MetadataPolicy, policies ...*MessagePolicy) error {
+	if err := validateMetadataPolicy(metadata); err != nil {
+		return err
+	}
 	if ctx == nil || capture.Digest == "" || w == nil || decoder == nil {
 		return errors.New("source index validation requires a complete capture")
+	}
+	if len(policies) > 1 {
+		return errors.New("one message index policy is required")
+	}
+	var policy *MessagePolicy
+	if len(policies) == 1 {
+		policy = policies[0]
+	}
+	if err := validateMessagePolicy(policy); err != nil {
+		return err
 	}
 	shards := make(map[uint64]int, len(sources))
 	for _, source := range sources {
@@ -58,6 +78,14 @@ func ValidateSourceIndexes(ctx context.Context, capture SourceCapture, sources [
 		shards[source.NodeID] = source.ShardCount
 	}
 	base := "source-index/" + capture.Digest + "/"
+	if metadata != nil {
+		data, _ := json.Marshal(metadata)
+		base += diagnosticSHA(data) + "/"
+	}
+	if policy != nil {
+		data, _ := json.Marshal(policy)
+		base += diagnosticSHA(data) + "/"
+	}
 	b := &captureBatch{ctx: ctx, workspace: w}
 	indexKey := func(phase string, node uint64, shard int, key []byte) []byte {
 		return []byte(fmt.Sprintf("%s%s/%020d/%04d/%x", base, phase, node, shard, key))
@@ -81,11 +109,42 @@ func ValidateSourceIndexes(ctx context.Context, capture SourceCapture, sources [
 				return err
 			}
 			for _, entry := range facts.Expected {
+				if metadata != nil && metadata.ConversationLookup != "" && row.Table == "Conversation" {
+					pointed, actual, err := readIndexedSourceRow(ctx, w, node.NodeID, row.Shard, entry.Key, decoder, count)
+					if err != nil {
+						return err
+					}
+					if pointed.Table != "Conversation" || pointed.Kind != Primary {
+						return errors.New("conversation index points outside its table")
+					}
+					targetID, err := decoder.Identify(pointed)
+					if err != nil {
+						return err
+					}
+					expected, err := decoder.DescribeIndexes(pointed, targetID, count)
+					if err != nil {
+						return err
+					}
+					if len(expected.Expected) != 1 || !bytes.Equal(expected.Expected[0].Key, entry.Key) || !bytes.Equal(expected.Expected[0].Value, actual.Value) {
+						return errors.New("conversation index points to a different logical conversation")
+					}
+					entry.Value = bytes.Clone(actual.Value)
+				}
+				if policy == nil || !policy.KeepLatestDuplicates {
+					entry.LatestMessageSeq = 0
+				}
 				data, err := json.Marshal(entry)
 				if err != nil {
 					return err
 				}
-				if err := b.add(transfer.SpoolRow{Key: indexKey("expected", node.NodeID, row.Shard, entry.Key), Value: data}); err != nil {
+				expectedKey := indexKey("expected", node.NodeID, row.Shard, entry.Key)
+				if policy != nil && policy.KeepLatestDuplicates && entry.LatestMessageSeq != 0 {
+					if row.Table != "Message" || row.Kind != Primary || len(entry.Value) != 16 || len(entry.Key) != 14 {
+						return errors.New("invalid latest-message source index")
+					}
+					expectedKey = append(indexKey("message-latest", node.NodeID, row.Shard, entry.Key), []byte(fmt.Sprintf("/%020d", entry.LatestMessageSeq))...)
+				}
+				if err := b.add(transfer.SpoolRow{Key: expectedKey, Value: data}); err != nil {
 					return err
 				}
 				if len(entry.SenderKey) > 0 {
@@ -129,6 +188,9 @@ func ValidateSourceIndexes(ctx context.Context, capture SourceCapture, sources [
 	}
 	if err := b.flush(); err != nil {
 		return fmt.Errorf("source index conflict: %w", err)
+	}
+	if err := reduceLatestMessageIndexes(ctx, w, b, base); err != nil {
+		return err
 	}
 	// Reduce sorted original live sender positions with one group in memory.
 	senderPrefix := []byte(base + "sender-seq/")
@@ -231,4 +293,54 @@ type sourceIndexRecord struct {
 	Shard  int              `json:"shard"`
 	Table  string           `json:"table"`
 	Entry  SourceIndexEntry `json:"entry"`
+}
+
+// reduceLatestMessageIndexes verifies original last-write lookup behavior only.
+// It does not remove source rows, choose a replica, or ignore stale wrong indexes.
+func reduceLatestMessageIndexes(ctx context.Context, w Workspace, b *captureBatch, base string) error {
+	prefix := []byte(base + "message-latest/")
+	var group string
+	var latest SourceIndexEntry
+	flush := func() error {
+		if group == "" {
+			return nil
+		}
+		data, err := json.Marshal(latest)
+		if err != nil {
+			return err
+		}
+		return b.add(transfer.SpoolRow{Key: []byte(base + "expected/" + group), Value: data})
+	}
+	err := w.Walk(ctx, prefix, func(row transfer.SpoolRow) error {
+		suffix := string(row.Key[len(prefix):])
+		split := strings.LastIndexByte(suffix, '/')
+		if split < 0 {
+			return errors.New("invalid latest message index group")
+		}
+		key := suffix[:split]
+		var entry SourceIndexEntry
+		if err := json.Unmarshal(row.Value, &entry); err != nil {
+			return err
+		}
+		if key != group {
+			if err := flush(); err != nil {
+				return err
+			}
+			group = key
+			latest = entry
+		} else {
+			if len(entry.Value) != 16 || len(latest.Value) != 16 || !bytes.Equal(entry.Value[:8], latest.Value[:8]) || entry.LatestMessageSeq <= latest.LatestMessageSeq {
+				return errors.New("duplicate message-ID source index has incomparable primary rows")
+			}
+			latest = entry
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if err := flush(); err != nil {
+		return err
+	}
+	return b.flush()
 }

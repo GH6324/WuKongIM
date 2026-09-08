@@ -11,13 +11,17 @@ type ChannelIdentity struct {
 // row. Hash-only references must be resolved through the complete disk catalog;
 // a hash collision or missing identity must never select an arbitrary owner.
 type RecordIdentity struct {
-	UID              string          `json:"uid,omitempty"`
-	UIDHash          uint64          `json:"uid_hash,omitempty"`
-	Channel          ChannelIdentity `json:"channel"`
-	ChannelHash      uint64          `json:"channel_hash,omitempty"`
-	EventChannelHash uint64          `json:"event_channel_hash,omitempty"`
-	ClientMsgNo      string          `json:"client_msg_no,omitempty"`
-	ClientMsgHash    uint64          `json:"client_msg_hash,omitempty"`
+	// UIDPersonalChannelHash identifies the original personal-permission
+	// namespace (UID, type 1) proved by an account/device row. It is an identity
+	// hint only and never materializes a target channel or grants membership.
+	UIDPersonalChannelHash uint64          `json:"uid_personal_channel_hash,omitempty"`
+	UID                    string          `json:"uid,omitempty"`
+	UIDHash                uint64          `json:"uid_hash,omitempty"`
+	Channel                ChannelIdentity `json:"channel"`
+	ChannelHash            uint64          `json:"channel_hash,omitempty"`
+	EventChannelHash       uint64          `json:"event_channel_hash,omitempty"`
+	ClientMsgNo            string          `json:"client_msg_no,omitempty"`
+	ClientMsgHash          uint64          `json:"client_msg_hash,omitempty"`
 }
 
 // IdentityDecoder validates source key/value identities without interpreting

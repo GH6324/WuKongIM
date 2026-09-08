@@ -127,6 +127,10 @@ var tables = map[uint16]tableSpec{
 	0x1001: {name: "SystemUid", keyBytes: 14, columns: map[uint16]columnSpec{
 		0x1001: {name: "Uid", size: 0},
 	}},
+	// Pre-2026-03-07 storage can survive an in-place original v2 upgrade.
+	// These raw business records require a named exclusion, never silent skip.
+	0x1101: {name: "LegacyStream", keyBytes: 22},
+	0x1201: {name: "LegacyStreamMeta", keyBytes: 12},
 	0x1301: {name: "ConversationLocalUser", keyBytes: 0, columns: map[uint16]columnSpec{}},
 	0x1401: {name: "Tester", keyBytes: 14, columns: map[uint16]columnSpec{
 		0x1401: {name: "No", size: 0},

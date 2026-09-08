@@ -24,6 +24,10 @@ type logGroup struct {
 }
 
 func readRaftProgress(ctx context.Context, paths []string, locks []*pebble.Lock, slots uint32, maxBytes int, cache *pebble.Cache) ([]LogProgress, error) {
+	return readRaftProgressVisit(ctx, paths, locks, slots, maxBytes, cache, nil)
+}
+
+func readRaftProgressVisit(ctx context.Context, paths []string, locks []*pebble.Lock, slots uint32, maxBytes int, cache *pebble.Cache, visit func(uint32, uint64, uint32, []byte) error) ([]LogProgress, error) {
 	// A single configuration DB uses the empty key suffix. Slot DBs hash the
 	// decimal Slot ID using original FNV-1 32 (placement) and FNV-1a 64 (keys).
 	groups := map[uint64]*logGroup{}
@@ -61,7 +65,7 @@ func readRaftProgress(ctx context.Context, paths []string, locks []*pebble.Lock,
 		if err != nil {
 			return nil, err
 		}
-		err = scanRaftDB(ctx, db, shard, slots != 0, maxBytes, groups)
+		err = scanRaftDBVisit(ctx, db, shard, slots != 0, maxBytes, groups, visit)
 		if err = errors.Join(err, db.Close()); err != nil {
 			return nil, fmt.Errorf("v2 raft %s: %w", p, err)
 		}
@@ -78,6 +82,10 @@ func readRaftProgress(ctx context.Context, paths []string, locks []*pebble.Lock,
 }
 
 func scanRaftDB(ctx context.Context, db *pebble.DB, shard int, slotted bool, maxBytes int, groups map[uint64]*logGroup) (err error) {
+	return scanRaftDBVisit(ctx, db, shard, slotted, maxBytes, groups, nil)
+}
+
+func scanRaftDBVisit(ctx context.Context, db *pebble.DB, shard int, slotted bool, maxBytes int, groups map[uint64]*logGroup, visit func(uint32, uint64, uint32, []byte) error) (err error) {
 	iter := db.NewIter(nil)
 	defer func() { err = errors.Join(err, iter.Close()) }()
 	for ok := iter.First(); ok; ok = iter.Next() {
@@ -116,6 +124,15 @@ func scanRaftDB(ctx context.Context, db *pebble.DB, shard int, slotted bool, max
 				g.progress.FirstIndex = index
 			}
 			g.progress.LastIndex, g.progress.LastTerm, g.progress.LastDigest = index, term, hex.EncodeToString(digest[:])
+			if visit != nil && slotted {
+				slot, err := strconv.ParseUint(g.progress.Group, 10, 32)
+				if err != nil {
+					return err
+				}
+				if err := visit(uint32(slot), index, term, v[20:len(v)-8]); err != nil {
+					return err
+				}
+			}
 		case 0x0202:
 			if len(k) != prefix || len(v) != 16 {
 				return errors.New("invalid v2 raft applied encoding")

@@ -81,7 +81,7 @@ func TestMessageDBStoreAdapterLoadsExactProposalByCommand(t *testing.T) {
 	closeChannelStoreOnCleanup(t, store)
 	records := []ch.Record{{
 		ID: 71, Epoch: 3, Setting: 2, FromUID: "sender", ClientMsgNo: "client-71",
-		ServerTimestampMS: 91, SyncOnce: true, Payload: []byte("payload"), SizeBytes: len("payload"),
+		ServerTimestampMS: 91, SyncOnce: true, RedDot: true, Payload: []byte("payload"), SizeBytes: len("payload"),
 	}}
 	manifest, _, ok := ch.SealProposalManifest(ch.ProposalManifest{
 		Version: ch.ProposalManifestVersion, ChannelEpoch: 3, LeaderTerm: 5, FenceVersion: 7,
@@ -109,6 +109,7 @@ func TestMessageDBStoreAdapterLoadsExactProposalByCommand(t *testing.T) {
 	require.Equal(t, records[0].ClientMsgNo, loaded.Records[0].ClientMsgNo)
 	require.Equal(t, records[0].ServerTimestampMS, loaded.Records[0].ServerTimestampMS)
 	require.Equal(t, records[0].SyncOnce, loaded.Records[0].SyncOnce)
+	require.True(t, loaded.Records[0].RedDot)
 	require.Equal(t, records[0].Payload, loaded.Records[0].Payload)
 
 	sealed, _, ok := ch.SealProposalManifest(loaded.Manifest, loaded.Records)
@@ -121,6 +122,7 @@ func TestMessageDBStoreAdapterLoadsExactProposalByCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, page.Records, 1)
 	require.Equal(t, records[0].Epoch, page.Records[0].Epoch)
+	require.True(t, page.Records[0].RedDot)
 }
 
 func TestMessageDBStoreAdapterCheckpointPreservesExistingFields(t *testing.T) {

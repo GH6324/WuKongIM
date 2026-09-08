@@ -134,8 +134,6 @@ type Meta struct {
 
 // Message is the v0 client-visible message model.
 type Message struct {
-	// Protocol preserves the original durable header, expiry, stream and topic.
-	Protocol    ProtocolFields
 	MessageID   uint64
 	MessageSeq  uint64
 	ChannelID   string
@@ -152,7 +150,9 @@ type Message struct {
 	ChannelKey string
 	// SyncOnce marks one-shot command-sync messages in the durable channel log.
 	SyncOnce bool
-	Payload  []byte
+	// RedDot preserves the protocol unread-badge flag through storage and replication.
+	RedDot  bool
+	Payload []byte
 }
 
 // OpID identifies an asynchronous operation inside one channel generation.
@@ -169,8 +169,6 @@ type Fence struct {
 
 // Record is the durable log representation replicated between nodes.
 type Record struct {
-	// Protocol travels with the record through reads, replication and recovery.
-	Protocol ProtocolFields
 	// ID is the message id carried by this log entry.
 	ID uint64
 	// Index is the 1-based channel log offset and client message sequence.
@@ -187,6 +185,8 @@ type Record struct {
 	ServerTimestampMS int64
 	// SyncOnce marks one-shot command-sync records in the durable channel log.
 	SyncOnce bool
+	// RedDot preserves the protocol unread-badge flag through storage and replication.
+	RedDot bool
 	// Payload is the encoded message body in v0 memory and store adapters.
 	Payload []byte
 	// SizeBytes is used by batching and read budgets.

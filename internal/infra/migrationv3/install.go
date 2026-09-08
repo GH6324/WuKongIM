@@ -27,10 +27,17 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
+// InstallOptions includes independently prepared node-local plugin state and
+// executables. Both participate in the immutable generation identity.
+type InstallOptions struct {
+	PluginSettings  *migration.PluginSettingsReport
+	PluginArtifacts *migration.PluginArtifactsReport
+}
+
 // Install writes a new cluster generation into exclusive offline output
 // directories. Each node receives native business rows and bootstrap snapshots;
 // it must subsequently start the normal Controller, Slot and Channel runtimes.
-func Install(ctx context.Context, plan migration.TargetPlan, report migration.TargetRecordsReport, w migration.Workspace) (err error) {
+func Install(ctx context.Context, plan migration.TargetPlan, report migration.TargetRecordsReport, w migration.Workspace, options ...InstallOptions) (err error) {
 	if !importMu.TryLock() {
 		return errors.New("another offline native import is active")
 	}
@@ -41,6 +48,43 @@ func Install(ctx context.Context, plan migration.TargetPlan, report migration.Ta
 			err = errors.Join(err, locks[i].Close())
 		}
 	}()
+	var pluginSettings *migration.PluginSettingsReport
+	var pluginArtifacts *migration.PluginArtifactsReport
+	if len(options) > 1 {
+		return errors.New("at most one plugin import option set is allowed")
+	}
+	if len(options) == 1 {
+		pluginSettings, pluginArtifacts = options[0].PluginSettings, options[0].PluginArtifacts
+	}
+	if err := migration.ValidatePluginArtifactsReport(ctx, w, pluginArtifacts); err != nil {
+		return err
+	}
+	if pluginArtifacts != nil {
+		if pluginSettings == nil || pluginSettings.PlanDigest != pluginArtifacts.PlanDigest {
+			return errors.New("plugin executables require settings from the same plan")
+		}
+		for _, a := range pluginArtifacts.Targets {
+			found := false
+			for _, n := range plan.Nodes {
+				found = found || n.NodeID == a.TargetNode
+			}
+			if !found {
+				return errors.New("plugin executable refers to an unknown target")
+			}
+		}
+	}
+	if pluginSettings != nil {
+		if err := migration.WalkPluginSettings(ctx, w, *pluginSettings, func(record migration.MappedPluginSettings) error {
+			for _, n := range plan.Nodes {
+				if n.NodeID == record.TargetNode {
+					return nil
+				}
+			}
+			return errors.New("plugin settings refer to an unknown target")
+		}); err != nil {
+			return err
+		}
+	}
 	l, err := newLayout(ctx, plan)
 	if err != nil {
 		return err
@@ -49,7 +93,7 @@ func Install(ctx context.Context, plan migration.TargetPlan, report migration.Ta
 	if err != nil {
 		return err
 	}
-	expected, err := json.Marshal(report)
+	expected, err := migration.MarshalState(report)
 	if err != nil {
 		return err
 	}
@@ -57,9 +101,11 @@ func Install(ctx context.Context, plan migration.TargetPlan, report migration.Ta
 		return errors.New("target conversion completion does not match import report")
 	}
 	identity, err := json.Marshal(struct {
-		Plan    migration.TargetPlan
-		Records migration.TargetRecordsReport
-	}{plan, report})
+		Plan            migration.TargetPlan
+		Records         migration.TargetRecordsReport
+		PluginSettings  *migration.PluginSettingsReport  `json:",omitempty"`
+		PluginArtifacts *migration.PluginArtifactsReport `json:",omitempty"`
+	}{plan, report, pluginSettings, pluginArtifacts})
 	if err != nil {
 		return err
 	}
@@ -108,10 +154,19 @@ func Install(ctx context.Context, plan migration.TargetPlan, report migration.Ta
 	}
 	for i, n := range plan.Nodes {
 		if ready[i] {
+			if err := checkPluginArtifacts(ctx, n, pluginArtifacts); err != nil {
+				return err
+			}
 			continue
 		}
 		if err := installNode(ctx, n, l, report, w); err != nil {
 			return fmt.Errorf("target node %d: %w", n.NodeID, err)
+		}
+		if err := installPluginSettings(ctx, n, w, pluginSettings); err != nil {
+			return fmt.Errorf("target node %d plugin settings: %w", n.NodeID, err)
+		}
+		if err := installPluginArtifacts(ctx, n, w, pluginArtifacts); err != nil {
+			return fmt.Errorf("target node %d plugin executables: %w", n.NodeID, err)
 		}
 		digest, err := generationDigest(ctx, n.DataDir)
 		if err != nil {
@@ -163,7 +218,7 @@ func installNode(ctx context.Context, node migration.TargetNode, l *layout, repo
 			return nil
 		}
 		var value meta.Channel
-		if err := json.Unmarshal(row.Value, &value); err != nil {
+		if err := migration.UnmarshalState(row.Value, &value); err != nil {
 			return err
 		}
 		return db.MetaDB().HashSlot(row.HashSlot).UpsertChannel(ctx, value)
@@ -211,28 +266,41 @@ func installNode(ctx context.Context, node migration.TargetNode, l *layout, repo
 
 func installMetadata(ctx context.Context, s *meta.Shard, row migration.TargetRecord, w migration.Workspace) error {
 	switch row.Table {
+	case "plugin_binding":
+		var v meta.PluginUserBinding
+		if err := migration.UnmarshalState(row.Value, &v); err != nil {
+			return err
+		}
+		existing, found, err := s.GetPluginUserBinding(ctx, v.UID, v.PluginNo)
+		if err != nil {
+			return err
+		}
+		if found && existing != v {
+			return errors.New("target plugin binding differs from the planned import")
+		}
+		return s.BindPluginUser(ctx, v)
 	case "user":
 		var v meta.User
-		if err := json.Unmarshal(row.Value, &v); err != nil {
+		if err := migration.UnmarshalState(row.Value, &v); err != nil {
 			return err
 		}
 		return s.UpsertUser(ctx, v)
 	case "device":
 		var v meta.Device
-		if err := json.Unmarshal(row.Value, &v); err != nil {
+		if err := migration.UnmarshalState(row.Value, &v); err != nil {
 			return err
 		}
 		return s.UpsertDevice(ctx, v)
 	case "channel":
 		var v meta.Channel
-		if err := json.Unmarshal(row.Value, &v); err != nil {
+		if err := migration.UnmarshalState(row.Value, &v); err != nil {
 			return err
 		}
 		v.SubscriberCount = 0
 		return s.UpsertChannel(ctx, v)
 	case "subscriber":
 		var v meta.Subscriber
-		if err := json.Unmarshal(row.Value, &v); err != nil {
+		if err := migration.UnmarshalState(row.Value, &v); err != nil {
 			return err
 		}
 		_, exists, err := s.GetChannel(ctx, v.ChannelID, v.ChannelType)
@@ -245,13 +313,13 @@ func installMetadata(ctx context.Context, s *meta.Shard, row migration.TargetRec
 		return s.AddSubscribers(ctx, v.ChannelID, v.ChannelType, []string{v.UID}, 1)
 	case "membership":
 		var v meta.UserChannelMembership
-		if err := json.Unmarshal(row.Value, &v); err != nil {
+		if err := migration.UnmarshalState(row.Value, &v); err != nil {
 			return err
 		}
 		return s.UpsertUserChannelMembership(ctx, v)
 	case "cmd_membership":
 		var v meta.UserCMDChannelMembership
-		if err := json.Unmarshal(row.Value, &v); err != nil {
+		if err := migration.UnmarshalState(row.Value, &v); err != nil {
 			return err
 		}
 		return s.UpsertUserCMDChannelMembership(ctx, v)
@@ -259,7 +327,7 @@ func installMetadata(ctx context.Context, s *meta.Shard, row migration.TargetRec
 		return nil // Imported atomically with every matching lane.
 	case "event_state":
 		var v meta.MessageEventState
-		if err := json.Unmarshal(row.Value, &v); err != nil {
+		if err := migration.UnmarshalState(row.Value, &v); err != nil {
 			return err
 		}
 		cursor, err := migration.ReadTargetEventCursor(ctx, w, v)
@@ -282,14 +350,7 @@ func installMessages(ctx context.Context, db *message.Engine, channel migration.
 	defer func() { err = errors.Join(err, log.Close()) }()
 	var previous quorumlog.EntryIdentity
 	if channel.PrefixThrough > 0 {
-		prefix, boundary, ok := quorumlog.NewImportedPrefix(string(key), sha256.Sum256([]byte(digest)), channel.PrefixThrough)
-		if !ok {
-			return errors.New("invalid retained source prefix")
-		}
-		if _, err := log.InstallImportedPrefix(ctx, prefix); err != nil {
-			return err
-		}
-		previous = boundary
+		return errors.New("source retained prefix cannot be represented by the existing v3 proposal format")
 	}
 	var rows []channelcompat.Record
 	var records []quorumlog.Record
@@ -300,7 +361,7 @@ func installMessages(ctx context.Context, db *message.Engine, channel migration.
 		}
 		first, last := records[0].Index, records[len(records)-1].Index
 		command := sha256.Sum256([]byte(fmt.Sprintf("wkmigrate/%s/%s/%d/%d", digest, key, first, last)))
-		proposal, _, ok := quorumlog.SealProposalManifest(quorumlog.ProposalManifest{Version: quorumlog.FullMessageProposalVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: command, BaseOffset: first - 1, LastOffset: last, PreviousIndex: previous.Index, PreviousTerm: previous.LeaderTerm, PreviousDigest: previous.Digest}, records)
+		proposal, _, ok := quorumlog.SealProposalManifest(quorumlog.ProposalManifest{Version: quorumlog.ProposalManifestVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: command, BaseOffset: first - 1, LastOffset: last, PreviousIndex: previous.Index, PreviousTerm: previous.LeaderTerm, PreviousDigest: previous.Digest}, records)
 		if !ok {
 			return errors.New("cannot seal imported native proposal")
 		}
@@ -322,7 +383,7 @@ func installMessages(ctx context.Context, db *message.Engine, channel migration.
 		if err != nil {
 			return err
 		}
-		recordBytes := quorumlog.RecoveryRecordBytes(record.FromUID, record.ClientMsgNo, len(record.Payload), record.Protocol)
+		recordBytes := quorumlog.RecoveryRecordBytes(record.FromUID, record.ClientMsgNo, len(record.Payload))
 		if len(records) > 0 && (len(records) >= 64 || nativeBytes+len(row.Payload) > quorumlog.DefaultRecoveryPageBytes || recoveryBytes+recordBytes > quorumlog.DefaultRecoveryPageBytes) {
 			if err := flush(); err != nil {
 				return err

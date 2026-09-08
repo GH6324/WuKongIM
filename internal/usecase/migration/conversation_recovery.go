@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/transfer"
@@ -37,7 +36,7 @@ func recoverSourceConversations(ctx context.Context, capture SourceCapture, work
 			}
 			sum := sha256.Sum256(description.Comparable)
 			candidate := sourceCandidate{NodeID: node.NodeID, SourceKey: sourceRowKey(node.NodeID, row), Table: row.Table, Kind: row.Kind, Identity: id, LogicalKey: description.Key, Digest: hex.EncodeToString(sum[:])}
-			data, err := json.Marshal(candidate)
+			data, err := MarshalState(candidate)
 			if err != nil {
 				return err
 			}
@@ -55,7 +54,7 @@ func recoverSourceConversations(ctx context.Context, capture SourceCapture, work
 	// deliberately serialized rather than retaining an unbounded UID map.
 	return workspace.Walk(ctx, []byte("candidate/pending/"), func(row transfer.SpoolRow) error {
 		var candidate sourceCandidate
-		if err := json.Unmarshal(row.Value, &candidate); err != nil {
+		if err := UnmarshalState(row.Value, &candidate); err != nil {
 			return err
 		}
 		key := selectedKey(candidate.Table, candidate.LogicalKey)
@@ -65,7 +64,7 @@ func recoverSourceConversations(ctx context.Context, capture SourceCapture, work
 		}
 		if exists {
 			var previous sourceCandidate
-			if err := json.Unmarshal(data, &previous); err != nil {
+			if err := UnmarshalState(data, &previous); err != nil {
 				return err
 			}
 			if previous.Digest != candidate.Digest {

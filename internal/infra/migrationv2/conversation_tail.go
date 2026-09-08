@@ -85,8 +85,17 @@ func scanConversationTail(ctx context.Context, root string, maxBytes int, visit 
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			if uid == "" {
+				// SourceCommit's storeConversations skips an empty UID before
+				// constructing any durable row. Preserve the exact cache object
+				// as provenance instead of inventing a user or rejecting recovery.
+				if err := visit(ignoredConversationRow(update, raw)); err != nil {
+					return err
+				}
+				continue
+			}
 			read := update.UserReadSeqs[uid]
-			if uid == "" || read > update.LastMessageSeq {
+			if read > update.LastMessageSeq {
 				return errors.New("invalid v2 conversation recovery read position")
 			}
 			// This is a namespaced intent key, not a fabricated original row ID.
@@ -105,6 +114,25 @@ func scanConversationTail(ctx context.Context, root string, maxBytes int, visit 
 	}
 	budget.remaining = int64(maxBytes)
 	return requireJSONEnd(dec)
+}
+
+func ignoredConversationRow(update pendingConversation, raw []byte) Row {
+	key, _ := json.Marshal([]string{update.ChannelID, strconv.Itoa(int(update.ChannelType)), ""})
+	return Row{Table: "IgnoredConversation", Kind: Other, Key: append([]byte{0xff, 0x02}, key...), Value: bytes.Clone(raw)}
+}
+
+// validateIgnoredConversation checks archived provenance again before selection;
+// only the empty-UID entry ignored by the original recovery code has this kind.
+func validateIgnoredConversation(row Row) error {
+	var update pendingConversation
+	if !utf8.Valid(row.Value) || decodeStrictJSON(row.Value, &update) != nil {
+		return errors.New("invalid ignored conversation recovery object")
+	}
+	_, emptyUID := update.UserReadSeqs[""]
+	if !emptyUID || update.ChannelID == "" || update.ChannelType == 0 || update.LastMessageSeq == 0 || row.Kind != Other || row.Shard != 0 || row.Owner != 0 || row.ID != 0 || len(row.Fields) != 0 || !bytes.Equal(row.Key, ignoredConversationRow(update, nil).Key) {
+		return errors.New("invalid ignored conversation recovery identity")
+	}
+	return nil
 }
 
 // jsonBudgetReader limits the next decode including decoder read-ahead. A hard

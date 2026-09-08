@@ -29,12 +29,31 @@ type SourceCapture struct {
 	Nodes  []NodeSnapshot    `json:"nodes"`
 	Tables map[string]uint64 `json:"primary_rows_by_table"`
 	Digest string            `json:"digest"`
+	// Authority binds original retained config commands and source shard counts.
+	// Absent evidence keeps the older strict transition rejection behavior.
+	Authority            []CapturedAuthority `json:"authority,omitempty"`
+	MarkedConfigurations uint64              `json:"marked_configurations,omitempty"`
+}
+
+// CapturedAuthority binds one node's original shard layout and ordered config
+// command stream to the capture and portable archive manifest.
+type CapturedAuthority struct {
+	NodeID     uint64 `json:"node_id"`
+	ShardCount int    `json:"shard_count"`
+	Commands   uint64 `json:"commands"`
+	SHA256     string `json:"sha256"`
 }
 
 // CaptureSources preserves all source rows and file identities before selecting
 // authorities. Each immutable node inventory is sealed before its first row is
 // ingested, so interruption cannot silently adopt a changed or partial source.
 func CaptureSources(ctx context.Context, nodes []NodeOptions, source Source, workspace Workspace, progress func(uint64, string)) (capture SourceCapture, err error) {
+	return captureSources(ctx, nodes, source, workspace, progress, true)
+}
+
+// captureSources can defer the cross-node check for diagnostics, which capture
+// each node independently and explicitly report incomplete source inventories.
+func captureSources(ctx context.Context, nodes []NodeOptions, source Source, workspace Workspace, progress func(uint64, string), checkAuthority bool) (capture SourceCapture, err error) {
 	if ctx == nil || source == nil || workspace == nil || len(nodes) == 0 || len(nodes) > 1024 {
 		return capture, errors.New("migration requires 1..1024 complete source nodes")
 	}
@@ -82,7 +101,24 @@ func CaptureSources(ctx context.Context, nodes []NodeOptions, source Source, wor
 			sealed = true
 			return nil
 		}
-		snapshot, err := source.ReadStoppedNode(ctx, node, func(row Row) error {
+		read := source.ReadStoppedNode
+		var authority *CapturedAuthority
+		if original, ok := source.(AuthorityCommandSource); ok {
+			authority = &CapturedAuthority{NodeID: node.NodeID, ShardCount: node.ShardCount}
+			read = func(ctx context.Context, n NodeOptions, rows func(Row) error, files func(SourceFile) error) (NodeSnapshot, error) {
+				return original.ReadAuthorityCommands(ctx, n, rows, files, func(command RawConfigCommand) error {
+					if err := seal(); err != nil {
+						return err
+					}
+					data, err := json.Marshal(command)
+					if err != nil {
+						return err
+					}
+					return batch.add(transfer.SpoolRow{Key: capturedCommandKey(n.NodeID, command), Value: data})
+				})
+			}
+		}
+		snapshot, err := read(ctx, node, func(row Row) error {
 			if err := seal(); err != nil {
 				return err
 			}
@@ -92,6 +128,9 @@ func CaptureSources(ctx context.Context, nodes []NodeOptions, source Source, wor
 			}
 			if row.Kind == Primary {
 				capture.Tables[row.Table]++
+			}
+			if markedChannelConfig(row) {
+				capture.MarkedConfigurations++
 			}
 			key := []byte(fmt.Sprintf("%srows/%04d/%x", prefix, row.Shard, row.Key))
 			return batch.add(transfer.SpoolRow{Key: key, Value: value})
@@ -120,6 +159,13 @@ func CaptureSources(ctx context.Context, nodes []NodeOptions, source Source, wor
 		if err := batch.flush(); err != nil {
 			return capture, err
 		}
+		if authority != nil {
+			authority.Commands, authority.SHA256, err = walkCapturedCommands(ctx, workspace, node.NodeID, nil)
+			if err != nil {
+				return capture, err
+			}
+			capture.Authority = append(capture.Authority, *authority)
+		}
 		value, err := json.Marshal(snapshot)
 		if err != nil {
 			return capture, err
@@ -129,8 +175,10 @@ func CaptureSources(ctx context.Context, nodes []NodeOptions, source Source, wor
 		}
 		capture.Nodes = append(capture.Nodes, snapshot)
 	}
-	if err := validateCapturedAuthority(capture.Nodes); err != nil {
-		return capture, err
+	if checkAuthority {
+		if err := validateCapturedAuthority(capture.Nodes); err != nil {
+			return capture, err
+		}
 	}
 	digest, err := json.Marshal(capture)
 	if err != nil {
@@ -138,7 +186,7 @@ func CaptureSources(ctx context.Context, nodes []NodeOptions, source Source, wor
 	}
 	sum := sha256.Sum256(digest)
 	capture.Digest = hex.EncodeToString(sum[:])
-	if progress != nil {
+	if progress != nil && checkAuthority {
 		progress(0, "source inventory and persisted authority checked")
 	}
 	return capture, nil
@@ -191,6 +239,13 @@ func validateCapturedAuthority(nodes []NodeSnapshot) error {
 	for _, node := range nodes {
 		canonical := node.Config
 		canonical.Nodes = append([]SourceNode(nil), canonical.Nodes...)
+		for i := range canonical.Nodes {
+			// Original updateNodeOnlineStatus derives these display statistics
+			// per process (including time.Now), not from replicated command bytes.
+			// Keep the original snapshot intact and compare all authority fields.
+			canonical.Nodes[i].OfflineCount = 0
+			canonical.Nodes[i].LastOffline = 0
+		}
 		sort.Slice(canonical.Nodes, func(i, j int) bool { return canonical.Nodes[i].ID < canonical.Nodes[j].ID })
 		canonical.Slots = append([]SourceSlot(nil), canonical.Slots...)
 		sort.Slice(canonical.Slots, func(i, j int) bool { return canonical.Slots[i].ID < canonical.Slots[j].ID })

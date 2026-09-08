@@ -19,6 +19,26 @@ type Plan struct {
 	SourceCommit string        `json:"source_commit"`
 	Sources      []NodeOptions `json:"sources"`
 	Target       TargetPlan    `json:"target"`
+	// Exclusions records operator-authorized omissions from the target. Raw
+	// source rows remain in the checksummed archive; nil preserves all business.
+	Exclusions *Exclusions `json:"exclusions,omitempty"`
+	// Messages opts into explicitly authorized omissions and sequence mapping.
+	Messages *MessagePolicy `json:"messages,omitempty"`
+	// Metadata binds explicitly chosen original metadata lookup semantics.
+	Metadata *MetadataPolicy `json:"metadata,omitempty"`
+	// History binds evidence-qualified replica lag and explicit recovery. Nil keeps
+	// the original requirement that all formal message replicas agree.
+	History *HistoryPolicy `json:"history,omitempty"`
+	// PluginNodes explicitly chooses the source settings for every target;
+	// one source can supply several targets when changing the cluster size.
+	// It does not authorize a plugin business compatibility mapping.
+	PluginNodes []PluginNodeMapping `json:"plugin_nodes,omitempty"`
+	// PluginConfigs selects one captured node's effective config for a named
+	// plugin on every mapped target. Original per-node state remains archived.
+	PluginConfigs []PluginConfigMapping `json:"plugin_configs,omitempty"`
+	// PluginArtifacts captures exact original executables without declaring
+	// their business behavior compatible. Every source copy remains archived.
+	PluginArtifacts []PluginArtifactSpec `json:"plugin_artifacts,omitempty"`
 }
 
 func ReadPlan(reader io.Reader, sourceCommit string) (plan Plan, err error) {
@@ -44,6 +64,21 @@ func ReadPlan(reader io.Reader, sourceCommit string) (plan Plan, err error) {
 			return plan, errors.New("invalid source node identity, shard count or absolute data directory")
 		}
 	}
+	if err := validateMessagePolicy(plan.Messages); err != nil {
+		return plan, err
+	}
+	if err := validateHistoryPolicy(plan.History); err != nil {
+		return plan, err
+	}
+	if err := validateMetadataPolicy(plan.Metadata); err != nil {
+		return plan, err
+	}
+	if err := validatePluginNodes(plan); err != nil {
+		return plan, err
+	}
+	if err := validatePluginArtifacts(plan); err != nil {
+		return plan, err
+	}
 	return plan, nil
 }
 
@@ -62,31 +97,62 @@ type OriginalDecoder interface {
 // Preflight is evidence of source selection and conversion only. It must never
 // be presented as evidence that the target has passed independent verification.
 type Preflight struct {
-	Status       string              `json:"status"`
-	CutoverReady bool                `json:"cutover_ready"`
-	PlanDigest   string              `json:"plan_digest"`
-	SourceCommit string              `json:"source_commit"`
-	Capture      SourceCapture       `json:"capture"`
-	Catalog      SourceCatalog       `json:"catalog"`
-	Selection    SourceSelection     `json:"selection"`
-	Conversion   TargetRecordsReport `json:"conversion"`
+	Status          string                 `json:"status"`
+	CutoverReady    bool                   `json:"cutover_ready"`
+	PlanDigest      string                 `json:"plan_digest"`
+	SourceCommit    string                 `json:"source_commit"`
+	Capture         SourceCapture          `json:"capture"`
+	Catalog         SourceCatalog          `json:"catalog"`
+	Selection       SourceSelection        `json:"selection"`
+	Conversion      TargetRecordsReport    `json:"conversion"`
+	PluginSettings  *PluginSettingsReport  `json:"plugin_settings,omitempty"`
+	PluginArtifacts *PluginArtifactsReport `json:"plugin_artifacts,omitempty"`
 }
 
 // Prepare reads stopped original data and publishes a preflight only when all
 // authority, source-format and supported business-conversion checks succeed.
 func Prepare(ctx context.Context, plan Plan, w Workspace, source Source, decoder OriginalDecoder, progress func(uint64, string)) (result Preflight, err error) {
+	if err := validatePluginArtifacts(plan); err != nil {
+		return result, err
+	}
+	if err := validatePluginNodes(plan); err != nil {
+		return result, err
+	}
+	if err := validateHistoryPolicy(plan.History); err != nil {
+		return result, err
+	}
+	if err := validateMetadataPolicy(plan.Metadata); err != nil {
+		return result, err
+	}
+	if err := validateMessagePolicy(plan.Messages); err != nil {
+		return result, err
+	}
 	result.PlanDigest = plan.Digest()
 	result.SourceCommit = plan.SourceCommit
 	if result.Capture, err = CaptureSources(ctx, plan.Sources, source, w, progress); err != nil {
 		return result, err
 	}
+	if result.PluginSettings, err = PreparePluginSettings(ctx, plan, result.Capture, w, decoder); err != nil {
+		return result, err
+	}
+	artifactSource, _ := source.(PluginArtifactSource)
+	if err := CapturePluginArtifacts(ctx, plan, w, artifactSource); err != nil {
+		return result, err
+	}
+	if result.PluginArtifacts, err = PreparePluginArtifacts(ctx, plan, result.Capture, w); err != nil {
+		return result, err
+	}
+	decoder, err = certifyEmptyChannels(ctx, result.Capture, w, decoder, plan.Metadata)
+	if err != nil {
+		return result, err
+	}
 	if result.Catalog, err = BuildSourceCatalog(ctx, result.Capture, w, decoder); err != nil {
 		return result, err
 	}
-	if err = ValidateSourceIndexes(ctx, result.Capture, plan.Sources, w, decoder); err != nil {
+	if err = validateSourceIndexes(ctx, result.Capture, plan.Sources, w, decoder, plan.Metadata, plan.Messages); err != nil {
 		return result, err
 	}
-	if result.Selection, err = SelectSources(ctx, result.Capture, result.Catalog, w, decoder); err != nil {
+	if result.Selection, err = selectSources(ctx, result.Capture, result.Catalog, w, decoder, plan.Exclusions, plan.Metadata, result.PluginArtifacts, plan.History, plan.Messages); err != nil {
 		return result, err
 	}
 	if result.Conversion, err = BuildTargetRecords(ctx, result.Selection, w, decoder); err != nil {

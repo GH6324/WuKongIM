@@ -19,6 +19,16 @@ func (Reader) Identify(row Row) (RecordIdentity, error) { return Identify(row) }
 // Identify validates repeated identities and retains unresolved hash references
 // for a later disk-backed join. It does not infer ownership from a row's node.
 func Identify(row Row) (id RecordIdentity, err error) {
+	if counters, err := channelCountersOnly(row); counters || err != nil {
+		return id, err
+	}
+	if row.Table == "IgnoredConversation" {
+		return id, validateIgnoredConversation(row)
+	}
+	if isLegacyStream(row) {
+		_, err := decodeLegacyStream(row)
+		return id, err
+	}
 	if row.Kind == Other {
 		switch row.Table {
 		case "Message":
@@ -40,6 +50,13 @@ func Identify(row Row) (id RecordIdentity, err error) {
 	}
 	for _, name := range []string{"Uid", "ChannelId", "FromUid", "ClientMsgNo", "PluginNo", "StreamNo", "Topic"} {
 		if v, ok := row.Fields[name]; ok && !utf8.Valid(v) {
+			// These original column/index writers and native membership keys use
+			// exact bytes. Internal migration state has a lossless string codec;
+			// JSON/protocol fields elsewhere still need their own compatibility proof.
+			if (row.Table == "Conversation" && (name == "Uid" || name == "ChannelId")) ||
+				(row.Table == "ChannelClusterConfig" && name == "ChannelId") {
+				continue
+			}
 			return id, fmt.Errorf("%s.%s contains invalid UTF-8", row.Table, name)
 		}
 	}
@@ -49,7 +66,10 @@ func Identify(row Row) (id RecordIdentity, err error) {
 	}
 	if v, ok := row.Fields["ChannelId"]; ok {
 		typ := row.Fields["ChannelType"]
-		if len(v) == 0 || len(typ) != 1 || typ[0] == 0 {
+		// Original control configuration reads accept type zero. Keep that
+		// identity for source Slot comparison; it is not a target placement or
+		// permission to import zero-type messages, policies or conversations.
+		if len(v) == 0 || len(typ) != 1 || (typ[0] == 0 && row.Table != "ChannelClusterConfig") {
 			return id, fmt.Errorf("%s has invalid channel identity", row.Table)
 		}
 		id.Channel = migration.ChannelIdentity{ID: string(v), Type: typ[0]}
@@ -83,6 +103,7 @@ func Identify(row Row) (id RecordIdentity, err error) {
 		if row.ID != id.UIDHash {
 			return id, errors.New("v2 user identity does not match its key")
 		}
+		id.UIDPersonalChannelHash = channelHash(id.UID, 1)
 	case "SystemUid":
 		if err := requireUID(); err != nil {
 			return id, err
@@ -93,6 +114,16 @@ func Identify(row Row) (id RecordIdentity, err error) {
 	case "Device", "PluginUser":
 		if err := requireUID(); err != nil {
 			return id, err
+		}
+		if row.Table == "Device" {
+			// Original personal permissions are addressed by (recipient UID, 1),
+			// even when no ChannelInfo body has ever been created for the user.
+			id.UIDPersonalChannelHash = channelHash(id.UID, 1)
+		} else {
+			plugin := string(row.Fields["PluginNo"])
+			if plugin == "" || row.ID != stringHash(plugin+"_"+id.UID) {
+				return id, errors.New("v2 plugin binding identity does not match its key")
+			}
 		}
 	case "ChannelInfo", "ChannelClusterConfig":
 		if err := requireChannel(); err != nil {

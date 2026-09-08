@@ -306,8 +306,8 @@ func TestQuorumLogHigherFencedAuthorityPermanentlyClosesOldAdmission(t *testing.
 	fenced.ID.LeaderTerm++
 	fenced.ID.FenceVersion++
 	fenced.WriteFence = ch.WriteFence{Token: "transfer", Version: fenced.ID.FenceVersion, Reason: ch.WriteFenceReasonLeaderTransfer}
-	if _, err := log.Install(context.Background(), fenced); !errors.Is(err, ch.ErrWriteFenced) {
-		t.Fatalf("Install(fenced authority) error = %v, want %v", err, ch.ErrWriteFenced)
+	if _, err := log.Install(context.Background(), fenced); err != nil {
+		t.Fatalf("Install(fenced authority) error = %v, want recovered read-only authority", err)
 	}
 	before := harness.syncCalls
 	proposal := Proposal{

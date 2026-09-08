@@ -40,8 +40,22 @@ func BuildSourceCatalog(ctx context.Context, capture SourceCapture, workspace Wo
 					return err
 				}
 			}
+			if id.UIDPersonalChannelHash != 0 {
+				if id.UID == "" {
+					return errors.New("personal channel hint is missing its source UID")
+				}
+				data, err := MarshalState(ChannelIdentity{ID: id.UID, Type: 1})
+				if err != nil {
+					return err
+				}
+				// Use the same collision-checked namespace as explicit channel
+				// identities. No hint can overwrite a different original identity.
+				if err := batch.add(transfer.SpoolRow{Key: []byte(fmt.Sprintf("catalog/channel/%016x", id.UIDPersonalChannelHash)), Value: data}); err != nil {
+					return err
+				}
+			}
 			if id.Channel.ID != "" {
-				data, err := json.Marshal(id.Channel)
+				data, err := MarshalState(id.Channel)
 				if err != nil {
 					return err
 				}

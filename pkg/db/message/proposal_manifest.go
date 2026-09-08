@@ -57,8 +57,7 @@ func deriveDurableProposalEntries(manifest DurableProposalManifest, records []ch
 	return quorumlog.DeriveProposalEntries(manifest, len(records), func(index int) quorumlog.Record {
 		row := rows[index]
 		return quorumlog.Record{
-			Protocol: rowProtocolFields(row),
-			ID:       row.MessageID, Index: row.MessageSeq, Epoch: records[index].Epoch,
+			ID: row.MessageID, Index: row.MessageSeq, Epoch: records[index].Epoch,
 			Setting: row.Setting, FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo,
 			ServerTimestampMS: row.ServerTimestampMS, SyncOnce: row.FramerFlags&4 != 0,
 			Payload: row.Payload,
@@ -151,7 +150,9 @@ func decodeDurableEntryIdentity(value []byte) (quorumlog.EntryIdentity, error) {
 	copy(entry.PreviousDigest[:], value[offset:offset+sha256.Size])
 	offset += sha256.Size
 	copy(entry.Digest[:], value[offset:offset+sha256.Size])
-	if !quorumlog.ValidEntryIdentity(entry) {
+	if entry.Version != DurableProposalManifestVersion || entry.ChannelEpoch == 0 || entry.LeaderTerm == 0 || entry.FenceVersion == 0 ||
+		entry.Index == 0 || entry.CommandID == (quorumlog.CommandID{}) || entry.Digest == (quorumlog.EntryDigest{}) ||
+		entry.PreviousIndex+1 != entry.Index {
 		return quorumlog.EntryIdentity{}, dberrors.ErrCorruptValue
 	}
 	if entry.PreviousIndex == 0 {
@@ -363,19 +364,9 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 		}
 	}
 	coveredEntries := make(map[uint64]struct{}, len(entryIdentities))
-	var importedThrough uint64
 	for lastOffset, record := range byLast {
 		if paired, ok := byCommand[record.manifest.CommandID]; !ok || paired != record {
 			return dberrors.ErrCorruptState
-		}
-		if record.manifest.Version == quorumlog.ImportedPrefixVersion {
-			boundary, ok := quorumlog.ImportedPrefixEntry(record.manifest)
-			if !ok || entryIdentities[lastOffset] != boundary || importedThrough != 0 {
-				return dberrors.ErrCorruptState
-			}
-			importedThrough = lastOffset
-			coveredEntries[lastOffset] = struct{}{}
-			continue
 		}
 		if record.manifest.BaseOffset > 0 {
 			previousProposal, proposalPresent := byLast[record.manifest.BaseOffset]
@@ -409,11 +400,6 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 			return dberrors.ErrCorruptState
 		}
 	}
-	for index := range entryIdentities {
-		if index < importedThrough {
-			return dberrors.ErrCorruptState
-		}
-	}
 	if len(byLast) != len(byCommand) || len(coveredEntries) != len(entryIdentities) {
 		return dberrors.ErrCorruptState
 	}
@@ -438,8 +424,7 @@ func backupEntryIdentityMap(channelKey ChannelKey, entries []backupRawEntry) (ma
 
 func verifyBackupRowIdentity(entry quorumlog.EntryIdentity, row messageRow) bool {
 	return quorumlog.VerifyEntry(entry, quorumlog.Record{
-		Protocol: rowProtocolFields(row),
-		ID:       row.MessageID, Index: row.MessageSeq, Epoch: entry.ChannelEpoch,
+		ID: row.MessageID, Index: row.MessageSeq, Epoch: entry.ChannelEpoch,
 		Setting: row.Setting, FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo,
 		ServerTimestampMS: row.ServerTimestampMS, SyncOnce: row.FramerFlags&4 != 0,
 		Payload: row.Payload,
@@ -538,12 +523,4 @@ func (e *channelEntry) stageTruncateDurableProposals(ctx context.Context, batch 
 	}
 	entrySpan := keycodec.NewPrefixSpan(encodeEntryIdentityPrefix(e.key))
 	return batch.DeleteRange(engine.Span{Start: encodeEntryIdentityKey(e.key, to+1), End: entrySpan.End})
-}
-
-func rowProtocolFields(row messageRow) quorumlog.ProtocolFields {
-	return quorumlog.ProtocolFields{
-		FramerFlags: row.FramerFlags &^ 4, Expire: uint32(row.Expire), ClientSeq: row.ClientSeq,
-		StreamID: row.StreamID, StreamFlag: row.StreamFlag, Timestamp: int32(row.Timestamp),
-		MsgKey: row.MsgKey, StreamNo: row.StreamNo, Topic: row.Topic,
-	}
 }

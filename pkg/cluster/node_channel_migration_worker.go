@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"slices"
 	"sort"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -363,6 +362,13 @@ func (n *Node) ApplyChannelMeta(ctx context.Context, nodeID uint64, meta metadb.
 
 func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error) {
 	id := ch.ChannelID{ID: channelID, Type: channelType}
+	// Native exchange durability can precede both reactor activation and its
+	// cached progress. Repair requires authoritative, current durable evidence.
+	if activator, ok := n.channels.(interface {
+		ActivateReplicaForRepair(context.Context, ch.ChannelID) (ch.RuntimeProbeChannel, error)
+	}); ok {
+		return activator.ActivateReplicaForRepair(ctx, id)
+	}
 	result, err := n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
 	if err != nil {
 		return ch.RuntimeProbeChannel{}, err
@@ -372,30 +378,7 @@ func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, c
 			return probe, nil
 		}
 	}
-	// Quorum followers can be durable without a loaded reactor. A migration
-	// proof must resolve current Slot authority and load that local replica
-	// before interpreting absence as an unavailable candidate. The reactor
-	// obtains LEO/HW from storage; metadata never substitutes for log progress.
-	meta, err := n.GetChannelRuntimeMeta(ctx, channelID, int64(channelType))
-	if err != nil {
-		return ch.RuntimeProbeChannel{}, err
-	}
-	if meta.Status != uint8(ch.StatusActive) || !slices.Contains(meta.Replicas, n.cfg.NodeID) {
-		return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
-	}
-	if err := n.applyChannelMigrationLocalRuntimeMeta(ctx, meta); err != nil {
-		return ch.RuntimeProbeChannel{}, err
-	}
-	result, err = n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
-	if err != nil {
-		return ch.RuntimeProbeChannel{}, err
-	}
-	for _, probe := range result.Channels {
-		if probe.ChannelID == id {
-			return probe, nil
-		}
-	}
-	return ch.RuntimeProbeChannel{}, ch.ErrNotReady
+	return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
 }
 
 func (n *Node) applyChannelMigrationLocalRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) error {

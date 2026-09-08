@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -103,7 +104,8 @@ func inspectChannelCatalogPage(ctx context.Context, db *MessageDB, req InspectMe
 		if err != nil {
 			return nil, 0, false, err
 		}
-		if req.AfterChannelKey != "" && string(key) <= req.AfterChannelKey {
+		// Encoded catalog order is length-prefixed, not raw string order.
+		if req.AfterChannelKey != "" && string(key) == req.AfterChannelKey {
 			continue
 		}
 		scannedRows++
@@ -123,7 +125,7 @@ func inspectChannelCatalogPoint(ctx context.Context, db *MessageDB, channelKey s
 	if err := ctx.Err(); err != nil {
 		return nil, 0, false, err
 	}
-	if afterChannelKey != "" && channelKey <= afterChannelKey {
+	if afterChannelKey != "" && bytes.Compare(encodeCatalogKey(ChannelKey(channelKey)), encodeCatalogKey(ChannelKey(afterChannelKey))) <= 0 {
 		return nil, 0, true, nil
 	}
 	value, ok, err := db.engine.Get(encodeCatalogKey(ChannelKey(channelKey)))

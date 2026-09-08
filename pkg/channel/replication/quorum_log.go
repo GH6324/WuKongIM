@@ -87,7 +87,7 @@ func newQuorumLog(cfg quorumLogConfig) (*quorumLog, error) {
 }
 
 func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed, error) {
-	if l == nil || ctx == nil || !validAuthority(authority) || len(authority.Voters) > l.cfg.MaxVoters || authority.Leader != l.cfg.Local {
+	if l == nil || ctx == nil || !validAuthority(authority) || len(authority.Voters) > l.cfg.MaxVoters || len(authority.Voters)+len(authority.Learners) > l.cfg.MaxVoters+1 || authority.Leader != l.cfg.Local {
 		return Installed{}, ch.ErrInvalidConfig
 	}
 	if err := ctx.Err(); err != nil {
@@ -117,9 +117,6 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 			if !sameAuthority(authority, state.authority) {
 				return Installed{}, ch.ErrLogConflict
 			}
-			if authority.WriteFence.Set() {
-				return Installed{}, ch.ErrWriteFenced
-			}
 			if state.ready {
 				return Installed{Authority: state.authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 			}
@@ -134,9 +131,9 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	if authorityAdvanced && l.cfg.RepairAuthorities != nil {
 		l.cfg.RepairAuthorities.InstallAuthority(authority)
 	}
-	if authority.WriteFence.Set() {
-		return Installed{}, ch.ErrWriteFenced
-	}
+	// Installation proves the native durable frontier while a transfer fence
+	// still blocks Commit. Requiring an unfenced authority here would deadlock
+	// the task that verifies the new leader before clearing that fence.
 
 	selection, err := recoverQuorumPrefix(ctx, recoveryProbeRequest{
 		ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
@@ -173,6 +170,7 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	state.pending = nil
 	state.retained = make(map[ch.CommandID]retainedProposal, l.cfg.MaxRetainedCommands)
 	state.order = state.order[:0]
+	l.scheduleLearners(state, 1)
 	return Installed{Authority: authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 }
 
@@ -355,7 +353,7 @@ func (l *quorumLog) finishCommit(state *quorumChannel, retained retainedProposal
 		First: proposal.first, Last: proposal.last, HW: proposal.last,
 	}
 	state.frontier = ReplicaState{
-		Prefix: state.frontier.Prefix, LEO: proposal.last, Committed: proposal.committed,
+		LEO: proposal.last, Committed: proposal.committed,
 		Manifest: proposal.manifest, TailIdentity: entries[len(entries)-1],
 	}
 	state.hw = proposal.last
@@ -366,6 +364,7 @@ func (l *quorumLog) finishCommit(state *quorumChannel, retained retainedProposal
 	// Payloads are needed only while an outcome is unresolved.
 	retained.proposal.records = nil
 	l.remember(state, retained)
+	l.scheduleLearners(state, proposal.first)
 	return receipt, nil
 }
 
@@ -420,15 +419,8 @@ func sealBusinessProposal(
 		return durableProposal{}, ch.ErrInvalidConfig
 	}
 	frozen := immutableProposalRecords(records, payloadsImmutable)
-	version := ch.ProposalManifestVersion
-	for _, record := range frozen {
-		if record.Protocol != (ch.ProtocolFields{}) {
-			version = ch.FullMessageProposalVersion
-			break
-		}
-	}
 	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
-		Version:      version,
+		Version:      ch.ProposalManifestVersion,
 		ChannelEpoch: authority.ID.ChannelEpoch, LeaderTerm: authority.ID.LeaderTerm, FenceVersion: authority.ID.FenceVersion,
 		CommandID: command, BaseOffset: frontier.LEO, LastOffset: frontier.LEO + uint64(len(frozen)),
 		PreviousTerm: frontier.TailIdentity.LeaderTerm, PreviousIndex: frontier.LEO, PreviousDigest: frontier.TailIdentity.Digest,
@@ -455,10 +447,10 @@ func immutableProposalRecords(records []ch.Record, payloadsImmutable bool) []ch.
 func validProposalRecords(records []ch.Record, maxBytes int) bool {
 	total := 0
 	for _, record := range records {
-		if record.ID == 0 || record.Epoch == 0 || record.ServerTimestampMS <= 0 || record.SizeBytes != len(record.Payload)+record.Protocol.SizeBytes() {
+		if record.ID == 0 || record.Epoch == 0 || record.ServerTimestampMS <= 0 || record.SizeBytes != len(record.Payload) {
 			return false
 		}
-		item := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload) + record.Protocol.SizeBytes()
+		item := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
 		if item > maxBytes-total {
 			return false
 		}
@@ -486,12 +478,13 @@ func cloneRecords(records []ch.Record) []ch.Record {
 
 func cloneAuthority(authority Authority) Authority {
 	authority.Voters = append([]ch.NodeID(nil), authority.Voters...)
+	authority.Learners = append([]ch.NodeID(nil), authority.Learners...)
 	return authority
 }
 
 func sameAuthority(left, right Authority) bool {
 	return left.Key == right.Key && left.ChannelID == right.ChannelID && left.ID == right.ID && left.Leader == right.Leader &&
-		left.WriteQuorum == right.WriteQuorum && left.WriteFence == right.WriteFence && reflect.DeepEqual(left.Voters, right.Voters)
+		left.WriteQuorum == right.WriteQuorum && left.WriteFence == right.WriteFence && reflect.DeepEqual(left.Voters, right.Voters) && reflect.DeepEqual(left.Learners, right.Learners)
 }
 
 func compareAuthorityID(left, right AuthorityID) int {
@@ -513,4 +506,20 @@ func compareAuthorityID(left, right AuthorityID) int {
 func frontierUsesAuthority(frontier ReplicaState, authority AuthorityID) bool {
 	return frontier.LEO > 0 && frontier.Manifest.ChannelEpoch == authority.ChannelEpoch &&
 		frontier.Manifest.LeaderTerm == authority.LeaderTerm && frontier.Manifest.FenceVersion == authority.FenceVersion
+}
+
+// scheduleLearners transfers only quorum-proven progress to bounded background
+// workers. Learners never participate in recovery selection or write quorum.
+func (l *quorumLog) scheduleLearners(state *quorumChannel, from uint64) {
+	sink, ok := l.cfg.RepairAuthorities.(followerRepairSink)
+	if !ok || state.hw == 0 {
+		return
+	}
+	for _, learner := range state.authority.Learners {
+		sink.RecordFollowerRepair(followerRepair{
+			channelKey: state.authority.Key, channelID: state.authority.ChannelID,
+			leader: state.authority.Leader, follower: learner, manifest: state.frontier.Manifest,
+			needFrom: from, committed: state.hw,
+		})
+	}
 }

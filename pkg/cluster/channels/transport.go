@@ -330,7 +330,7 @@ func (c *TransportClient) callCompatible(node uint64, requireCurrent bool, encod
 		return response, err
 	}
 	if err == nil {
-		if requireCurrent && !hasAuthorityCodec(response) {
+		if requireCurrent && (len(response) == 0 || (response[0] != codecVersion && response[0] != legacyCodecVersionV7 && response[0] != legacyCodecVersionV6)) {
 			// Authority reads require at least a v6 response. A v5 success frame
 			// omits retention and write-fence fields.
 			state.applyLegacy(requestGeneration, time.Now().Add(legacyCodecProbeInterval))
@@ -354,7 +354,7 @@ func (c *TransportClient) callCompatible(node uint64, requireCurrent bool, encod
 		if legacyErr != nil {
 			return legacyResponse, legacyErr
 		}
-		if !hasAuthorityCodec(legacyResponse) {
+		if len(legacyResponse) == 0 || (legacyResponse[0] != legacyCodecVersionV6 && legacyResponse[0] != legacyCodecVersionV7 && legacyResponse[0] != codecVersion) {
 			return nil, errInvalidCodecFrame
 		}
 		return legacyResponse, nil
@@ -377,14 +377,10 @@ func pullBatchNeedsMeta(req channeltransport.PullBatchRequest) bool {
 }
 
 func validateAuthorityCodec(payload []byte, needMeta bool) error {
-	if needMeta && !hasAuthorityCodec(payload) {
+	if needMeta && (len(payload) == 0 || (payload[0] != legacyCodecVersionV6 && payload[0] != legacyCodecVersionV7 && payload[0] != codecVersion)) {
 		return errInvalidCodecFrame
 	}
 	return nil
-}
-
-func hasAuthorityCodec(payload []byte) bool {
-	return len(payload) > 0 && (payload[0] == legacyCodecVersionV6 || payload[0] == legacyCodecVersionV7 || payload[0] == codecVersion)
 }
 
 func (c *TransportClient) cacheLegacyCodecPeer(node uint64, until time.Time) {

@@ -427,6 +427,7 @@ type recordingChannelMessageReader struct {
 type recordingSyncMembershipStore struct {
 	row metadb.UserChannelMembership
 	ok  bool
+	err error
 }
 
 func liveSyncMembershipStore() *recordingSyncMembershipStore {
@@ -443,7 +444,7 @@ func (s staticSyncChannelStateStore) GetChannelForMessagePull(context.Context, s
 }
 
 func (s *recordingSyncMembershipStore) GetUserChannelMembership(context.Context, string, string, int64) (metadb.UserChannelMembership, bool, error) {
-	return s.row, s.ok, nil
+	return s.row, s.ok, s.err
 }
 
 func (r *recordingChannelMessageReader) SyncMessages(_ context.Context, query ChannelMessageQuery) (ChannelMessagePage, error) {

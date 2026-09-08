@@ -293,21 +293,10 @@ func appendEntryIdentity(dst []byte, identity ch.EntryIdentity) []byte {
 }
 
 func appendReplicaState(dst []byte, state ReplicaState) []byte {
-	// (LEO=0, committed=1) is impossible for an ordinary frontier. It marks a
-	// frontier extension that older nodes reject, while ordinary frames retain
-	// their original encoding, including the complete uint64 offset range.
-	extended := state.Prefix != (ch.ProposalManifest{})
-	if extended {
-		dst = append(dst, 0, 1)
-	}
 	dst = appendCodecUvarint(dst, state.LEO)
 	dst = appendCodecUvarint(dst, state.Committed)
 	dst = appendProposalManifest(dst, state.Manifest)
-	dst = appendEntryIdentity(dst, state.TailIdentity)
-	if extended {
-		dst = appendProposalManifest(dst, state.Prefix)
-	}
-	return dst
+	return appendEntryIdentity(dst, state.TailIdentity)
 }
 
 func appendRecords(dst []byte, records []ch.Record) []byte {
@@ -320,35 +309,12 @@ func appendRecords(dst []byte, records []ch.Record) []byte {
 		dst = appendCodecString(dst, record.FromUID)
 		dst = appendCodecString(dst, record.ClientMsgNo)
 		dst = binary.AppendVarint(dst, record.ServerTimestampMS)
-		// Bits 0/1 distinguish SyncOnce and the optional protocol extension.
-		// Original decoders reject values above 1, so an older target cannot
-		// silently discard imported fields. Ordinary frames stay byte-identical.
-		flags := byte(0)
-		if record.SyncOnce {
-			flags |= 1
-		}
-		if record.Protocol != (ch.ProtocolFields{}) {
-			flags |= 2
-		}
-		dst = append(dst, flags)
+		dst = appendCodecBool(dst, record.SyncOnce)
+		dst = appendCodecBool(dst, record.RedDot)
 		dst = appendCodecBytes(dst, record.Payload)
 		dst = appendCodecUvarint(dst, uint64(record.SizeBytes))
-		if flags&2 != 0 {
-			dst = appendProtocolFields(dst, record.Protocol)
-		}
 	}
 	return dst
-}
-
-func appendProtocolFields(dst []byte, p ch.ProtocolFields) []byte {
-	dst = append(dst, p.FramerFlags, p.StreamFlag)
-	dst = appendCodecUvarint(dst, uint64(p.Expire))
-	dst = appendCodecUvarint(dst, p.ClientSeq)
-	dst = appendCodecUvarint(dst, p.StreamID)
-	dst = binary.AppendVarint(dst, int64(p.Timestamp))
-	dst = appendCodecString(dst, p.MsgKey)
-	dst = appendCodecString(dst, p.StreamNo)
-	return appendCodecString(dst, p.Topic)
 }
 
 func appendCodecUvarint(dst []byte, value uint64) []byte { return binary.AppendUvarint(dst, value) }
@@ -651,21 +617,10 @@ func (c *exchangeCursor) entryIdentity() (ch.EntryIdentity, bool) {
 func (c *exchangeCursor) replicaState() (ReplicaState, bool) {
 	leo, okLEO := c.uvarint()
 	committed, okCommitted := c.uvarint()
-	extended := leo == 0 && committed == 1
-	if extended {
-		leo, okLEO = c.uvarint()
-		committed, okCommitted = c.uvarint()
-	}
 	manifest, okManifest := c.proposalManifest()
 	tail, okTail := c.entryIdentity()
-	var prefix ch.ProposalManifest
-	okPrefix := true
-	if extended {
-		prefix, okPrefix = c.proposalManifest()
-		okPrefix = okPrefix && prefix != (ch.ProposalManifest{})
-	}
-	return ReplicaState{Prefix: prefix, LEO: leo, Committed: committed, Manifest: manifest, TailIdentity: tail},
-		okLEO && okCommitted && okManifest && okTail && okPrefix
+	return ReplicaState{LEO: leo, Committed: committed, Manifest: manifest, TailIdentity: tail},
+		okLEO && okCommitted && okManifest && okTail
 }
 
 func (c *exchangeCursor) records() ([]ch.Record, bool) {
@@ -682,39 +637,18 @@ func (c *exchangeCursor) records() ([]ch.Record, bool) {
 		fromUID, okFrom := c.string()
 		clientMsgNo, okClient := c.string()
 		timestamp, okTimestamp := c.varint()
-		flags, okSync := c.byte()
-		okSync = okSync && flags <= 3
+		syncOnce, okSync := c.boolean()
+		redDot, okRedDot := c.boolean()
 		payload, okPayload := c.bytes()
 		sizeBytes, okSize := c.uvarint()
 		if sizeBytes > math.MaxInt {
 			okSize = false
 		}
-		var protocol ch.ProtocolFields
-		okProtocol := true
-		if flags&2 != 0 {
-			protocol, okProtocol = c.protocolFields()
-		}
 		records[index] = ch.Record{
-			Protocol: protocol,
-			ID:       id, Index: recordIndex, Epoch: epoch, Setting: setting, FromUID: fromUID, ClientMsgNo: clientMsgNo,
-			ServerTimestampMS: timestamp, SyncOnce: flags&1 != 0, Payload: payload, SizeBytes: int(sizeBytes),
+			ID: id, Index: recordIndex, Epoch: epoch, Setting: setting, FromUID: fromUID, ClientMsgNo: clientMsgNo,
+			ServerTimestampMS: timestamp, SyncOnce: syncOnce, RedDot: redDot, Payload: payload, SizeBytes: int(sizeBytes),
 		}
-		okCount = okCount && okID && okIndex && okEpoch && okSetting && okFrom && okClient && okTimestamp && okSync && okPayload && okSize && okProtocol
+		okCount = okCount && okID && okIndex && okEpoch && okSetting && okFrom && okClient && okTimestamp && okSync && okRedDot && okPayload && okSize
 	}
 	return records, okCount
-}
-
-func (c *exchangeCursor) protocolFields() (ch.ProtocolFields, bool) {
-	flags, a := c.byte()
-	streamFlag, b := c.byte()
-	expire, d := c.uvarint()
-	clientSeq, e := c.uvarint()
-	streamID, f := c.uvarint()
-	timestamp, g := c.varint()
-	msgKey, h := c.string()
-	streamNo, i := c.string()
-	topic, j := c.string()
-	p := ch.ProtocolFields{FramerFlags: flags, StreamFlag: streamFlag, Expire: uint32(expire),
-		ClientSeq: clientSeq, StreamID: streamID, Timestamp: int32(timestamp), MsgKey: msgKey, StreamNo: streamNo, Topic: topic}
-	return p, a && b && d && e && f && g && h && i && j && expire <= math.MaxUint32 && timestamp >= math.MinInt32 && timestamp <= math.MaxInt32 && p.Valid()
 }

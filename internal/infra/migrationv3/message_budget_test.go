@@ -2,8 +2,6 @@ package migrationv3_test
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,11 +28,11 @@ func TestImportedMessageBatchesRemainRecoverable(t *testing.T) {
 	}{
 		{name: "large batch", channelID: "budget-room", count: 64, payloadBytes: 32 << 10},
 		// Native bytes fit one MiB but the neutral identity/protocol cost does not.
-		{name: "replication overhead", channelID: "budget-room", count: 64, payloadBytes: 16244},
+		{name: "replication overhead", channelID: "budget-room", count: 64, payloadBytes: 16300},
 		// The native row repeats Channel ID; peer record accounting does not.
 		{name: "native encoding overhead", channelID: strings.Repeat("room", 100), count: 64, payloadBytes: 16200},
-		// One message has 140 bytes of neutral overhead: exact budget must work.
-		{name: "exact single record boundary", channelID: "budget-room", count: 1, payloadBytes: (1 << 20) - 140},
+		// One message has 102 bytes of neutral overhead: exact budget must work.
+		{name: "exact single record boundary", channelID: "budget-room", count: 1, payloadBytes: (1 << 20) - 102},
 	} {
 		t.Run(test.name, func(t *testing.T) { assertImportedMessagesRecover(t, test.channelID, test.count, test.payloadBytes) })
 	}
@@ -104,7 +102,7 @@ func assertImportedMessagesRecover(t *testing.T, channelID string, count, payloa
 }
 
 func TestDirectImportRejectsOversizedMessageBeforeCompletion(t *testing.T) {
-	w, plan, report, _ := messageImportPlan(t, "budget-room", 1, (1<<20)-139)
+	w, plan, report, _ := messageImportPlan(t, "budget-room", 1, (1<<20)-101)
 	require.ErrorContains(t, migrationv3.Install(context.Background(), plan, report, w), "native recovery page budget")
 	for _, seal := range []string{"MIGRATION-READY", "MIGRATION-COMPLETE"} {
 		_, err := os.Stat(filepath.Join(plan.Nodes[0].DataDir, seal))
@@ -113,7 +111,7 @@ func TestDirectImportRejectsOversizedMessageBeforeCompletion(t *testing.T) {
 }
 
 func TestOfflineVerifyRejectsCompletedOversizedProposals(t *testing.T) {
-	for _, payloadBytes := range []int{32 << 10, 16244} {
+	for _, payloadBytes := range []int{32 << 10, 16300} {
 		t.Run(fmt.Sprint(payloadBytes), func(t *testing.T) {
 			ctx := context.Background()
 			w, plan, report, id := messageImportPlan(t, "budget-room", 64, payloadBytes)
@@ -133,9 +131,9 @@ func TestOfflineVerifyRejectsCompletedOversizedProposals(t *testing.T) {
 				row, err := message.EncodeMessageRecord(m, 1)
 				require.NoError(t, err)
 				rows = append(rows, row)
-				records = append(records, quorumlog.Record{ID: seq, Index: seq, Epoch: 1, FromUID: m.FromUID, ClientMsgNo: m.ClientMsgNo, ServerTimestampMS: m.ServerTimestampMS, Payload: m.Payload, Protocol: quorumlog.ProtocolFields{Timestamp: m.Timestamp}})
+				records = append(records, quorumlog.Record{ID: seq, Index: seq, Epoch: 1, FromUID: m.FromUID, ClientMsgNo: m.ClientMsgNo, ServerTimestampMS: m.ServerTimestampMS, Payload: m.Payload})
 			}
-			proposal, _, ok := quorumlog.SealProposalManifest(quorumlog.ProposalManifest{Version: quorumlog.FullMessageProposalVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: quorumlog.CommandID{1}, LastOffset: 64}, records)
+			proposal, _, ok := quorumlog.SealProposalManifest(quorumlog.ProposalManifest{Version: quorumlog.ProposalManifestVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: quorumlog.CommandID{1}, LastOffset: 64}, records)
 			require.True(t, ok)
 			result := message.StoreAppendBatch(ctx, []message.AppendBatchItem{{Store: log, Records: rows, ExactBaseOffset: true, Proposal: proposal, Committed: 64}})
 			require.NoError(t, result[0].Err)
@@ -158,11 +156,15 @@ func messageImportPlan(t *testing.T, channelID string, count, payloadBytes int) 
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, w.Close()) })
 	id := ch.ChannelID{ID: channelID, Type: 2}
-	marshal := func(value any) []byte { data, err := json.Marshal(value); require.NoError(t, err); return data }
+	marshal := func(value any) []byte {
+		data, err := migration.MarshalState(value)
+		require.NoError(t, err)
+		return data
+	}
 	put := func(key string, value any) {
 		require.NoError(t, w.Put(ctx, []transfer.SpoolRow{{Key: []byte(key), Value: marshal(value)}}))
 	}
-	tuple := base64.RawURLEncoding.EncodeToString(marshal([]any{id.ID, id.Type}))
+	tuple := migration.IdentityKey(id.ID, id.Type)
 	report := migration.TargetRecordsReport{SelectionDigest: strings.Repeat("1", 64), Digest: strings.Repeat("2", 64), Messages: uint64(count), MessageChannels: 1, MaxMessageID: uint64(count)}
 	put("conversion/COMPLETE", report)
 	put("target/channels/"+tuple, migration.TargetChannel{Channel: migration.ChannelIdentity{ID: id.ID, Type: id.Type}, LastSeq: uint64(count), Count: uint64(count)})

@@ -22,7 +22,7 @@ func TestStoppedOriginalSourceSelectionPreservesHistoryAndRecoversOnlyAbsentConv
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, spool, reader)
 	require.NoError(t, err)
-	selected, err := migration.SelectSources(ctx, capture, catalog, spool, reader)
+	selected, err := migration.SelectSources(ctx, capture, catalog, spool, reader, nil)
 	require.NoError(t, err)
 	require.Equal(t, uint64(4), selected.Tables["Message"])
 	var messages []uint64
@@ -91,7 +91,7 @@ func TestStoppedOriginalSourceSelectionPreservesHistoryAndRecoversOnlyAbsentConv
 	require.Equal(t, uint64(3), bobRead)
 	require.Equal(t, uint64(3), bobDeleted)
 	require.Equal(t, uint64(1), pendingRead)
-	resumed, err := migration.SelectSources(ctx, capture, catalog, spool, reader)
+	resumed, err := migration.SelectSources(ctx, capture, catalog, spool, reader, nil)
 	require.NoError(t, err)
 	require.Equal(t, selected, resumed)
 }

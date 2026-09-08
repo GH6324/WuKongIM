@@ -1,5 +1,7 @@
 # Migration E2E
 
-Migration scenarios run the real `cmd/wkmigrate` CLI followed by real
-`cmd/wukongim` processes. They use stopped original-release fixtures and public
-HTTP/WKProto observations. Never import app, use cases, or database internals.
+Migration scenarios run the real `cmd/wkmigrate` CLI and, after successful
+verification, real `cmd/wukongim` processes. Unsupported input must fail before
+target creation; do not claim a refusal scenario proves successful migration.
+Use stopped original-release fixtures and public HTTP/WKProto observations.
+Never import app, use cases, or database internals.

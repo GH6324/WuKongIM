@@ -171,6 +171,8 @@ type SyncChannelMessagesBatchResult struct {
 type preparedSyncChannelMessages struct {
 	query     ChannelMessageQuery
 	eventMode string
+	// empty marks a new person conversation without membership; never read its history.
+	empty bool
 }
 
 // SyncChannelMessages returns a compatible message page for a channel.
@@ -179,8 +181,11 @@ func (a *App) SyncChannelMessages(ctx context.Context, query SyncChannelMessages
 	if err != nil {
 		return SyncChannelMessagesResult{}, err
 	}
+	if prepared.empty {
+		return SyncChannelMessagesResult{Messages: []SyncedMessage{}}, nil
+	}
 	page, err := a.reader.SyncMessages(ctx, prepared.query)
-	if errors.Is(err, metadb.ErrNotFound) {
+	if errors.Is(err, metadb.ErrNotFound) || errors.Is(err, ErrChannelNotFound) {
 		return SyncChannelMessagesResult{Messages: []SyncedMessage{}}, nil
 	}
 	if err != nil {
@@ -207,7 +212,9 @@ func (a *App) SyncChannelMessagesBatch(ctx context.Context, query SyncChannelMes
 		return SyncChannelMessagesBatchResult{}, ErrSyncBatchReaderRequired
 	}
 	prepared := make([]preparedSyncChannelMessages, len(query.Items))
-	reads := make([]ChannelMessageQuery, len(query.Items))
+	reads := make([]ChannelMessageQuery, 0, len(query.Items))
+	readIndexes := make([]int, 0, len(query.Items))
+	result := SyncChannelMessagesBatchResult{Items: make([]SyncChannelMessagesBatchItem, len(query.Items))}
 	for index, item := range query.Items {
 		item.LoginUID = loginUID
 		preparedItem, err := a.prepareSyncChannelMessages(ctx, item)
@@ -215,22 +222,29 @@ func (a *App) SyncChannelMessagesBatch(ctx context.Context, query SyncChannelMes
 			return SyncChannelMessagesBatchResult{}, err
 		}
 		prepared[index] = preparedItem
-		reads[index] = preparedItem.query
+		result.Items[index] = SyncChannelMessagesBatchItem{
+			ChannelID: item.ChannelID, ChannelType: item.ChannelType,
+			Result: SyncChannelMessagesResult{Messages: []SyncedMessage{}},
+		}
+		if !preparedItem.empty {
+			reads = append(reads, preparedItem.query)
+			readIndexes = append(readIndexes, index)
+		}
+	}
+	if len(reads) == 0 {
+		return result, nil
 	}
 	readResults, err := batchReader.SyncMessagesBatch(ctx, reads)
 	if err != nil {
 		return SyncChannelMessagesBatchResult{}, err
 	}
-	if len(readResults) != len(query.Items) {
+	if len(readResults) != len(reads) {
 		return SyncChannelMessagesBatchResult{}, ErrSyncBatchResultMismatch
 	}
-	result := SyncChannelMessagesBatchResult{Items: make([]SyncChannelMessagesBatchItem, len(query.Items))}
-	for index, readResult := range readResults {
+	for readIndex, readResult := range readResults {
+		index := readIndexes[readIndex]
 		item := &result.Items[index]
-		item.ChannelID = query.Items[index].ChannelID
-		item.ChannelType = query.Items[index].ChannelType
-		if errors.Is(readResult.Err, metadb.ErrNotFound) {
-			item.Result.Messages = []SyncedMessage{}
+		if errors.Is(readResult.Err, metadb.ErrNotFound) || errors.Is(readResult.Err, ErrChannelNotFound) {
 			continue
 		}
 		if readResult.Err != nil {
@@ -274,6 +288,11 @@ func (a *App) prepareSyncChannelMessages(ctx context.Context, query SyncChannelM
 	membership, ok, err := a.memberships.GetUserChannelMembership(ctx, loginUID, channelID, int64(query.ChannelType))
 	if err != nil {
 		return preparedSyncChannelMessages{}, err
+	}
+	if !ok && query.ChannelType == channelTypePerson {
+		// The first persistent person SEND establishes membership. Opening a new
+		// chat before then has no visible history and must not create membership.
+		return preparedSyncChannelMessages{empty: true}, nil
 	}
 	if !ok || membership.Tombstone {
 		return preparedSyncChannelMessages{}, ErrSyncMembershipRequired

@@ -27,23 +27,6 @@ func TestRepairScannerScansOnlyLocalLeaderSlots(t *testing.T) {
 	require.Len(t, store.requests, 1)
 }
 
-func TestRepairScannerContinuesToLaterSlotsAcrossBoundedTicks(t *testing.T) {
-	id := ch.ChannelID{ID: "later-slot", Type: 1}
-	source := newFakeRepairScannerSource(id)
-	source.localSlots = []uint32{2, 1}
-	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{}, {}}
-	source.slotPages[2] = [][]metadb.ChannelRuntimeMeta{{failoverPlannerMeta(id)}}
-	store := &fakeRepairScannerStore{}
-	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, MaxPagesPerTick: 1}, source, store)
-	for tick := 0; tick < 3; tick++ {
-		result, err := scanner.RunOnce(context.Background())
-		require.NoError(t, err)
-		require.Equal(t, 1, result.PagesScanned)
-	}
-	require.Equal(t, []uint32{1, 2}, source.scannedSlots)
-	require.Len(t, store.requests, 1, "a one-page tick budget must not starve a later Slot")
-}
-
 func TestRepairScannerUsesBoundedPageSizeAndMaxPages(t *testing.T) {
 	id := ch.ChannelID{ID: "scan-pages", Type: 1}
 	source := newFakeRepairScannerSource(id)

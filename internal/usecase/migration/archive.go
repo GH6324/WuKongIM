@@ -81,7 +81,7 @@ func ExportSourceArchive(ctx context.Context, options SourceArchiveOptions, capt
 	}
 	var buffer bytes.Buffer
 	var rows uint64
-	for _, prefix := range []string{"source/", "catalog/", "selected/"} {
+	for _, prefix := range []string{"source/", "catalog/", "selected/", "plugin-artifacts/"} {
 		flush := func() error {
 			if rows == 0 {
 				return nil
@@ -199,6 +199,8 @@ func ReadSourceArchive(ctx context.Context, store artifact.ArchiveStore, visit f
 			prefix = 2
 		case "selected/":
 			prefix = 3
+		case "plugin-artifacts/":
+			prefix = 4
 		}
 		if prefix == 0 || prefix < previousPrefix || chunk.Path != fmt.Sprintf("chunks/%08d.jsonl", index) || chunk.Rows == 0 || chunk.Rows > 1000000 || chunk.Bytes == 0 || chunk.Bytes > maxArchiveRecordBytes {
 			return manifest, errors.New("invalid migration source chunk descriptor")

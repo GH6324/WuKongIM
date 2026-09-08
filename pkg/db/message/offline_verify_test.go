@@ -21,7 +21,7 @@ func TestOfflineImportedLogVerificationRejectsCorruptInteriorIdentity(t *testing
 		compatExactTestRecord(t, 1, 902, id.ID, "second"),
 	}
 	manifest := sealCompatProposalManifest(t, DurableProposalManifest{
-		Version: quorumlog.FullMessageProposalVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1,
+		Version: quorumlog.ProposalManifestVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1,
 		CommandID: quorumlog.CommandID{1}, LastOffset: 2,
 	}, records)
 	result := StoreAppendBatch(ctx, []AppendBatchItem{{Store: store, Records: records, ExactBaseOffset: true, Proposal: manifest, Committed: 2}})

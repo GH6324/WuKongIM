@@ -3,20 +3,45 @@ package migration
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"time"
 )
 
 // BusinessFacts contains decoded values from one authoritative original row.
 // Target placement and policy joins remain the migration use case's job.
 type BusinessFacts struct {
-	Member       *SourceMember
-	Message      *channelcompat.Message
-	Conversation *SourceConversation
-	User         *SourceUser
-	Channel      *SourceChannel
-	Device       *SourceDevice
-	EventState   *meta.MessageEventState
-	EventCursor  *meta.MessageEventCursor
-	Tail         *SourceMessageTail
+	// CMDMessage follows the pinned source routing and SyncOnce semantics.
+	CMDMessage    bool
+	Member        *SourceMember
+	Message       *channelcompat.Message
+	Conversation  *SourceConversation
+	User          *SourceUser
+	Channel       *SourceChannel
+	Device        *SourceDevice
+	EventState    *meta.MessageEventState
+	EventCursor   *meta.MessageEventCursor
+	Tail          *SourceMessageTail
+	PluginBinding *SourcePluginBinding
+	Plugin        *SourcePlugin
+}
+
+// SourcePlugin retains original node-local configuration and registration.
+// Registration is not a replacement for the executable or runtime proof.
+type SourcePlugin struct {
+	No, Name, Version      string
+	Methods                []string
+	Config, ConfigTemplate []byte
+	Status, Priority       uint32
+	CreatedAt, UpdatedAt   *time.Time
+}
+
+// SourcePluginBinding is the original runtime binding, independent of the
+// obsolete User.PluginNo field. Original nanosecond timestamps remain exact.
+type SourcePluginBinding struct {
+	SourceID    uint64 `json:"source_id"`
+	UID         string `json:"uid"`
+	PluginNo    string `json:"plugin_no"`
+	CreatedAtNS int64  `json:"created_at_ns"`
+	UpdatedAtNS int64  `json:"updated_at_ns"`
 }
 
 // SourceMessageTail retains the original append boundary and its wall-clock

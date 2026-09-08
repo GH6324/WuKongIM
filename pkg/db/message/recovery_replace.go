@@ -87,7 +87,7 @@ func (s *ChannelStore) ReadDurableRecoveryPage(ctx context.Context, req DurableR
 		return DurableRecoveryPage{}, toChannelError(err)
 	}
 	page := DurableRecoveryPage{DurableFrontier: frontier}
-	used, recoveryUsed := 0, 0
+	used := 0
 	proposal := firstProposal
 	for {
 		if proposal.manifest.LastOffset > req.Through {
@@ -118,7 +118,7 @@ func (s *ChannelStore) ReadDurableRecoveryPage(ctx context.Context, req DurableR
 		if convertErr != nil {
 			return DurableRecoveryPage{}, toChannelError(convertErr)
 		}
-		proposalBytes, proposalRecoveryBytes := 0, 0
+		proposalBytes := 0
 		entries := make([]DurableEntryProbe, len(records))
 		for index, record := range records {
 			recordBytes := record.SizeBytes
@@ -126,12 +126,6 @@ func (s *ChannelStore) ReadDurableRecoveryPage(ctx context.Context, req DurableR
 				return DurableRecoveryPage{}, channel.ErrBackpressured
 			}
 			proposalBytes += recordBytes
-			row := rows[index]
-			recoveryBytes := quorumlog.RecoveryRecordBytes(row.FromUID, row.ClientMsgNo, len(row.Payload), rowProtocolFields(row))
-			if proposalRecoveryBytes > req.MaxBytes-recoveryBytes {
-				return DurableRecoveryPage{}, channel.ErrBackpressured
-			}
-			proposalRecoveryBytes += recoveryBytes
 			identity, identityPresent, loadErr := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, record.Index)
 			if loadErr != nil || !identityPresent || identity.Index != record.Index || identity.CommandID != proposal.manifest.CommandID {
 				if loadErr == nil {
@@ -143,14 +137,13 @@ func (s *ChannelStore) ReadDurableRecoveryPage(ctx context.Context, req DurableR
 			records[index] = record
 			entries[index] = DurableEntryProbe{Index: record.Index, Present: true, Identity: identity}
 		}
-		if used > req.MaxBytes-proposalBytes || recoveryUsed > req.MaxBytes-proposalRecoveryBytes {
+		if used > req.MaxBytes-proposalBytes {
 			if len(page.Records) == 0 {
 				return DurableRecoveryPage{}, channel.ErrBackpressured
 			}
 			break
 		}
 		used += proposalBytes
-		recoveryUsed += proposalRecoveryBytes
 		page.Records = append(page.Records, records...)
 		page.Entries = append(page.Entries, entries...)
 		if proposal.manifest.LastOffset == req.Through {
@@ -202,11 +195,6 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 	if current != req.Expected || req.KeepThrough > current.LEO || req.KeepThrough < current.Committed ||
 		req.Committed < current.Committed {
 		return recoveryReplaceError(channel.ErrCorruptState), channel.ErrCorruptState
-	}
-	for _, proposal := range req.Proposals {
-		if proposal.Manifest.Version == quorumlog.ImportedPrefixVersion {
-			return s.replaceImportedPrefixLocked(req)
-		}
 	}
 	retention, present, err := s.log.loadRetentionState(ctx)
 	if err != nil {
@@ -320,31 +308,7 @@ func (s *ChannelStore) loadDurableFrontierLocked(ctx context.Context) (DurableFr
 		return DurableFrontier{}, Checkpoint{}, dberrors.ErrCorruptState
 	}
 	frontier := DurableFrontier{LEO: leo, Committed: checkpoint.HW}
-	first, hasFirst, err := s.firstDurableProposal(ctx)
-	if err != nil {
-		return DurableFrontier{}, Checkpoint{}, err
-	}
-	if hasFirst && first.manifest.Version == quorumlog.ImportedPrefixVersion {
-		prefix := first.manifest
-		boundary, valid := quorumlog.ImportedPrefixEntry(prefix)
-		stored, found, err := loadDurableEntryIdentityFrom(s.log.db.engine, s.log.key, prefix.LastOffset)
-		if err != nil {
-			return DurableFrontier{}, Checkpoint{}, err
-		}
-		retention, retained, err := s.log.loadRetentionState(ctx)
-		if err != nil {
-			return DurableFrontier{}, Checkpoint{}, err
-		}
-		if !valid || !found || stored != boundary || !retained || retention.LocalRetentionThroughSeq < prefix.LastOffset ||
-			prefix.LastOffset > leo || prefix.LastOffset > checkpoint.HW || checkpoint.LogStartOffset < prefix.LastOffset {
-			return DurableFrontier{}, Checkpoint{}, dberrors.ErrCorruptState
-		}
-		frontier.Prefix = prefix
-	}
 	if leo == 0 {
-		if hasFirst {
-			return DurableFrontier{}, Checkpoint{}, dberrors.ErrCorruptState
-		}
 		return frontier, checkpoint, nil
 	}
 	proposal, present, err := loadDurableProposalPairByLast(s.log.db.engine, s.log.key, leo)

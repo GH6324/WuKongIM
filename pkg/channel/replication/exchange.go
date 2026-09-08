@@ -4,11 +4,10 @@ import (
 	"context"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 // ExchangeVersion is the only supported data-bearing peer protocol version.
-const ExchangeVersion uint16 = 3
+const ExchangeVersion uint16 = 4
 
 // ExchangePriority separates quorum-critical work from trailing convergence
 // without changing the durability or validation required at the follower.
@@ -97,14 +96,8 @@ func replicateProofFor(request ReplicateRequest) ReplicateProof {
 
 // Valid reports whether the request carries one complete immutable proposal.
 func (r ReplicateRequest) Valid() bool {
-	if r.ChannelKey == "" || r.ChannelID.ID == "" || r.Leader == 0 || r.Follower == 0 || r.Leader == r.Follower {
-		return false
-	}
-	if r.Manifest.Version == quorumlog.ImportedPrefixVersion {
-		_, ok := quorumlog.ImportedPrefixEntry(r.Manifest)
-		return ok && len(r.Records) == 0 && r.Committed == r.Manifest.LastOffset && !r.ServerAllocatedMessageIDs
-	}
-	if !r.Manifest.ValidFor(r.Manifest.BaseOffset, len(r.Records)) || r.Committed > r.Manifest.LastOffset {
+	if r.ChannelKey == "" || r.ChannelID.ID == "" || r.Leader == 0 || r.Follower == 0 || r.Leader == r.Follower ||
+		!r.Manifest.ValidFor(r.Manifest.BaseOffset, len(r.Records)) || r.Committed > r.Manifest.LastOffset {
 		return false
 	}
 	entries, ok := ch.DeriveProposalEntries(r.Manifest, len(r.Records), func(index int) ch.Record { return r.Records[index] })
@@ -270,7 +263,7 @@ func estimateReplicateRequestBytes(request ReplicateRequest) int {
 	const fixedBytes = 256
 	total := fixedBytes + len(request.ChannelKey) + len(request.ChannelID.ID)
 	for _, record := range request.Records {
-		total += quorumlog.RecoveryRecordBytes(record.FromUID, record.ClientMsgNo, len(record.Payload), record.Protocol)
+		total += 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
 	}
 	return total
 }

@@ -151,7 +151,6 @@ func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.Comm
 
 func cmdSyncedMessageFromChannel(msg channelruntime.Message) cmdsync.SyncedMessage {
 	return cmdsync.SyncedMessage{
-		Protocol: msg.Protocol, Setting: msg.Setting,
 		MessageID:         msg.MessageID,
 		MessageSeq:        msg.MessageSeq,
 		ChannelID:         msg.ChannelID,

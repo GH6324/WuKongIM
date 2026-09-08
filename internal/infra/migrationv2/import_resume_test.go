@@ -53,7 +53,7 @@ func testNativeImportResume(t *testing.T, phase string) {
 	require.NoError(t, err)
 	defer w.Close()
 	r := migrationv2.Reader{}
-	plan := migration.Plan{Version: 1, SourceCommit: migrationv2.SourceCommit, Sources: []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: unpackNamedFixture(t, "original-v2-server.tar.gz"), ShardCount: 2}}}, Target: migration.TargetPlan{ClusterID: "resume-fixture", CreatedAt: time.Unix(1788670602, 0).UTC(), SlotCount: 4, HashSlotCount: 256, Replicas: 1, ChannelReplicas: 1, Nodes: []migration.TargetNode{{NodeID: 101, Addr: "127.0.0.1:57884", DataDir: filepath.Join(t.TempDir(), "node")}}}}
+	plan := migration.Plan{Version: 1, SourceCommit: migrationv2.SourceCommit, Sources: []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: compatibleMessageFixture(t), ShardCount: 2}}}, Target: migration.TargetPlan{ClusterID: "resume-fixture", CreatedAt: time.Unix(1788670602, 0).UTC(), SlotCount: 4, HashSlotCount: 256, Replicas: 1, ChannelReplicas: 1, Nodes: []migration.TargetNode{{NodeID: 101, Addr: "127.0.0.1:57884", DataDir: filepath.Join(t.TempDir(), "node")}}}}
 	p, err := migration.Prepare(ctx, plan, w, r, r, nil)
 	require.NoError(t, err)
 	err = migrationv3.Install(ctx, plan.Target, p.Conversion, &interruptedImport{Workspace: w, remaining: 4, phase: phase})

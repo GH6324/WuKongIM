@@ -147,7 +147,7 @@ func TestSourceIndexesAcceptOriginalServerFixtures(t *testing.T) {
 func TestSourceIndexesPreserveSparseAdministrativeRowsAndInertMessageResidue(t *testing.T) {
 	for _, mode := range []string{"sparse-administrative", "retained-prefix"} {
 		t.Run(mode, func(t *testing.T) {
-			source := unpackNamedFixture(t, "original-v2-server.tar.gz")
+			source := compatibleMessageFixture(t)
 			changed := rewriteOriginalIndexFixture(t, source, func(key, value []byte, b *pebble.Batch) bool {
 				table, kind := binary.BigEndian.Uint16(key), key[2]
 				if mode == "sparse-administrative" && (kind == 2 || kind == 3) {
@@ -167,10 +167,11 @@ func TestSourceIndexesPreserveSparseAdministrativeRowsAndInertMessageResidue(t *
 				return false
 			})
 			require.Positive(t, changed)
-			prepared, err := prepareIndexFixture(t, source)
-			require.NoError(t, err)
+			_, err := prepareIndexFixture(t, source)
 			if mode == "retained-prefix" {
-				require.Equal(t, uint64(3), prepared.Conversion.Messages)
+				require.ErrorContains(t, err, "retained prefix")
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -196,7 +197,7 @@ func TestArchiveRebuildRejectsMissingSourceBusinessIndex(t *testing.T) {
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, w, reader)
 	require.NoError(t, err)
-	selected, err := migration.SelectSources(ctx, capture, catalog, w, reader)
+	selected, err := migration.SelectSources(ctx, capture, catalog, w, reader, nil)
 	require.NoError(t, err)
 	archive, err := archivefs.NewFileArchiveStore(filepath.Join(root, "archive"))
 	require.NoError(t, err)

@@ -16,7 +16,8 @@ It does not own product business policy or expose engine-specific APIs.
 - Table specifications and the registry drive primary/index behavior, inspect,
   snapshot, backup, restore, and deletion.
 - Multi-Hash-Slot batches lock shards in sorted order, commit once, then publish
-  cache invalidations.
+  cache invalidations. A neighboring logical rejection may cause one isolated
+  rebuild with fresh staged state while retaining the original locks.
 - There is no conversation table; table IDs 6 and 7 remain reserved and must
   not be reused.
 

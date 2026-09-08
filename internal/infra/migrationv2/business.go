@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/migration"
@@ -26,6 +27,50 @@ func (Reader) DecodeBusiness(row Row, id RecordIdentity) (facts migration.Busine
 		return facts, err
 	}
 	switch row.Table {
+	case "Plugin":
+		no := string(row.Fields["No"])
+		if row.Kind != migration.Primary || row.Shard != 0 || len(row.Key) != 12 || binary.BigEndian.Uint16(row.Key) != 0x1501 || row.Key[2] != byte(migration.Primary) || row.Key[3] != 0 || no == "" || row.ID != stringHash(no) || binary.BigEndian.Uint64(row.Key[4:]) != row.ID {
+			return facts, errors.New("invalid original node-local plugin identity")
+		}
+		allowed := map[string]bool{"No": true, "Name": true, "Version": true, "ConfigTemplate": true, "CreatedAt": true, "UpdatedAt": true, "Status": true, "Methods": true, "Priority": true, "Config": true}
+		for k := range row.Fields {
+			if !allowed[k] {
+				return facts, errors.New("unknown original plugin field")
+			}
+		}
+		for _, k := range []string{"No", "Name", "Version"} {
+			if !utf8.Valid(row.Fields[k]) {
+				return facts, errors.New("invalid original plugin text")
+			}
+		}
+		desc, err := (Reader{}).Describe(row, id)
+		if err != nil {
+			return facts, err
+		}
+		status, err := optionalNumber(row, "Status", 4)
+		if err != nil {
+			return facts, err
+		}
+		priority, err := optionalNumber(row, "Priority", 4)
+		if err != nil {
+			return facts, err
+		}
+		p := &migration.SourcePlugin{No: no, Name: string(row.Fields["Name"]), Version: string(row.Fields["Version"]), Methods: append([]string(nil), desc.Plugin.Methods...), Config: bytes.Clone(row.Fields["Config"]), ConfigTemplate: bytes.Clone(row.Fields["ConfigTemplate"]), Status: uint32(status), Priority: uint32(priority)}
+		if _, ok := row.Fields["CreatedAt"]; ok {
+			t := time.Unix(0, created).UTC()
+			p.CreatedAt = &t
+		}
+		if _, ok := row.Fields["UpdatedAt"]; ok {
+			t := time.Unix(0, updated).UTC()
+			p.UpdatedAt = &t
+		}
+		facts.Plugin = p
+	case "PluginUser":
+		checked, err := Identify(row)
+		if err != nil || checked.UID != id.UID {
+			return facts, errors.New("unresolved original plugin binding")
+		}
+		facts.PluginBinding = &migration.SourcePluginBinding{SourceID: row.ID, UID: id.UID, PluginNo: string(row.Fields["PluginNo"]), CreatedAtNS: created, UpdatedAtNS: updated}
 	case "Subscriber", "Allowlist", "Denylist":
 		if id.UID == "" || id.Channel.ID == "" || channelHash(id.Channel.ID, id.Channel.Type) != row.Owner {
 			return facts, errors.New("unresolved original member channel")
@@ -44,6 +89,7 @@ func (Reader) DecodeBusiness(row Row, id RecordIdentity) (facts migration.Busine
 			return facts, err
 		}
 		facts.Message = &message
+		facts.CMDMessage = isCMDMessage(message)
 	case "User":
 		if id.UID == "" {
 			return facts, errors.New("unresolved original account identity")

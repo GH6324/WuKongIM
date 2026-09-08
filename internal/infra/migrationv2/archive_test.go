@@ -26,7 +26,7 @@ func TestOriginalSourceArchiveRoundTripPreservesEveryCapturedAndSelectedRecord(t
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, workspace, reader)
 	require.NoError(t, err)
-	selection, err := migration.SelectSources(ctx, capture, catalog, workspace, reader)
+	selection, err := migration.SelectSources(ctx, capture, catalog, workspace, reader, nil)
 	require.NoError(t, err)
 	archivePath := filepath.Join(t.TempDir(), "archive")
 	archive, err := archivefs.NewFileArchiveStore(archivePath)

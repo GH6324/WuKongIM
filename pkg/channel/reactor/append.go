@@ -111,15 +111,15 @@ func appendRecordsFromMessages(messages []ch.Message, admittedAt time.Time, payl
 			payload = append([]byte(nil), msg.Payload...)
 		}
 		records[i] = ch.Record{
-			Protocol:          msg.Protocol,
 			ID:                msg.MessageID,
 			Setting:           msg.Setting,
 			FromUID:           msg.FromUID,
 			ClientMsgNo:       msg.ClientMsgNo,
 			Payload:           payload,
-			SizeBytes:         len(msg.Payload) + msg.Protocol.SizeBytes(),
+			SizeBytes:         len(msg.Payload),
 			ServerTimestampMS: serverTimestampMS,
 			SyncOnce:          msg.SyncOnce,
+			RedDot:            msg.RedDot,
 		}
 	}
 	return records

@@ -163,6 +163,9 @@ type runtimeChannel struct {
 	loading *storeLoadState
 	// quorumAuthority is the complete authority proven by the last successful install.
 	quorumAuthority replication.Authority
+	// quorumReadReady is set only after recovery and the current-authority barrier.
+	// Unlike CommitReady, a write fence does not make recovered reads unavailable.
+	quorumReadReady bool
 	// quorumInstall owns ApplyMeta futures until recovery and the term barrier finish.
 	quorumInstall *quorumInstallState
 	waiters       map[ch.OpID]*Future

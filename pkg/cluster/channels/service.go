@@ -195,7 +195,7 @@ type CommittedReadRequest struct {
 	ExpectedLeaderEpoch uint64
 	// ExpectedMinISR preserves quorum commit semantics during metadata lag.
 	ExpectedMinISR int
-	// localMeta is resolved on the serving Leader and never accepted from RPC.
+	// localMeta is resolved on the serving Leader and is never trusted from RPC.
 	localMeta ch.Meta
 }
 
@@ -276,21 +276,21 @@ type Config struct {
 
 // Service wraps Channel and exposes both client and replication surfaces.
 type Service struct {
-	runtime    channelRuntime
-	localNode  ch.NodeID
-	metaSource ChannelMetaSource
-	ensurer    ChannelMetaEnsurer
-	forward    ForwardClient
-	store      channelstore.Factory
-	metaCache  channelMetaCache
+	// replicaStore reads native exchange durability independently of reactor residency.
+	replicaStore replication.ReplicaStore
+	runtime      channelRuntime
+	localNode    ch.NodeID
+	metaSource   ChannelMetaSource
+	ensurer      ChannelMetaEnsurer
+	forward      ForwardClient
+	store        channelstore.Factory
+	metaCache    channelMetaCache
 	// metaApplyLocks serialize complete metadata application per channel shard.
 	// They prevent a delayed cached apply from following a newer explicit apply.
 	metaApplyLocks [channelMetaApplyLockCount]sync.Mutex
 	observer       any
 	migration      *MigrationStore
 	goroutines     *goruntimeregistry.Registry
-	// quorumReads requires current-authority recovery before a cold leader serves history.
-	quorumReads bool
 }
 
 // NewService creates a Service from cfg.
@@ -334,8 +334,16 @@ func NewService(cfg Config) (*Service, error) {
 	if !ok {
 		return nil, fmt.Errorf("channels: runtime must implement channel.Cluster and channel/transport.Server")
 	}
+	var replicaStore replication.ReplicaStore
+	if cfg.QuorumLog != nil && cfg.Store != nil {
+		var err error
+		replicaStore, err = replication.NewStoreAdapter(replication.StoreAdapterConfig{Factory: cfg.Store, MaxBatchItems: 1, MaxBatchBytes: replication.MaxExchangeBatchBytes})
+		if err != nil {
+			return nil, err
+		}
+	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
-	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines, quorumReads: cfg.QuorumLog != nil}, nil
+	return &Service{replicaStore: replicaStore, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
 }
 
 // Runtime returns the Channel public cluster surface.
@@ -828,66 +836,61 @@ func (s *Service) readLocalCommittedBatch(ctx context.Context, requests []Commit
 		}
 		return results
 	}
-	activation := make(map[ch.ChannelID]ch.Meta)
+	// A cold or recovering quorum Leader must prove its frontier even when
+	// local HW equals LEO: an empty or stale replica is not an empty history.
+	activationByID := make(map[ch.ChannelID]ch.Meta)
 	if itemErrors == nil {
 		itemErrors = make(map[ch.ChannelID]error)
 	}
 	for _, request := range requests {
-		if _, live := liveHW[request.ChannelID]; live || request.ExpectedMinISR <= 1 || itemErrors[request.ChannelID] != nil {
+		if request.ExpectedMinISR <= 1 || itemErrors[request.ChannelID] != nil {
 			continue
 		}
-		log, loadErr := s.store.ChannelStore(ch.ChannelKeyForID(request.ChannelID), request.ChannelID)
-		if loadErr != nil {
-			itemErrors[request.ChannelID] = loadErr
+		if _, ok := liveHW[request.ChannelID]; ok {
 			continue
 		}
-		state, loadErr := log.Load(ctx)
-		loadErr = errors.Join(loadErr, log.Close())
-		if loadErr != nil {
-			itemErrors[request.ChannelID] = loadErr
-			continue
-		}
-		if !s.quorumReads && state.LEO != 0 && state.HW == state.LEO {
-			continue
-		}
-		// An empty disk may be a lost Leader replica. Recover through the normal
-		// quorum install before reporting an empty or only partly committed log.
 		meta := request.localMeta
-		if meta.ID != request.ChannelID || meta.Leader != s.localNode || meta.Status != ch.StatusActive || meta.Epoch != request.ExpectedChannelEpoch || meta.LeaderEpoch != request.ExpectedLeaderEpoch || meta.MinISR != request.ExpectedMinISR {
+		if meta.ID != request.ChannelID || meta.Leader != s.localNode || meta.Status != ch.StatusActive ||
+			meta.Epoch != request.ExpectedChannelEpoch || meta.LeaderEpoch != request.ExpectedLeaderEpoch || meta.MinISR != request.ExpectedMinISR {
 			itemErrors[request.ChannelID] = ch.ErrNotReady
 			continue
 		}
-		activation[request.ChannelID] = meta
+		activationByID[request.ChannelID] = meta
 	}
-	if len(activation) > 0 {
-		for id, activationErr := range s.activateColdReadMetas(ctx, activation) {
-			if activationErr != nil {
-				itemErrors[id] = activationErr
+	if len(activationByID) > 0 {
+		activationErrors := s.activateColdReadMetas(ctx, activationByID)
+		retries := make([]CommittedReadRequest, 0, len(activationByID))
+		for _, request := range requests {
+			if _, ok := activationByID[request.ChannelID]; !ok {
+				continue
+			}
+			if activationErr := activationErrors[request.ChannelID]; activationErr != nil {
+				itemErrors[request.ChannelID] = activationErr
+			} else {
+				retries = append(retries, request)
 			}
 		}
-		recovered, recoveredErrors, probeErr := s.liveCommittedReadHW(ctx, requests)
+		recoveredHW, recoveredErrors, probeErr := s.liveCommittedReadHW(ctx, retries)
 		if liveHW == nil {
 			liveHW = make(map[ch.ChannelID]uint64)
 		}
-		for id := range activation {
-			if itemErrors[id] != nil {
-				continue
-			}
-			if probeErr != nil {
+		for _, request := range retries {
+			id := request.ChannelID
+			switch {
+			case probeErr != nil:
 				itemErrors[id] = probeErr
-				continue
-			}
-			if recoveredErrors[id] != nil {
+			case recoveredErrors[id] != nil:
 				itemErrors[id] = recoveredErrors[id]
-				continue
-			}
-			if hw, ok := recovered[id]; ok {
-				liveHW[id] = hw
-			} else {
-				itemErrors[id] = ch.ErrNotReady
+			default:
+				if committed, ok := recoveredHW[id]; ok {
+					liveHW[id] = committed
+				} else {
+					itemErrors[id] = ch.ErrNotReady
+				}
 			}
 		}
 	}
+
 	for index, request := range requests {
 		if itemErr := itemErrors[request.ChannelID]; itemErr != nil {
 			results[index].Err = itemErr
@@ -934,6 +937,10 @@ func (s *Service) readLocalCommitted(ctx context.Context, read CommittedRead, re
 	}
 	if request.Reverse && request.FromSeq > committed {
 		request.FromSeq = committed
+	}
+	// Storage uses MaxSeq=0 for an unbounded range, not an empty committed log.
+	if committed == 0 {
+		return channelstore.ReadCommittedResult{NextSeq: request.FromSeq}, nil
 	}
 	result, err := store.ReadCommitted(ctx, request)
 	if err != nil {
@@ -1202,8 +1209,9 @@ func (s *Service) liveRuntimeHW(ctx context.Context, requests []runtimeHWExpecta
 			itemErrors[channel.ChannelID] = ch.ErrStaleMeta
 		case request.ExpectedLeaderEpoch != 0 && channel.LeaderEpoch != request.ExpectedLeaderEpoch:
 			itemErrors[channel.ChannelID] = ch.ErrStaleMeta
-		case channel.Recovering:
-			continue // A loaded but fenced/recovering leader still needs authoritative activation.
+		case channel.RecoveryRequired:
+			// Loaded metadata is not a completed quorum authority installation.
+			continue
 		default:
 			liveHW[channel.ChannelID] = channel.HW
 		}
@@ -1229,7 +1237,8 @@ func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID
 		committed = state.LEO
 	} else if hasLiveCommitted {
 		committed = maxUint64Value(committed, liveCommitted)
-	} else if s.quorumReads || state.HW < state.LEO {
+	} else {
+		// Local equality cannot prove a cold replica has the quorum tail.
 		return ConversationHead{}, true, nil
 	}
 	retention, err := store.LoadRetentionState(ctx)

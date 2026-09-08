@@ -8,14 +8,17 @@ summary: Stores Channel message logs, indexes, checkpoints, retention state, sna
 ## Responsibility
 
 `pkg/db/message` owns node-local Channel log persistence on the shared
-`pkg/db/internal` engine: canonical leases, atomic append/follower apply, indexes,
-checkpoints, retention, inspection, and portable backup/restore snapshots.
+`pkg/db/internal` engine. It provides canonical Channel leases, atomic append
+and follower apply, secondary indexes, checkpoints and history, logical and
+physical retention, inspection, and portable backup/restore snapshots.
 
-Compatibility maps `pkg/channel` records without transferring engine ownership.
+The compatibility surface maps `pkg/channel` records and offsets to this typed
+storage core without transferring shared-engine ownership.
 
 ## Boundaries
 
-- Pebble-specific code and imports stay under `pkg/db/internal`.
+- Pebble-specific code stays under `pkg/db/internal`; this package must not
+  import Pebble directly.
 - `MessageDB` owns one registry and physical engine. Each `Channel` or
   `ForChannel` call returns an independently closable lease over a shared
   canonical entry.
@@ -37,24 +40,21 @@ Compatibility maps `pkg/channel` records without transferring engine ownership.
    idempotency and newest-message lookup. Newest-first primary reads iterate
    natively in reverse and stop while scanning at `Limit` or `MaxBytes`; they
    must never materialize the complete Channel history before truncation.
+   Catalog pages follow encoded key order; skip only the exact cursor key.
 3. Snapshot, backup, restore, truncation, retention, and close stream or mutate
    bounded batches while keeping rows, indexes, catalog, system state, leases,
    and physical engine ownership consistent.
 
 ## Invariants and Failure Semantics
 
+- Offline helpers encode/decode existing records and independently read
+  stored columns and verify version-1 proposal chains. They add no new durable
+  format, empty-key exception, uniqueness relaxation or recovery path. The
+  importer must reject source values the native runtime cannot represent.
+
 - Sequences are contiguous and monotonic. A durable append updates its primary
   row, global message-ID index, idempotency/client index, sender index, and
   catalog as one atomic unit where applicable.
-- Exact migration records preserve every durable protocol field, including
-  historical timestamps. An imported retained prefix installs one recordless
-  identity with its checkpoint and retention floor atomically on an empty
-  Channel. Reads expose no invented rows below that floor; exact recovery and
-  backup preserve the boundary alongside the remaining history. Offline initial
-  generation verification recomputes every full-content proposal and predecessor,
-  compares entry identities and paired indexes, and requires HW equal to LEO.
-  Verification and donor pages enforce both native and neutral recovery-byte
-  budgets at complete proposal boundaries, including when coalescing proposals.
 - A 32,768-entry bounded warm cache retains LEO, idempotency membership, and the
   last committed exact proposal/entry identity across Channel lease reclamation.
   Fresh exact extensions with node-scoped message-ID allocation proof may
@@ -97,4 +97,5 @@ Compatibility maps `pkg/channel` records without transferring engine ownership.
 ## Update Triggers
 
 Update this file when durable rows or indexes change, lease/registry ownership
-changes, commit locking or retention semantics change, or backup/compatibility changes.
+changes, commit locking changes, checkpoint or retention semantics change,
+backup/restore coverage changes, or the Channel compatibility contract changes.
