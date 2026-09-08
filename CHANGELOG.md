@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Document Rust EasySDK group messaging and released-package checks for member fanout, permissions, membership changes and reconnect. / 补充 Rust EasySDK 群聊用法及正式包成员投递、权限、成员变更与重连验收。
+
 - Document WuKongEasySDK-Python 0.1.0 PyPI installation, matching examples, and published-package verification. / 更新 WuKongEasySDK-Python 0.1.0 的 PyPI 安装、配套示例与正式包验证说明。
 
 - Document Rust EasySDK 0.1.0 public-package WSS recovery acceptance and stabilize the ready-key scheduler regression test with deterministic synchronization. / 补充 Rust EasySDK 0.1.0 正式包 WSS 恢复验收，并使用确定性同步稳定调度器就绪 Key 回归测试。

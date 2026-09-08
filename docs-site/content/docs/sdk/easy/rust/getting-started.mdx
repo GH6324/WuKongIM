@@ -139,6 +139,24 @@ WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
 
 发送不会自动重放。超时、取消或断线时服务端是否接受可能未知；业务决定重试时保留 `SendOptions.client_msg_no` 并遵循服务端幂等约定。`SendOptions` 还支持 Header、Setting 和 Topic；`red_dot` 默认 true，尊重显式 false。群聊使用 `ChannelType::Group`，成员与权限由后端准备。
 
+## 群聊与成员管理
+
+可信后端通过 Product HTTP 建群并管理成员。后端确认入群后，使用群 ID 和
+`ChannelType::Group` 发送：
+
+```rust
+let ack = client.send(
+    "project-team",
+    wukong_easy_sdk::ChannelType::Group,
+    serde_json::json!({"type": 1, "content": "大家好！"}),
+).await?;
+```
+
+接收方仍通过 `Event::Message` 获取消息，检查 `channel_type`、`channel_id`、
+`from_uid` 和 `payload`。SENDACK 表示服务端接受消息，不表示每位成员已经处理。
+禁止陌生人发送的群中，非成员或已移除成员发送会得到 `Error::Server { code: 3 }`，
+被加入黑名单的成员得到原因码 `4`。应用应处理这些权限错误；成员管理凭证由可信后端保管。
+
 ## WSS 私有 CA
 
 使用私有 CA 时，将 DER 根证书字节加入 `Options.additional_root_certificates`。
@@ -166,6 +184,16 @@ let options = wukong_easy_sdk::Options {
 2026-09-08，crates.io `wukong-easy-sdk 0.1.0` 发布自源码 `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`。独立空缓存消费者从公共 registry 下载正式包，编译通过本页中英文的连接收发和私有 CA 示例。下载包 SHA-256 为 `0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719`，与 [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/tag/v0.1.0) 附件一致。
 
 随后完成了 **crates.io 正式包端到端验收**：macOS Rust 1.86 的独立空缓存消费者下载精确发布包，通过 Rust/Rust 收发、错误 Token 拒绝，以及 120 秒 Rust/JS WSS 验收，确认 1,747 次回显和三次断网恢复，无重复或事件丢失，所有进程完成清理。一次中断发送保留结果未知语义。[正式包回执](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-e2e-0.1.0-macos-120s.json) 分别记录验收工具源码 `cfa48a038c2cfd56948ace43afe3b2f5f91dace3` 与发布包源码；服务端仍为 `27a39f15bf163b433f417b78ab6bfc6e589585e5`。
+
+新增的 **正式包群聊验收** 同样通过：四个 Rust 客户端、两个群、十个场景，
+确认 15 次预期投递。覆盖成员投递与群间隔离、非成员拒绝、成员添加/移除/重新加入、
+黑名单拒绝与解除，以及四个客户端断网自动重连后的成员权限。每条消息都匹配
+SENDACK 标识、发送人、群和正文，未观察到重复或事件丢失；每个场景至少观察
+500 ms，检查被排除身份未收到消息。[群聊回执](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-group-0.1.0-macos-120s.json)
+绑定干净验收工具提交 `0262de9454603ee528dd2d9d9f236dec89e8df2a`，使用相同的正式包
+与服务端版本、macOS Rust 1.86；配套 120 秒 Rust/JS 验证确认 2,608 次回显、三次恢复，
+一次中断发送保留结果未知语义。所有客户端和测试进程均完成清理。这是四客户端的
+单节点集群验证，不证明大群容量、离线恢复或跨节点路由；本次无需修改 SDK 运行时代码或发布新包。
 
 同一源码通过 [跨平台 CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886754)：27 项协议、生命周期和 TLS 测试，以及 Clippy、API 文档和打包校验。覆盖 Linux Rust 1.86/stable、macOS 和 Windows stable。
 
