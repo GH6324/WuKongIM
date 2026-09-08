@@ -209,9 +209,9 @@ Rust 仓库为 [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongE
 
 验证源码 `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` 已在 Linux CI 连接修复 WebSocket 缓冲区问题的 WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`，完成 Rust/Rust、Rust/`easyjssdk@2.0.4` 120 秒 WSS Unicode 回显、三次断网恢复、错误 Token 拒绝与清理。JS 对端使用 WEB `1`，集群为 256 Hash Slot 单节点集群。安装版本随后仅收紧发布包范围和回执版本绑定；详见 [Rust 验证记录](/zh/sdk/easy/rust/getting-started#验证记录)。这些源码结果独立于上方四端正式包凭据，不代表容量或多日稳定性。
 
-## C++ 源码示例
+## C++ vcpkg 与源码示例
 
-C++ 工程版本 `0.1.0` 通过源码和 CMake 使用，独立于上面的四端历史正式包验收。两个终端分别通过 `WKIM_TOKEN` 提供业务后端签发的本人 Token。
+C++ 工程版本 `0.1.0` 推荐通过 [vcpkg 接入](/zh/sdk/easy/cpp/getting-started)，由包管理器自动安装 SDK 及依赖；下面保留源码交互示例，独立于上面的四端历史正式包验收。两个终端分别通过 `WKIM_TOKEN` 提供业务后端签发的本人 Token。
 
 ```sh
 git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git

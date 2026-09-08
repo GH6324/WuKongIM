@@ -1,12 +1,12 @@
 ---
 title: C++ 快速接入
-description: 使用 WuKongEasySDK-CPP 的固定源码和 CMake，完成 C++17 在线消息、重连与线程生命周期管理。
+description: 通过 vcpkg 自动安装 WuKongEasySDK-CPP 及依赖，使用 CMake 接入 C++17 在线消息、重连和线程生命周期管理。
 ---
 
 [WuKongEasySDK-CPP](https://github.com/WuKongIM/WuKongEasySDK-CPP) 参考 JS `v2.0.4` 实现 WebSocket JSON-RPC CONNECT、在线收发、自动 RECVACK、心跳、重连和自定义事件。使用 C++17、Boost.Beast、OpenSSL 与 nlohmann/json。
 
-<Callout type="info" title="固定源码接入">
-  本文固定工程 `0.1.0` 的源码 `3e367a908f42385ab9306f9708b7456399cace7d`，通过 CMake 编译和安装。当前分发为源码，没有预编译包或 Registry 发布。该源码已连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`，在开启 Token 鉴权的 256 hash slots 单节点集群中完成 C++/C++ 和 C++/JS 双向消息。完整范围见仓库的 [验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。
+<Callout type="info" title="vcpkg 与固定源码接入">
+  本文固定工程 `0.1.0` 的源码 `3e367a908f42385ab9306f9708b7456399cace7d`，支持本仓库维护的 vcpkg Git registry 和 CMake 源码安装，没有预编译 SDK 压缩包；该 registry 不属于微软默认目录。该源码已连接 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`，在开启 Token 鉴权的 256 hash slots 单节点集群中完成 C++/C++ 和 C++/JS 双向消息。完整范围见仓库的 [验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。
 </Callout>
 
 ## 1. 先准备 Alice 和 Bob
@@ -15,7 +15,74 @@ description: 使用 WuKongEasySDK-CPP 的固定源码和 CMake，完成 C++17 �
 
 开发机默认示例地址为 `ws://127.0.0.1:5200`，路径是 `/`。如果 listener 或代理配置了 `/ws`，才使用 `ws://127.0.0.1:5200/ws`。跨机器时用客户端实际可达地址，生产使用 `wss://`。通用环境步骤见[运行官方示例](/zh/sdk/easy/examples)。
 
-## 2. 获取和编译固定源码
+## 2. 推荐：vcpkg + CMake
+
+先安装 [vcpkg](https://learn.microsoft.com/zh-cn/vcpkg/get_started/get-started)，
+将 `VCPKG_ROOT` 指向安装目录。准备 Git、CMake 3.20+ 和 C++17 编译器：
+Windows 使用 Visual Studio 2022，macOS 使用 Xcode 命令行工具，Linux 使用 GCC/Clang。
+验证使用的 vcpkg 工具版本为 `04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4`。
+
+在你的应用目录创建 `vcpkg.json`：
+
+```json
+{"dependencies": ["wukong-easy-sdk"]}
+```
+
+`vcpkg-configuration.json`:
+
+```json
+{
+  "default-registry": {
+    "kind": "git",
+    "repository": "https://github.com/microsoft/vcpkg",
+    "baseline": "04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4"
+  },
+  "registries": [
+    {
+      "kind": "git",
+      "repository": "https://github.com/WuKongIM/WuKongEasySDK-CPP.git",
+      "baseline": "63ec99d34c7605b64e2173d201639042e0e49de9",
+      "packages": [
+        "wukong-easy-sdk"
+      ]
+    }
+  ]
+}
+```
+
+在自己的 `main.cpp` 旁添加 `CMakeLists.txt`：
+
+```cmake
+cmake_minimum_required(VERSION 3.20)
+project(my_app LANGUAGES CXX)
+find_package(WuKongEasySDK 0.1 CONFIG REQUIRED)
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE WuKongEasySDK::WuKongEasySDK)
+```
+```sh
+# Linux / macOS
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+```
+
+```powershell
+# Windows / Visual Studio 2022
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows
+cmake --build build --config Release --parallel 2
+```
+
+vcpkg 会自动安装 SDK、Boost、OpenSSL 和 JSON，无需手动逐个安装。
+首次构建可能需要编译依赖并耗时数分钟，这不是预编译压缩包。
+SDK port 为静态库；Windows 使用 `x64-windows` 时，分发应用需要携带构建时复制到程序旁的依赖 DLL。
+
+这是 WuKongIM 在本仓库维护的公开 Git registry，不是微软默认目录中的包，
+因此必须同时提供 registry 配置和依赖声明。SDK 源码固定为
+`3e367a908f42385ab9306f9708b7456399cace7d`，与 registry baseline 分别固定。
+将两个 JSON 文件提交到应用仓库；已有 manifest 的项目应合并字段，不要覆盖原有依赖。
+
+[独立消费端示例](https://github.com/WuKongIM/WuKongEasySDK-CPP/tree/main/examples/vcpkg-consumer) · [Registry 维护说明](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/main/docs/VCPKG.md)
+
+## 备选：获取和编译固定源码
 
 要求 CMake 3.20+、C++17 编译器、Boost 1.74+、OpenSSL 1.1.1+、nlohmann/json 3.11+。实际产品应选择仍受维护并包含安全修复的版本。
 

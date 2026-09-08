@@ -37,10 +37,10 @@ examples, search, SEO, and machine-readable output. Runtime contracts are define
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. EasySDK separates Rust and C++ source pins from registry-package receipts.
-   Its runbook maps reachable endpoints and reproduces maintained examples
-   with recorded server revisions. Rust adds Tokio and Rust/JS WSS recovery
-   evidence; Git source is not a crates.io release.
+4. EasySDK distinguishes C# packages, C++ source/vcpkg Git-registry pins, and
+   Rust source from historical registry receipts. Its examples record server
+   revisions and reachable endpoints; Rust's Tokio/Rust-JS WSS recovery
+   evidence does not imply a crates.io release.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.

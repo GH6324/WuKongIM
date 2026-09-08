@@ -209,9 +209,9 @@ The Rust repository is [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM
 
 Verified source `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` passed Linux CI against WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, which fixes WebSocket buffer ownership: Rust/Rust checks, 120 seconds of Rust/`easyjssdk@2.0.4` WSS Unicode echoes, three transport interruptions, invalid-Token rejection and cleanup. JS uses WEB `1`; the server is a 256 Hash Slot single-node cluster. The installation pin subsequently tightens crate inclusion and receipt revision binding; see the [Rust verification record](/en/sdk/easy/rust/getting-started#verification-record). These source results are separate from the four registry receipts above and do not establish capacity or multi-day stability.
 
-## C++ source example
+## C++ vcpkg and source examples
 
-C++ project `0.1.0` is consumed as source through CMake, separately from the four-platform historical released-package acceptance above. Each terminal supplies its own backend-issued Token through `WKIM_TOKEN`.
+For C++ project `0.1.0`, [vcpkg integration](/en/sdk/easy/cpp/getting-started) installs the SDK and its dependencies automatically. The source-based interactive example below is retained, separately from the four-platform historical released-package acceptance above. Each terminal supplies its own backend-issued Token through `WKIM_TOKEN`.
 
 ```sh
 git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git

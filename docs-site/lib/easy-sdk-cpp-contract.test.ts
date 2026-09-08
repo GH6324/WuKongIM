@@ -5,8 +5,8 @@ const root = new URL('../content/docs/sdk/easy/', import.meta.url);
 const revision = '3e367a908f42385ab9306f9708b7456399cace7d';
 const repository = 'https://github.com/WuKongIM/WuKongEasySDK-CPP';
 
-describe('C++ EasySDK source tutorial', () => {
-  test('publishes both locales and pins source independently of registry packages', async () => {
+describe('C++ EasySDK vcpkg and source tutorial', () => {
+  test('publishes both locales with independent SDK source and vcpkg registry pins', async () => {
     for (const [locale, suffix] of [['zh', ''], ['en', '.en']] as const) {
       const page = await Bun.file(new URL(`cpp/getting-started${suffix}.mdx`, root)).text();
       const overview = await Bun.file(new URL(`index${suffix}.mdx`, root)).text();
@@ -22,7 +22,23 @@ describe('C++ EasySDK source tutorial', () => {
       for (const content of [overview, examples]) {
         expect(content).toContain(`/${locale}/sdk/easy/cpp/getting-started`);
       }
-      expect(page).toMatch(/没有预编译包或 Registry 发布|no prebuilt package or registry release/);
+      expect(page).toMatch(/没有预编译 SDK 压缩包|no prebuilt SDK archive/);
+      expect(page).toMatch(/不属于微软默认目录|not Microsoft’s curated catalog/);
+      const manifests = [...page.matchAll(/```json\n([\s\S]*?)\n```/g)]
+        .map((match) => JSON.parse(match[1]));
+      expect(manifests[0]).toEqual({ dependencies: ['wukong-easy-sdk'] });
+      expect(manifests[1]).toEqual({
+        'default-registry': {
+          kind: 'git', repository: 'https://github.com/microsoft/vcpkg',
+          baseline: '04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4',
+        },
+        registries: [{
+          kind: 'git', repository: `${repository}.git`,
+          baseline: '63ec99d34c7605b64e2173d201639042e0e49de9',
+          packages: ['wukong-easy-sdk'],
+        }],
+      });
+      expect(page).toContain('find_package(WuKongEasySDK 0.1 CONFIG REQUIRED)');
       expect(page).toContain(`git checkout ${revision}`);
       expect(page).toContain('WuKongEasySDK::WuKongEasySDK');
       expect(page).toContain('CMAKE_TOOLCHAIN_FILE');
