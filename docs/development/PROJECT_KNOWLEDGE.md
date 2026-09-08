@@ -2,6 +2,8 @@
 
 ## Internal
 
+- `wukongim init` and shipped single-node/three-node cluster configurations explicitly create 12 logical Slot Raft Groups over 256 physical hash slots. Omitting `cluster.initial_slot_count` or setting it to zero still derives one group. Existing clusters use the persisted Controller count; editing this initialization setting does not resize Slots and increasing it may block readiness. Cloud Simulation and workload fixtures retain their explicitly selected topology.
+
 - `docs-site/examples/go-webhook` is a separate standard-library business callback example. Its pure marker rules handle raw UTF-8 and SDK `type=1` text JSON without storing idempotency state. Explicit denial returns HTTP 200 with a business reason; HTTP errors remain transport failures governed by the sender policy. The documentation `verify` gate runs its fast Go tests.
 
 - The product composition deliberately leaves person-directory admission out of synchronous SEND. UID memberships are projected after durable append, so SENDACK does not imply immediate history visibility. The JavaScript quickstart BFF retries an empty latest page within its finite projection budget; normal cursor pages and unrelated errors keep their original behavior.

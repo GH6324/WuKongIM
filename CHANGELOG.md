@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Increase the initial logical Slot count in `wukongim init` and shipped single-node/three-node cluster configurations from 10 to 12. Hash slots remain 256; existing clusters retain their persisted Slot count. / `wukongim init` 及随仓库提供的单节点、三节点集群配置将初始逻辑 Slot 数从 10 调整为 12；Hash Slot 保持 256，已有集群继续使用持久化的 Slot 数。
+
 - Improve Manager node-log troubleshooting with explicit keyword search, a navigable details drawer and copy feedback, reliable retry, and live scrolling that preserves the reading position. / 优化管理台节点日志排查：关键字提交查询、可切换事件的详情抽屉与复制反馈、可靠重试，以及保护阅读位置的实时跟随。
 
 ### 🐛 Bug Fixes / 问题修复

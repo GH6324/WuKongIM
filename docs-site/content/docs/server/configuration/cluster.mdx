@@ -25,13 +25,13 @@ data_dir = "/var/lib/wukongim"
 [cluster]
 listen_addr = "127.0.0.1:7000"
 nodes = [{ id = 1, addr = "127.0.0.1:7000" }]
-initial_slot_count = 10
+initial_slot_count = 12
 hash_slot_count = 256
 slot_replica_n = 1
 channel_replica_n = 1
 ```
 
-示例中的 `initial_slot_count = 10` 是开发基线，不是所有负载的推荐值；`hash_slot_count = 256` 则是稳定的物理 Hash Slot 边界。
+示例中的 `initial_slot_count = 12` 是开发基线，不是所有负载的推荐值；`hash_slot_count = 256` 则是稳定的物理 Hash Slot 边界。
 
 ## 选择一种加入方式
 
@@ -44,7 +44,7 @@ channel_replica_n = 1
 
 ## Slot 与副本
 
-- `initial_slot_count` 是首次 Controller 快照创建的逻辑 Slot Raft Group 数量。
+- `initial_slot_count` 是首次 Controller 快照创建的逻辑 Slot Raft Group 数量。`wukongim init` 和随仓库提供的示例配置设为 `12`；省略或设为 `0` 时仍使用 `1`。已有集群以持久化数量为准，修改配置不会调整 Slot 数，调大还可能阻塞节点就绪。
 - `hash_slot_count` 是将键路由到逻辑组的物理 Hash Slot 栅栏，保持为 `256`。
 - `slot_replica_n` 与 `channel_replica_n` 必须不大于可用节点数，并与故障域目标一致。
 - 多副本只有分布在独立机器、磁盘和故障域上才提供预期容错；同一主机上的多个进程不是独立故障域。

@@ -25,13 +25,13 @@ data_dir = "/var/lib/wukongim"
 [cluster]
 listen_addr = "127.0.0.1:7000"
 nodes = [{ id = 1, addr = "127.0.0.1:7000" }]
-initial_slot_count = 10
+initial_slot_count = 12
 hash_slot_count = 256
 slot_replica_n = 1
 channel_replica_n = 1
 ```
 
-The `initial_slot_count = 10` value is a development baseline, not a universal recommendation. The `hash_slot_count = 256` value is the stable physical hash-slot fence.
+The `initial_slot_count = 12` value is a development baseline, not a universal recommendation. The `hash_slot_count = 256` value is the stable physical hash-slot fence.
 
 ## Choose one join model
 
@@ -44,7 +44,7 @@ The `initial_slot_count = 10` value is a development baseline, not a universal r
 
 ## Slots and replicas
 
-- `initial_slot_count` is the logical Slot Raft Group count created by the first Controller snapshot.
+- `initial_slot_count` is the logical Slot Raft Group count created by the first Controller snapshot. `wukongim init` and shipped examples set it to `12`; omitting it or setting it to `0` still uses `1`. Existing clusters retain the persisted count; changing this setting does not resize Slots and increasing it may block readiness.
 - `hash_slot_count` is the physical hash-slot fence that routes keys to logical groups; keep it at `256`.
 - `slot_replica_n` and `channel_replica_n` must fit the available node count and failure-domain objective.
 - Replicas provide the intended fault tolerance only when they span independent machines, disks, and failure domains. Multiple processes on one host are not independent failure domains.
