@@ -179,6 +179,14 @@ WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py
 
 NuGet `1.0.0` 的[独立发布验证](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34188740990)覆盖 Windows、Linux、macOS 构建、35 项 SDK 测试、7 项发布校验测试与全新项目本地包安装。发布后从 nuget.org 下载精确版本，比较除 NuGet 签名外的全部包内容与测试产物，并在空包缓存、仅公共源的独立项目中完成还原、编译、加载和释放。此公共安装记录与上述真实服务端通信记录分别保留。
 
+### C# / JavaScript 真实互通
+
+独立的 [C#/JS 互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34191886039) 分别测试公共 NuGet `WuKongEasySDK 1.0.0`（空包缓存安装）与当前 C# 源码。固定对端为 npm `easyjssdk 2.0.4`、Node 24 + `ws 8.21.3`，服务端为 `v3.0.0-beta.9` / `734166e0ec30fc0f6f10fef6f6d1889d079ab636`。测试工具源码为 `1db387c4f794a45bdb6f4e419d68dbe2bfef740f`，与 NuGet 包源码分别记录。
+
+五组场景覆盖双向中文/emoji 与嵌套自定义 Payload、超出 JavaScript 安全整数范围的消息 ID 及 SENDACK/RECV 一致性、错误 Token 拒绝、断网后自动重连、真实服务端崩溃重启，以及主动断开后拒绝离线 SEND 并允许显式重连。该服务端的 SENDACK 不返回 `clientMsgNo`，测试会校验 RECV 保留原始关联号。
+
+每次 PR 和 `main` 更新都会运行正式包与源码两条 Linux 任务，保留精确版本及场景结果；[复现步骤和验证范围](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/1db387c4f794a45bdb6f4e419d68dbe2bfef740f/docs/interoperability.md)说明服务端构建、依赖锁定和临时进程清理。验证范围为 Node + `ws`；Node 24.3 原生 WebSocket 在故障测试中出现重连停滞，浏览器与原生传输不属于本次通过范围。此短时回环测试不代表生产 WSS、多节点容量或长期稳定性验证。
+
 ## 下一步
 
 查看 [运行官方示例](/zh/sdk/easy/examples) 和 [SDK 验证记录](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/d365a354f5e0f25fbd7f83bb59aa365ba43e899f/docs/validation.md)，或回到 [WuKongEasySDK](/zh/sdk/easy) 比较平台。生产接入继续参考 [消息收发](/zh/guide/integration/messaging) 与 [集成验收](/zh/guide/integration/acceptance)。

@@ -179,6 +179,14 @@ The original implementation `d365a354f5e0f25fbd7f83bb59aa365ba43e899f` passed 35
 
 The independent [NuGet `1.0.0` release verification](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34188740990) covers builds, 35 SDK tests, seven release guard tests, and clean local package installation on Windows, Linux, and macOS. After publication it downloads the exact version from nuget.org, compares every entry except NuGet’s signature with the tested artifact, and restores, compiles, loads, and disposes the client in an isolated project with an empty package cache and only the public feed. This public installation receipt is separate from the real-server messaging receipt above.
 
+### C# / JavaScript interoperability
+
+The independent [C#/JS interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34191886039) tests both public NuGet `WuKongEasySDK 1.0.0` restored into an empty package cache and candidate C# source. It pins npm `easyjssdk 2.0.4`, Node 24 with `ws 8.21.3`, and server `v3.0.0-beta.9` / `734166e0ec30fc0f6f10fef6f6d1889d079ab636`. Harness source `1db387c4f794a45bdb6f4e419d68dbe2bfef740f` is recorded separately from the NuGet package source.
+
+Five scenario groups cover bidirectional Chinese/emoji and nested custom payloads, exact message IDs above JavaScript's safe integer range and matching SENDACK/RECV, invalid Token rejection, automatic network recovery, real server crash/restart, and manual disconnect with rejected offline SEND followed by explicit reconnect. This server omits `clientMsgNo` in SENDACK; RECV must preserve the supplied correlation value.
+
+Each PR and `main` update runs released and candidate lanes on Linux and retains dependency pins and scenario results. [Reproduction and scope](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/1db387c4f794a45bdb6f4e419d68dbe2bfef740f/docs/interoperability.md) explain the server build, dependency locks, and owned-process cleanup. The verified JS scope is Node with `ws`: Node 24.3 native WebSocket stalled during reconnect fault testing, so browsers and native transport are outside this passing scope. This short loopback test does not establish production WSS, multi-node capacity, or long-duration stability.
+
 ## Next
 
 See [Run the Official Examples](/en/sdk/easy/examples) and the [SDK validation record](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/d365a354f5e0f25fbd7f83bb59aa365ba43e899f/docs/validation.md), or return to [WuKongEasySDK](/en/sdk/easy) to compare platforms. Continue production integration with [Messaging](/en/guide/integration/messaging) and [Integration Acceptance](/en/guide/integration/acceptance).
