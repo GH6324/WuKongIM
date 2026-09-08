@@ -1,6 +1,6 @@
 ---
 title: WuKongEasySDK
-description: 选择 iOS、Android、Flutter、Web、C#、C++ 或 Rust 快速接入，使用固定版本或源码完成 Alice 与 Bob 的在线双向消息闭环。
+description: 选择 iOS、Android、Flutter、Web、C#、C++、Rust 或 Python 快速接入，使用固定版本或源码完成 Alice 与 Bob 的在线双向消息闭环。
 ---
 
 WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消息 API。它适合已经拥有业务后端、希望自己维护界面和产品状态的应用。
@@ -16,6 +16,7 @@ WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消�
   <Card title="Rust 快速接入" description="固定 Git 源码，使用 Tokio 管理收发、有限重连与清理。" href="/zh/sdk/easy/rust/getting-started" />
   <Card title="C# 快速接入" description="从固定源码接入 .NET 8，使用异步 API、独立实例和 await using 完成收发。" href="/zh/sdk/easy/csharp/getting-started" />
   <Card title="C++ 快速接入" description="vcpkg 自动安装依赖，以 C++17 和 CMake 完成连接、消息和线程清理。" href="/zh/sdk/easy/cpp/getting-started" />
+  <Card title="Python 快速接入" description="固定源码 + asyncio，完成在线收发、心跳、重连和资源清理。" href="/zh/sdk/easy/python/getting-started" />
 </Cards>
 
 完成对应教程后，你会让 Alice 与 Bob 分别连接，在个人 Channel 中双向发送一个文本 JSON Payload，并在退出时正确移除监听器和连接。
@@ -148,3 +149,7 @@ C# 已发布到 [nuget.org](https://www.nuget.org/packages/WuKongEasySDK/1.0.0)�
 ## 下一步
 
 先[运行官方示例](/zh/sdk/easy/examples)，再选择目标平台完成应用接入。需要离线消息、会话、未读和更完整的平台 API 时，改用[完整版 SDK](/zh/sdk/wukongim)。
+
+## Python 源码接入
+
+[WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) 工程版本 `0.1.0`，固定源码 `c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a`，使用 Python 3.11+ 与 asyncio。当前通过源码安装，尚未发布到 PyPI。已在 WuKongIM `0348c0539bbee420a859439695acdac911afa854`、开启 Token 鉴权的 256 Hash Slot 单节点集群上完成 Python/Python 与真实 JS `2.0.4` 双向消息、心跳、重新连接、错误 Token 拒绝和在线清理。详细步骤与验证范围见 [Python 快速接入](/zh/sdk/easy/python/getting-started)。该源码证据独立于四端历史正式包验收。

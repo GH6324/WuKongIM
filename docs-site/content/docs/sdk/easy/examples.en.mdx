@@ -227,3 +227,21 @@ ctest --test-dir build -C Release --output-on-failure
 After both connect, send in both directions, observe `SEND completed` and peer `Message`, then enter `/quit`. The default device category is Desktop `2` and must match the backend Token record. The default development listener uses `/`. For dependencies, Windows, private CAs, and thread ownership, see [C++ quickstart](/en/sdk/easy/cpp/getting-started).
 
 The 2026-09-08 source acceptance used WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, Token authentication and 256 hash slots for C++/C++, C++/JS messaging, reconnect, invalid-token rejection, and presence cleanup. For environment and WS/WSS evidence, see [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md).
+
+## Python: run the pinned source example
+
+The Python tutorial pins [WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) project `0.1.0` at `c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a`, using Python 3.11+ and asyncio. There is no PyPI release yet. Follow the [Python quickstart](/en/sdk/easy/python/getting-started) to install source, then set each user's `WKIM_UID`, `WKIM_TOKEN`, `WKIM_PEER`, and `WKIM_URL` in two terminals and run:
+
+```sh
+python examples/chat.py
+```
+
+Python defaults to PC/Desktop `2`. Once both display `Connected`, send in both directions and enter `/quit` to exit. The source run used WuKongIM `0348c0539bbee420a859439695acdac911afa854`, independently of the historical four-platform server revisions above. A Token-authenticated 256-hash-slot single-node cluster passed Python/Python and actual JS `2.0.4` bidirectional messaging, heartbeat, reconnect, invalid-Token rejection, and online cleanup. Reproduce the separate process-level acceptance with:
+
+```sh
+uv sync --locked
+uv run python tests/product.py --server /absolute/path/to/wukongim \
+  --js-entry /absolute/path/to/WuKongEasySDK-JS/dist/cjs/index.js
+```
+
+The script starts a temporary local cluster, provisions test identities and checks online cleanup through public endpoints, then stops its own processes. Independent protocol tests cover WSS, automatic reconnect, and queue bounds. See the [Python validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a/docs/VALIDATION.md) for the full scope.
