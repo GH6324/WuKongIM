@@ -39,11 +39,12 @@ against WuKongIM PR test merge
 `1c9430f15fc8844e7025df07d54ab6e80e026414`. That proves bounded platform
 execution of the released packages, but not production readiness.
 
-The C# extension adds `WuKongEasySDK-CSharp` source version `1.0.0` and the
-`/sdk/easy/csharp/getting-started` bilingual route. It targets .NET 8, uses pinned
-source/project references or a locally built NuGet package, and does not claim a
-nuget.org release or inherit the four platforms' historical package receipts.
-Its independent source verification is recorded in the C# quickstart.
+The C# extension adds `WuKongEasySDK-CSharp` and the bilingual
+`/sdk/easy/csharp/getting-started` route. It targets .NET 8 and installs
+`WuKongEasySDK` `1.0.0` from nuget.org, with pinned source builds as an option.
+Its exact public package installation receipt and original real-server source
+receipt are recorded separately; neither inherits the other four platforms'
+historical package receipts.
 
 ## Audience and completion outcome
 
