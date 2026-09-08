@@ -43,6 +43,7 @@ move those entries into a version section named for that exact tag.
 ### 🐛 Bug Fixes / 问题修复
 
 - Fix Channel follower replacement stalling before the spare joins ISR: copy the committed log in bounded pages, refresh durable follower progress, and keep temporary catch-up lag retryable without reducing quorum. / 修复 Channel 副本替换在备用节点加入 ISR 前停滞的问题：分页同步已提交日志、刷新持久化进度，并保留暂时落后任务的重试能力，不降低仲裁要求。
+- Migration verification accepts valid empty-sender messages while checking their existing exact client index; history continuation reads respect the remaining page demand. Recovery rechecks all observed tails, and timed-out migration tasks yield without skipping peers.
 
 - Reconstruct online routes from current gateway owners after Slot authority changes, preventing an empty rebuilding directory from skipping acknowledged messages. / Slot 权威切换后按连接所属节点重建在线路由，避免空目录将已确认消息的在线接收者误判为离线。
 - Recover consecutive Channel failures by proving compatible durable tails, copying missing immutable entries, and rechecking quorum without truncating acknowledged messages; rotate migration tasks so one waiting recovery cannot starve others. / 连续节点故障时验证日志前缀、补齐缺失记录并重新确认 quorum，保留已确认消息；轮转迁移任务，避免单个恢复任务阻塞其他频道。
@@ -66,12 +67,101 @@ move those entries into a version section named for that exact tag.
 - Restore the documentation browser acceptance runner and pinned Chromium dependency; validate BFF-issued credentials with Gateway Token authentication enabled, including bidirectional messaging and reconnect recovery.
 - Fix transient person-channel command sends rejecting valid system senders or deriving recipients and client channel IDs with the command suffix. Preserve the command flag on delivered packets.
 
+- 修复内部控制记录导致普通历史分页提前结束的问题：单次与批量同步、插件读取在有界扫描内按可见消息数量判断 `more`，整页控制记录不再遮住更早历史；聊天 Demo 沿用调用方页大小，并支持在没有滚动条时手动加载更早消息。
+
+- 恢复后的旧 Channel Leader 若本机日志已进入更高任期，会按有效持久化证据刷新失效路由，避免首条发送误报日志冲突；真正的同任期冲突仍拒绝。
+
+- 原生频道故障转移在每轮五秒预算内连续推进同一任务的有限步骤，并轮转读取积压任务，避免不可达目标或阶段间空等阻塞其他频道恢复；存储格式不变。
+
+- 修复大量频道下健康报告过期后漏掉已扫描频道的及时故障切换：节点失去可用资格时重新开始有界扫描，状态不变时继续原游标，页数与任务预算不变。
+
+- 原生频道恢复取得可用多数派及精确日志证明后不再等待暂停副本的探测超时；已到达的冲突／更长尾部仍参与校验，迟到响应保持有界回调所有权。
+
+- 修复故障换主在写入隔离续期后误等待排空不可用旧主的问题：重新核验存活目标副本，避免阻塞后续频道修复。
+
+- 修复副本不可达时重复发送可能永久占住频道待提交项的问题：本地确定冲突直接进入持久化幂等校验，保留原消息 ID 和序号，后续消息可继续写入。
+
+- 原生频道换主恢复保留已观察到的尾部，对同链落后副本复制缺失的原提案后重新证明多数提交，支持三副本中一个 Leader 暂停时继续写入；本地恢复不覆盖已有记录，内容冲突仍阻断。
+
+- 修复节点进程暂停后旧频道写入长期等待失联 Leader 的问题：转发尝试有界超时并刷新路由，仅对持久化且带原幂等键的消息重试；频道修复扫描跨轮次保留游标并轮转 Slot，避免后续频道长期得不到故障切换。
+
+- Chat Demo 默认使用已有 Web Token 登录，不重写服务端凭据；凭据保存在当前标签页而非 URL，刷新或重新同步时重建消息/会话缓存。创建演示凭据须显式选择，退出会清除本标签页凭据。
+- 修复 Chat Demo 向前翻页时文本和订单卡片显示错位；有未发送草稿时禁用重新同步，并保留明确的凭据错误提示。
+
+- 修复原生恢复过程中的错误隔离：独立元数据请求不再继承同批请求的校验错误；副本尚未提升时 Leader 故障可撤销旧补建任务后重新选主；追加转发连接不可用返回可重试错误。
+
+- 修复原生频道替换副本无法追平的问题：通过有界后台任务复制已提交历史，新副本不计入写入 quorum；修复恢复检查读取已加载副本的过期进度。
+
+- `wkmigrate prepare` 遇到活动插件时继续执行独立的源业务副本检查，失败时输出已完成的检查证据并保持退出码 1；插件未兼容时仍不生成可转换、可导出的准备结果。
+
+- 迁移候选同步 main 已有的空会话兼容修复：授权成员读取尚无消息的频道时返回空数组，保留成员限制和真实故障；补充全流消息排除后的 HTTP 同步、未读操作及重启追加验收。
+
+- Recover cold quorum Channel leaders before history and conversation reads, including restarted empty replicas; return errors while recovery is unavailable instead of incomplete successful pages. Keep uncommitted messages invisible when reverse-reading a zero committed watermark. / 修复多节点重启后历史末条消息或会话遗漏：读取前完成原生 quorum 恢复，并阻止倒序读取暴露未提交消息。
+
+- Fix read-only message catalog pagination across different-length channel keys so diagnostics and migration verification do not omit channels at page boundaries.
+- Recover native cold Channel replicas for leader failover and allow quorum verification while a transfer write fence remains active; business writes remain fenced until cutover validation finishes.
+- Preserve native `SyncOnce` in Channel RPC v8 so remote history reads keep recovery barriers and CMD records filtered; reject lossy legacy-codec fallbacks without changing storage.
+- Preserve original message `red_dot` in the existing v3 stored flag and through ordinary send, history reads, replication and recovery; do not archive or clear it during v2 migration. Target nodes require Channel RPC v8 / Exchange v4 and a coordinated all-node upgrade.
+
+- `wkmigrate authority` 识别旧 v2 原样保存配置版本的规则；仅在所有所属 Slot 副本的前后命令、完整配置字段及消息历史均匹配时，识别历史 Leader 指向自己的无成员变更标记。缺失证据仍阻止候选判定，不改写原库，也不放行未证实的状态。
+
+- 迁移输出遵守现有 v3 消息存储与复制约束；不再引入迁移专用摘要格式或历史前缀恢复分支。无法完整保留的协议字段、非 1 起始历史及重复 ID 明确阻止迁移，不改写标识或额外丢弃数据。
+
+- 迁移预检核对原插件绑定的主键与用户、插件双向业务索引，避免把原账号旧插件字段为空误判为无绑定；插件运行及配置兼容门槛仍保持。
+
+- 迁移预检按原版语义保留零配置版本和非空 ID 的类型 0 源频道配置；仍按所属 Slot 核对副本一致性，不改写版本，也不放宽消息、会话和频道策略的身份检查。
+- 迁移工具无损保留原 v2 会话及频道配置中的非 UTF-8 标识，按原字节关联、路由和校验，避免 JSON 替换字符合并不同身份；更新工具后须使用新的工作空间和归档。
+- 迁移预检识别原 v2 独立写入的频道成员计数，并从原用户、设备解析个人权限频道；完整保留黑名单及原始计数，避免误报缺失频道身份或凭计数创建频道属性。无法解析的实际权限和空身份记录仍拒绝。
+- 迁移配置比较保留原始历史离线统计作为证据，但不再将各节点的离线次数、离线时间差异误判为权威配置冲突；Leader、任期、副本及复制日志检查保持严格。
+- 迁移预检按原版 v2 恢复语义处理空用户 ID 的会话缓存：完整归档并记录数量，不再误报为无效已读位置，也不创建空用户会话。
+
+- 恢复原版 `/message/eventsync` 的持久事件投影读取，保留事件序号、分页及可见性过滤行为。
+
 ### 🚀 New Features / 新功能
 
 - Show selected-node startup configuration as redacted TOML with effective defaults, full-document search/copy, and optional detailed Chinese/English comments; older nodes report unsupported TOML inspection explicitly. / 节点配置页改为脱敏 TOML，补齐生效默认值，支持全文搜索、复制和可选中英文详细说明，并明确提示旧节点不支持的情况。
 
 - Add opt-in synchronous `msg.before_send` Webhooks for payload replacement or rejection, independent timeout/error policies, bounded concurrency, and business rejection codes 128–255 through SENDACK and HTTP. / 新增可选同步发送前 Webhook，支持内容修改、拒绝发送、独立超时及错误策略、有界并发和业务拒绝码透传。
 - Add `message.cmd_channel_suffix` (`WK_MESSAGE_CMD_CHANNEL_SUFFIX`), defaulting to `____cmd`, consistently across command send, delivery, sync, plugins and Manager filtering. All nodes must agree; changing the suffix does not migrate existing command channels or bindings.
+
+- `wkmigrate` 支持按捕获摘要、用户／频道身份和保留消息尾序号限定补齐缺失会话，将已核验历史设为已读；原生历史可见范围保持完整，未批准或证据变化的情况仍拒绝。
+
+- `wkmigrate` 可显式接受经完整消息前缀、正式副本多数和已应用配置日志证明的源副本落后；保留当前 Leader 原历史并在归档重建时重新核验，默认仍阻断空 Leader、同任期换主及内容冲突。另可按显式恢复决定选取空 Leader 频道的一份完整正式多数副本，绑定捕获、完整诊断和消息摘要；未知异常仍阻断。
+
+- `wkmigrate` 支持插件程序分块归档、离线重建、原生目录安装及独立文件校验；显式兼容规则仅接受已审计的 AI 示例 Linux/amd64 原程序、Receive 注册和统一配置。未知程序仍阻断，精确重试拒绝程序被替换或权限漂移。
+
+- `wkmigrate` 可显式将原用户创建／更新时间完整留档，以适配没有对应字段的 v3 原生用户表；报告绑定每个节点的原值，归档重建重新核对，用户身份、插件绑定及设备凭据仍严格比较。
+
+- Add explicit offline stream-message exclusion with source archives, continuous per-channel sequences, mapped read/delete boundaries, and native append/restart validation. / 离线迁移支持显式排除流消息，完整归档源行、连续编号频道消息并映射读删位置，验证原生追加与重启接续。
+
+- `wkmigrate dedupe-plan` 报告 v3 新增按节点的消息字段影响统计，区分排除 CMD、去重后的保留消息与排除消息，并提供有界样本；不修改协议字段、不放宽兼容检查，需使用新的规划工作空间。
+
+- 迁移计划新增 `plugin_configs`，可让指定插件统一采用某源节点的有效配置，同时保留各节点启用状态、时间戳和全部原配置。导入配置纳入批次完整性检查，离线校验从原始归档独立重算并拒绝缺失、篡改或多余配置；业务兼容检查仍保留。
+
+- 新增插件迁移的单节点/三节点隔离验收，串联原绑定导入、默认程序扫描、节点配置、真实消息落库，并在两次完整重启后、发送新消息前核对全部已有消息和回复；发现逐节点配置会影响自动回复内容时，仍阻止业务兼容放行，支持对已批准的指定插件显式选择统一配置来源。
+
+- 迁移工具支持把原 `PluginUser` 绑定按 UID 重新分配到 v3 原生表，并从源归档独立核对绑定字段、副本数量和双向查询；原纳秒时间保留在归档，目标沿用原生毫秒精度。插件程序、配置及业务行为仍须通过兼容验收。
+
+- 迁移计划可显式指定 `plugin_nodes`，为每个目标选择配置来源，支持同一来源扩展到多个目标及缩容时明确选择来源；全部原配置留档，保持所选启用状态和时间戳。遗漏或重复目标、未知来源时拒绝，归档重建独立重算；该步骤不解除插件业务兼容检查。
+
+- `wkmigrate diagnose` 的插件兼容问题新增各节点的配置、方法及原记录指纹，可识别节点配置差异且不输出配置值；诊断结果不代表插件已兼容，也不放宽迁移检查。
+
+- 迁移工具可按原唯一索引与当前 Slot Leader 列表核对重复会话，保留已读、删除位置及列表版本，并检查去重前数量上限；空频道管理记录仅在无业务引用、正式副本及原配置日志一致时完整归档。两项均须显式启用，归档重建重新验证，默认仍严格拒绝。
+
+- `wkmigrate` 新增显式 `metadata.device_lookup=v2_cold_start` 选项，按原版冷启动登录的 UID 索引保留最小设备 ID 的完整凭据；原始重复记录留档，归档重建重新选择并验证。默认拒绝重复凭据，不推断停机前缓存，也不放宽副本一致性或会话检查。
+
+- `wkmigrate prepare` 从原始捕获的 Slot 配置命令和完整消息历史重建来源证明，支持有充分证据的补副本状态及历史 Leader 自指标记；归档携带命令并独立重验，缺失、改动或错位命令仍拒绝，不改变原库或 v3 放置与存储逻辑。
+
+- `wkmigrate` 支持显式排除 CMD 消息、保留最新重复消息并压紧剩余序号；同步映射普通会话的已读/删除位置，省略旧 CMD 同步位置，生成可校验序号映射，支持 `export-map` 从归档重建。原始记录完整归档，跨频道冲突及不确定来源仍拒绝，不改变 v3 存储逻辑。
+
+- 新增 `wkmigrate dedupe-plan`：按频道内原序号规划重复 MessageID 或发送者 ClientMsgNo 的最新记录保留，输出每条候选删除记录、保留依据及连续序号影响；源数据保持不变，跨频道身份冲突与相互淘汰的保留记录明确阻止规划通过。
+
+- 新增 `wkmigrate authority` 专项核验：只读核对带迁移标记的源频道配置、已保留的 Slot 配置日志及逐序号副本消息，输出校验和绑定的分类证据；不清除迁移标记、不选择或修改业务数据，也不放宽迁移门槛。
+
+- 新增 `wkmigrate diagnose` 全量源诊断：收集所有可读节点的兼容问题，以磁盘排序统计重复 ID/索引冲突，输出分节点数量、有限样例和带校验和的完整明细；扫描不完整时明确标记，诊断结果不能作为迁移通过凭据。
+
+- `wkmigrate` 支持显式排除升级遗留的旧流分片及元数据，保留主消息及原序号；排除项完整归档并列出数量和校验摘要，默认仍拒绝，插件兼容检查不受影响。
+- 新增 `wkmigrate prepare/export/import/verify` 离线迁移命令，读取未经升级的固定 v2 源版本，导入全新 v3 集群，并校验业务字段、消息索引、摘要链、初始化快照与副本记录数量。相同计划支持中断恢复；拒绝不兼容业务插件、关键源索引损坏和超出原生恢复预算的单条消息，不覆盖已有业务目标。大规模性能验收尚未完成。
 
 ### 📚 Documentation / 文档
 
@@ -133,6 +223,9 @@ the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 
 ### 📚 Documentation / 文档
 
+- 补充原版 v2 数据迁入指定三节点 v3 测试目录的部署验收报告，记录旧环境备份、真实 SDK 缓存重置、插件回复、完整重启和监控检查。
+
+- Document the legacy stream-parent audit and the explicit decision to omit stream messages while preserving continuous sequences. / 记录旧流主消息语义核对及本次排除流消息、保持连续序号的明确范围。
 - 中英文 README 现以业务开发者的首次接入为主线，提供 Linux 软件包安装、systemd 启动、SSH 转发与双用户收发步骤，并提供 Docker 部署指南入口，更新 SDK 选型入口，明确业务后端和 Product HTTP 认证边界；英文版采用英文 Demo 操作说明与真实截图。
 
 - 中英文文档补齐 Web 双用户接入闭环，统一教程文本消息与 Manager 访问方式，并提供可下载的监控告警、压测配置及结果解读。

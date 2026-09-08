@@ -34,7 +34,7 @@ func TestChannelThreeNodeLeaderFailoverAfterNodeKill(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
 
 	channelsByLeader := createChannelsLedByEveryNode(t, cluster)
 	leaders := sortedLeaderIDs(channelsByLeader)
@@ -60,7 +60,7 @@ func TestChannelThreeNodeLeaderFailoverAfterNodeKill(t *testing.T) {
 	require.NoError(t, cluster.StartStoppedNode(killedNode), cluster.DumpDiagnostics())
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
 	requireNodeSchedulableEventually(t, cluster, survivor, killedNode)
 
 	afterRestart := sendGroupMessageWithin(t, cluster.MustNode(killedNode), affected.ChannelID, affected.ChannelType, "after-old-leader-restart", 20*time.Second)
@@ -74,7 +74,7 @@ func TestChannelNewPlacementFailsClosedWhenReplicaCountUnavailable(t *testing.T)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
 
 	const stoppedNode = uint64(3)
 	survivor := cluster.MustNode(1)
@@ -91,7 +91,7 @@ func TestChannelNewPlacementFailsClosedWhenReplicaCountUnavailable(t *testing.T)
 	require.NoError(t, cluster.StartStoppedNode(stoppedNode), cluster.DumpDiagnostics())
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
 	requireNodeSchedulableEventually(t, cluster, survivor, stoppedNode)
 
 	recovered := sendGroupMessage(t, survivor, channelID, frame.ChannelTypeGroup, "placement-recovered")
@@ -108,7 +108,7 @@ func TestChannelFollowerReplicaRepairAfterNodeKill(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
 
 	manager := cluster.ManagerClient(t, 1)
 	node4 := cluster.StartSeedJoinNode(t, suite.SeedJoinNodeConfig{
@@ -134,7 +134,7 @@ func TestChannelFollowerReplicaRepairAfterNodeKill(t *testing.T) {
 	require.NoError(t, cluster.StartStoppedNode(candidate.StoppedFollower), cluster.DumpDiagnostics())
 	restartCtx, restartCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer restartCancel()
-	require.NoError(t, cluster.WaitClusterReady(restartCtx), cluster.DumpDiagnostics())
+	require.NoError(t, cluster.WaitHTTPReady(restartCtx), cluster.DumpDiagnostics())
 	managerNode := cluster.MustNode(candidate.Leader)
 	requireNodeSchedulableEventually(t, cluster, managerNode, candidate.StoppedFollower)
 	repairedMeta = requireReplicaRepairTopologyEventually(t, cluster, cluster.MustNode(candidate.SlotLeader), candidate, 20*time.Second)

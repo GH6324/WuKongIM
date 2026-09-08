@@ -16,12 +16,13 @@ func TestMigrationExecutorAdvancesOtherTasksWhileFirstRecoveryWaits(t *testing.T
 	tasks := make(migrationFairSource, 2)
 	for i, name := range []string{"waiting", "ready"} {
 		tasks[i] = testLeaderFailoverExecutorTask(ch.ChannelID{ID: name, Type: 2})
+		tasks[i].TaskID = "shared-per-channel-id"
 		tasks[i].OwnerNodeID = 2
 		tasks[i].OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
 	}
 	meta := &migrationFairMeta{}
 	store := &migrationFairStore{}
-	e := NewMigrationExecutor(MigrationExecutorConfig{LocalNode: 2, Source: tasks, Store: store,
+	e := NewMigrationExecutor(MigrationExecutorConfig{LocalNode: 2, Source: &migrationRotatingSource{tasks: tasks}, Store: store,
 		Runtime: &fakeMigrationExecutorRuntime{}, Meta: meta, Clock: func() time.Time { return now }, TaskLimit: 2})
 	require.ErrorIs(t, e.RunOnce(context.Background()), ch.ErrNotReady)
 	require.Equal(t, []string{"waiting", "ready"}, meta.attempted)
@@ -30,8 +31,18 @@ func TestMigrationExecutorAdvancesOtherTasksWhileFirstRecoveryWaits(t *testing.T
 
 type migrationFairSource []metadb.ChannelMigrationTask
 
-func (s migrationFairSource) ListRunnableMigrationTasks(context.Context, uint64, int) ([]metadb.ChannelMigrationTask, error) {
-	return s, nil
+type migrationRotatingSource struct {
+	tasks migrationFairSource
+	next  int
+}
+
+func (s *migrationRotatingSource) ListRunnableMigrationTasks(_ context.Context, _ uint64, limit int) ([]metadb.ChannelMigrationTask, error) {
+	out := make([]metadb.ChannelMigrationTask, 0, limit)
+	for i := 0; i < limit && i < len(s.tasks); i++ {
+		out = append(out, s.tasks[s.next])
+		s.next = (s.next + 1) % len(s.tasks)
+	}
+	return out, nil
 }
 
 type migrationFairMeta struct{ attempted []string }
@@ -54,4 +65,36 @@ func (s *migrationFairStore) Advance(_ context.Context, task metadb.ChannelMigra
 		s.advanced = append(s.advanced, task.ChannelID)
 	}
 	return nil
+}
+
+// Cancellation models a consumed tick without waiting for real wall-clock time.
+func TestMigrationExecutorTimeoutDoesNotSkipNextTask(t *testing.T) {
+	now := time.Unix(100, 0)
+	tasks := make(migrationFairSource, 2)
+	for i, name := range []string{"waiting", "ready"} {
+		tasks[i] = testLeaderFailoverExecutorTask(ch.ChannelID{ID: name, Type: 2})
+		tasks[i].TaskID = "shared-per-channel-id"
+		tasks[i].OwnerNodeID = 2
+		tasks[i].OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	meta := &migrationCancelMeta{cancel: cancel}
+	store := &migrationFairStore{}
+	e := NewMigrationExecutor(MigrationExecutorConfig{LocalNode: 2, Source: &migrationRotatingSource{tasks: tasks}, Store: store,
+		Runtime: &fakeMigrationExecutorRuntime{}, Meta: meta, Clock: func() time.Time { return now }, TaskLimit: 2})
+	require.ErrorIs(t, e.RunOnce(ctx), context.Canceled)
+	require.Empty(t, store.advanced)
+	_ = e.RunOnce(context.Background())
+	require.Equal(t, []string{"ready"}, store.advanced)
+}
+
+type migrationCancelMeta struct{ cancel context.CancelFunc }
+
+func (m *migrationCancelMeta) GetChannelRuntimeMeta(ctx context.Context, id string, typ int64) (metadb.ChannelRuntimeMeta, error) {
+	if id == "waiting" {
+		m.cancel()
+		return metadb.ChannelRuntimeMeta{}, context.Canceled
+	}
+	return (&migrationFairMeta{}).GetChannelRuntimeMeta(ctx, id, typ)
 }

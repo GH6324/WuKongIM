@@ -410,6 +410,9 @@ func (s *Shard) ListActiveChannelMigrationTaskPage(ctx context.Context, after Ch
 	if err := s.check(ctx); err != nil {
 		return nil, after, false, err
 	}
+	if after.ChannelID == "" && after.ChannelType != 0 {
+		return nil, after, false, dberrors.ErrInvalidArgument
+	}
 	if limit <= 0 {
 		return nil, after, true, nil
 	}

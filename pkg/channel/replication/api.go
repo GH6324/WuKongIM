@@ -21,7 +21,7 @@ type Authority struct {
 	ChannelID ch.ChannelID
 	ID        AuthorityID
 	Leader    ch.NodeID
-	// Learners receive the installed committed prefix but never contribute votes.
+	// Learners receive exact committed history but never contribute a quorum vote.
 	Learners    []ch.NodeID
 	Voters      []ch.NodeID
 	WriteQuorum int

@@ -150,7 +150,9 @@ type Message struct {
 	ChannelKey string
 	// SyncOnce marks one-shot command-sync messages in the durable channel log.
 	SyncOnce bool
-	Payload  []byte
+	// RedDot preserves the protocol unread-badge flag through storage and replication.
+	RedDot  bool
+	Payload []byte
 }
 
 // OpID identifies an asynchronous operation inside one channel generation.
@@ -183,6 +185,8 @@ type Record struct {
 	ServerTimestampMS int64
 	// SyncOnce marks one-shot command-sync records in the durable channel log.
 	SyncOnce bool
+	// RedDot preserves the protocol unread-badge flag through storage and replication.
+	RedDot bool
 	// Payload is the encoded message body in v0 memory and store adapters.
 	Payload []byte
 	// SizeBytes is used by batching and read budgets.

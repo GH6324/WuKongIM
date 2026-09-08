@@ -50,6 +50,8 @@ not depend on `pkg/cluster`.
   segment tail by truncating to the last complete record and syncing it before
   append. Checksum mismatches, incomplete older segments, and a newest segment
   without any complete record fail closed.
+- Offline bootstrap inspection reads bounded WAL and snapshot artifacts without
+  truncation or startup repair; even an incomplete newest tail fails verification.
 - `Revision` versions logical cluster state; `AppliedRaftIndex` versions Raft
   materialization. Empty probes and health reports may advance applied state
   without advancing logical revision.

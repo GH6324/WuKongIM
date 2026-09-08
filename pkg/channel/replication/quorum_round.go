@@ -54,7 +54,7 @@ type followerRepair struct {
 	manifest   ch.ProposalManifest
 	follower   ch.NodeID
 	needFrom   uint64
-	// committed is a quorum-proved frontier, capped by manifest.LastOffset.
+	// committed is independently quorum-proven, even before local HW checkpointing.
 	committed uint64
 }
 
@@ -251,6 +251,15 @@ func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, w
 				completion = durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errPeerOutcomeUnknown}
 			} else if validRepair {
 				result.repairs = append(result.repairs, followerRepairFor(proposal, completion.follower, completion.needFrom))
+			}
+			if write.local && completion.outcome == ch.AppendOutcomeConflict {
+				// An immutable local conflict makes this exact proposal impossible
+				// for this owner. A missing peer cannot turn that into a pending
+				// local write. Return conflict so the owner can prove an existing
+				// command through durable lookup; this never acknowledges a write
+				// or asserts that already-admitted peers wrote nothing.
+				result.outcome = ch.AppendOutcomeConflict
+				return result, ch.ErrLogConflict
 			}
 			switch {
 			case completion.outcome.Durable():

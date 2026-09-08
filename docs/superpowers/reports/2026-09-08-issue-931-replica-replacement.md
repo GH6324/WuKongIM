@@ -29,17 +29,21 @@ Three interacting causes were confirmed:
 
 - Project non-ISR replicas as learners separately from ISR voters. After an
   authority install proves recovery and its barrier on the voter quorum,
-  schedule learner copies through the existing fixed repair workers.
+  schedule learner copies through the existing fixed repair workers. The
+  integrated main implementation also schedules copies after every commit.
 - Copy immutable proposal pages with the proven committed frontier. Retain
   exact page progress between bounded worker turns, fenced to the task entry
-  and version. Membership changes cancel superseded work. The ledger allows
+  and gap version. Pure tail growth preserves completed pages; new gap evidence
+  invalidates them, and full-version checks prevent premature completion.
+  Membership changes cancel superseded work. The ledger allows
   the configured voter count plus one temporary replacement replica per Channel.
 - Learners never participate in recovery voting or write quorum counting.
   Metadata still promotes the learner only after the existing cutover and
   membership guards pass; `min_isr=2` is unchanged.
 - Refresh migration follower probes from consistent exact storage and recheck
-  runtime identity, epochs, role, status and write fence after the read. Close
-  every acquired store handle, including failed reads.
+  metadata and runtime identity, epochs, role, status and write fence after
+  the read. Reject a durable authority ahead of the observed metadata, including
+  its fence version. Use the shared ReplicaStore adapter and handle lifecycle.
 - Keep transient final catch-up lag runnable without writing the same task
   back to Slot Raft each scan. Invalid runtime evidence still blocks.
 
@@ -59,7 +63,7 @@ Focused race-enabled regression coverage passed for:
   followers unavailable;
 - rejection of a leader-plus-learner topology without a voter quorum;
 - exact work-generation fencing of retained repair cursors;
-- loaded follower progress refresh, changed-epoch rejection and handle cleanup;
+- loaded follower progress refresh and rejection of mixed runtime/durable authority;
 - repeated lagging probes retaining their cutover proof until committed catch-up.
 
 The related Channel/Cluster unit and race suites passed. Final repository-wide
@@ -73,3 +77,17 @@ This is a local process-level recovery qualification, not a release or a
 production capacity/SLO qualification. Already persisted blocked tasks are not
 automatically reclassified by this repair; operator-controlled abort/recreate
 remains separate from ordinary runnable-task execution.
+
+## Integration review on current main
+
+Main `c36a77c89cee10f1b87fa5f83d35d4cd888b62ef` independently added learner
+replication and authoritative repair activation in PR #933. Integration retains
+those owners, per-commit learner scheduling, native recovery safety, and the
+expanded process-pause/history scenarios. It removes the duplicate Node probe
+path from the original candidate.
+
+Two deterministic regressions failed before the integration fixes: concurrent
+commits discarded completed page cursors, and native repair probes accepted
+mixed runtime/durable authority. The cursor now distinguishes tail growth from
+new gap evidence; probe checks share the existing Channels service owner.
+Final integrated-head validation and review receipts are recorded in PR #932.

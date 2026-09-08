@@ -20,9 +20,6 @@ depending on their frames, JSON, or concrete cluster runtimes.
 - Channel authority routing, message-ID allocation, durable append,
   idempotency, realtime `NoPersist`, and post-commit delivery belong to
   `internal/runtime/channelappend`.
-- Optional synchronous before-send Webhook policy runs after plugins, independent
-  of plugin skip controls. Callback source IDs use the same configured command
-  codec as permission checks. The HTTP adapter cannot decide failure policy.
 - Permission stores return raw authoritative facts. This package owns policy
   order and reason precedence.
 - Concrete Slot, Channel, cluster, gateway, and access types must not cross the
@@ -40,10 +37,12 @@ depending on their frames, JSON, or concrete cluster runtimes.
 2. Single and batch sync validate membership and visibility, canonicalize
    Channel IDs, and pass page intent plus an independent visibility floor to
    `PageReader`. It owns latest-page selection, scan bounds, bounded lookahead,
-   filtering, ascending order, and `HasMore` for sync and plugin reads. The
+   filtering, bounded continuation, ascending order, and `HasMore` for sync and plugin reads. The
    committed-record adapter executes routed scans; sync then clones payloads
    and optionally enriches stream messages with bounded event metadata.
-3. Event append validates and canonicalizes its projection key, then delegates
+3. Legacy event sync reads a bounded durable sequence page through Slot authority,
+   preserves original cursor/filter order, and does not invent event history.
+4. Event append validates and canonicalizes its projection key, then delegates
    cache or durable projection behavior to `MessageEventStore`.
 
 ## Invariants and Failure Semantics
@@ -62,8 +61,12 @@ depending on their frames, JSON, or concrete cluster runtimes.
   cache state.
 - Page preparation never rewrites a caller start sequence to enforce visibility;
   `PageReader` interprets latest intent and the floor together. Command filtering
-  remains after the bounded scan and never triggers refill reads. Plugin reads
-  retain their separate authorization and response contracts.
+  remains in the use case. Hidden raw records advance a monotonic scan cursor
+  until limit+1 visible records or the range end proves `HasMore`. Reads use
+  at most 64 aligned waves per Channel, each limited to the remaining visible
+  demand plus lookahead and at most 1,024 raw records, with a five-second
+  context; exhausted budgets or invalid progress fail instead of implying end
+  of history. Plugin reads retain separate authorization and response contracts.
 - Sync reads committed data only and never mutate membership. A new person
   conversation without membership returns an empty page without a Channel read;
   missing group membership and tombstones still fail validation. Single and batch
@@ -75,8 +78,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
 ## Read First
 
 - [Permission policy](permission.go)
+- [Batch permission reads](permission_batch.go)
 - [Send orchestration](send.go)
-- [Before-send Webhook policy](before_send.go)
 - [Committed sync](sync.go)
 - [Message-page policy and read seam](page_reader.go)
 

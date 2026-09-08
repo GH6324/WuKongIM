@@ -54,6 +54,8 @@ bench or debug request
 - A configured `bench.api_token` protects every `/bench/v1/*` and enabled
   `/debug/*` route. An empty token is controlled-environment compatibility, not
   a production authentication claim.
+- `/message/eventsync` maps the original projected-event envelope to the narrow
+  event-sync use case; sequence selection and visibility policy stay below HTTP.
 - `/route`, legacy channel/user/message/CMD/conversation routes, and their
   response envelopes remain compatibility surfaces independent of bench mode.
 - Default external `/route` and `/route/batch` complete listener-derived wildcard

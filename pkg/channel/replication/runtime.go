@@ -148,10 +148,12 @@ type runtimeRepairKey struct {
 type runtimeRepairEntry struct {
 	repair  followerRepair
 	version uint64
-	queued  bool
-	running bool
-	ctx     context.Context
-	cancel  context.CancelFunc
+	// gapVersion fences page progress after a repeated or earlier gap; tail growth keeps it valid.
+	gapVersion uint64
+	queued     bool
+	running    bool
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 type runtimeRepairAuthority struct {
@@ -538,9 +540,13 @@ func (o *runtimeRepairOwner) RecordFollowerRepair(repair followerRepair) {
 		entry = &runtimeRepairEntry{repair: repair, version: 1, queued: true, ctx: entryCtx, cancel: cancel}
 		o.pending[key] = entry
 		o.ready = append(o.ready, key)
-	} else if merged, changed := mergeFollowerRepair(entry.repair, repair); changed {
+	} else if merged, changed := mergeFollowerRepair(entry.repair, repair); changed || repair.needFrom <= entry.repair.needFrom {
+		invalidatesProgress := repair.needFrom <= entry.repair.needFrom
 		entry.repair = merged
 		entry.version++
+		if invalidatesProgress {
+			entry.gapVersion = entry.version
+		}
 		if !entry.running && !entry.queued {
 			entry.queued = true
 			o.ready = append(o.ready, key)
@@ -700,12 +706,13 @@ func (o *runtimeRepairOwner) take() (runtimeRepairKey, followerRepair, *runtimeR
 }
 
 // retainProgress resumes a bounded repair page only within the exact work
-// generation that proved it. New gap evidence or authority replacement wins.
+// generation that proved it. Tail growth preserves progress; new gap evidence
+// or authority replacement wins. Completion still requires the full version.
 func (o *runtimeRepairOwner) retainProgress(key runtimeRepairKey, completed *runtimeRepairEntry, version uint64, next uint64) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	entry := o.pending[key]
-	if entry == completed && entry != nil && entry.version == version &&
+	if entry == completed && entry != nil && entry.gapVersion <= version &&
 		next > entry.repair.needFrom && next <= entry.repair.manifest.LastOffset {
 		entry.repair.needFrom = next
 	}

@@ -15,10 +15,15 @@ const (
 	legacyCodecVersionV4 = uint8(4)
 	legacyCodecVersionV5 = uint8(5)
 	legacyCodecVersionV6 = uint8(6)
-	codecVersion         = uint8(7)
+	legacyCodecVersionV7 = uint8(7)
+	codecVersion         = uint8(8)
 )
 
 var errInvalidCodecFrame = errors.New("channels: invalid frame")
+
+var errSyncOnceCodecRequired = errors.New("channels: sync_once requires channel codec version 8")
+
+var errRedDotCodecRequired = errors.New("channels: red_dot requires channel codec version 8")
 
 const (
 	kindPull uint8 = iota + 1
@@ -192,7 +197,12 @@ func encodeAppendRequest(req ch.AppendRequest) ([]byte, error) {
 	return encodeAppendRequestVersion(req, codecVersion)
 }
 func encodeAppendRequestVersion(req ch.AppendRequest, version uint8) ([]byte, error) {
-	return encodeRequestFrame(version, kindAppend, appendAppendRequest(nil, req))
+	if version < codecVersion {
+		if err := legacyMessageFlagError(req); err != nil {
+			return nil, err
+		}
+	}
+	return encodeRequestFrame(version, kindAppend, appendAppendRequest(nil, req, version))
 }
 func decodeAppendRequest(data []byte) (ch.AppendRequest, error) {
 	version, payload, err := decodeFrameWithVersion(data, kindAppend)
@@ -219,6 +229,11 @@ func encodeAppendBatchRequest(req ch.AppendBatchRequest) ([]byte, error) {
 	return encodeAppendBatchRequestVersion(req, codecVersion)
 }
 func encodeAppendBatchRequestVersion(req ch.AppendBatchRequest, version uint8) ([]byte, error) {
+	if version < codecVersion {
+		if err := legacyMessageFlagError(req); err != nil {
+			return nil, err
+		}
+	}
 	return encodeRequestFrame(version, kindAppendBatch, appendAppendBatchRequest(nil, req, version))
 }
 func decodeAppendBatchRequest(data []byte) (ch.AppendBatchRequest, error) {
@@ -355,8 +370,11 @@ func encodeRPCResult(kind uint8, payload any, err error) ([]byte, error) {
 }
 
 func encodeRPCResultVersion(version uint8, kind uint8, payload any, err error) ([]byte, error) {
-	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != codecVersion {
+	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
 		return nil, errInvalidCodecFrame
+	}
+	if err == nil && version < codecVersion {
+		err = legacyMessageFlagError(payload)
 	}
 	if err != nil {
 		dst := []byte{rpcResultErr}
@@ -424,7 +442,7 @@ func encodeFrameVersion(version uint8, kind uint8, payload []byte) []byte {
 }
 
 func encodeRequestFrame(version uint8, kind uint8, payload []byte) ([]byte, error) {
-	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != codecVersion {
+	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
 		return nil, errInvalidCodecFrame
 	}
 	return encodeFrameVersion(version, kind, payload), nil
@@ -440,7 +458,7 @@ func decodeFrameWithVersion(data []byte, wantKind uint8) (uint8, []byte, error) 
 		return 0, nil, errInvalidCodecFrame
 	}
 	version := data[0]
-	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != codecVersion {
+	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
 		return 0, nil, errInvalidCodecFrame
 	}
 	return version, data[2:], nil
@@ -452,6 +470,9 @@ func responseCodecVersion(request []byte) uint8 {
 	}
 	if len(request) > 0 && request[0] == legacyCodecVersionV6 {
 		return legacyCodecVersionV6
+	}
+	if len(request) > 0 && request[0] == legacyCodecVersionV7 {
+		return legacyCodecVersionV7
 	}
 	return codecVersion
 }
@@ -465,9 +486,9 @@ func appendRPCPayload(dst []byte, payload any, version uint8) ([]byte, bool) {
 	case channeltransport.PullHintBatchResponse:
 		return appendPullHintBatchResponse(dst, v), true
 	case ch.AppendResult:
-		return appendAppendResult(dst, v), true
+		return appendAppendResult(dst, v, version), true
 	case ch.AppendBatchResult:
-		return appendAppendBatchResult(dst, v), true
+		return appendAppendBatchResult(dst, v, version), true
 	case LastVisibleResponse:
 		return appendLastVisibleResponse(dst, v, version), true
 	case ConversationHeadsResponse:
@@ -562,7 +583,7 @@ func appendPullResponse(dst []byte, resp channeltransport.PullResponse, version 
 	dst = appendVarint(dst, int64(resp.NextPullAfter))
 	dst = append(dst, byte(resp.Control))
 	dst = appendMetaPtr(dst, resp.Meta, version)
-	dst = appendRecords(dst, resp.Records)
+	dst = appendRecords(dst, resp.Records, version)
 	return dst
 }
 
@@ -850,9 +871,9 @@ func readNotifyRequest(body []byte, offset int) (channeltransport.NotifyRequest,
 	return req, offset, nil
 }
 
-func appendAppendRequest(dst []byte, req ch.AppendRequest) []byte {
+func appendAppendRequest(dst []byte, req ch.AppendRequest, version uint8) []byte {
 	dst = appendChannelID(dst, req.ChannelID)
-	dst = appendMessage(dst, req.Message)
+	dst = appendMessage(dst, req.Message, version)
 	dst = append(dst, byte(req.CommitMode))
 	dst = appendUvarint(dst, req.ExpectedChannelEpoch)
 	dst = appendUvarint(dst, req.ExpectedLeaderEpoch)
@@ -882,10 +903,10 @@ func readAppendRequest(body []byte, offset int, version uint8) (ch.AppendRequest
 	return req, offset, nil
 }
 
-func appendAppendResult(dst []byte, result ch.AppendResult) []byte {
+func appendAppendResult(dst []byte, result ch.AppendResult, version uint8) []byte {
 	dst = appendUvarint(dst, result.MessageID)
 	dst = appendUvarint(dst, result.MessageSeq)
-	dst = appendMessage(dst, result.Message)
+	dst = appendMessage(dst, result.Message, version)
 	return dst
 }
 
@@ -906,7 +927,7 @@ func readAppendResult(body []byte, offset int, version uint8) (ch.AppendResult, 
 
 func appendAppendBatchRequest(dst []byte, req ch.AppendBatchRequest, version uint8) []byte {
 	dst = appendChannelID(dst, req.ChannelID)
-	dst = appendMessages(dst, req.Messages)
+	dst = appendMessages(dst, req.Messages, version)
 	dst = appendString(dst, req.TraceID)
 	dst = appendChannelKey(dst, ch.ChannelKey(req.ChannelKey))
 	dst = appendVarint(dst, int64(req.Attempt))
@@ -914,7 +935,7 @@ func appendAppendBatchRequest(dst []byte, req ch.AppendBatchRequest, version uin
 	dst = appendUvarint(dst, req.ExpectedChannelEpoch)
 	dst = appendUvarint(dst, req.ExpectedLeaderEpoch)
 	dst = appendBool(dst, req.OmitResultPayload)
-	if version >= codecVersion {
+	if version >= legacyCodecVersionV7 {
 		dst = appendBool(dst, req.ServerAllocatedMessageIDs)
 	}
 	return dst
@@ -954,7 +975,7 @@ func readAppendBatchRequest(body []byte, offset int, version uint8) (ch.AppendBa
 	if req.OmitResultPayload, offset, err = readBool(body, offset, "append batch omit result payload"); err != nil {
 		return ch.AppendBatchRequest{}, offset, err
 	}
-	if version >= codecVersion {
+	if version >= legacyCodecVersionV7 {
 		if req.ServerAllocatedMessageIDs, offset, err = readBool(body, offset, "append batch server allocated message ids"); err != nil {
 			return ch.AppendBatchRequest{}, offset, err
 		}
@@ -968,7 +989,7 @@ func appendLastVisibleRequest(dst []byte, req LastVisibleRequest, version uint8)
 	dst = appendUvarint(dst, uint64(req.ExpectedLeader))
 	dst = appendUvarint(dst, req.ExpectedChannelEpoch)
 	dst = appendUvarint(dst, req.ExpectedLeaderEpoch)
-	if version < codecVersion {
+	if version < legacyCodecVersionV7 {
 		return dst
 	}
 	dst = appendString(dst, req.HeadUID)
@@ -995,7 +1016,7 @@ func readLastVisibleRequest(body []byte, offset int, version uint8) (LastVisible
 	if req.ExpectedLeaderEpoch, offset, err = readUvarint(body, offset); err != nil {
 		return LastVisibleRequest{}, offset, err
 	}
-	if version < codecVersion {
+	if version < legacyCodecVersionV7 {
 		return req, offset, nil
 	}
 	if req.HeadUID, offset, err = readString(body, offset); err != nil {
@@ -1072,13 +1093,13 @@ func readConversationHeadsRequest(body []byte, offset int) (ConversationHeadsReq
 	return req, offset, nil
 }
 
-func appendAppendBatchResult(dst []byte, result ch.AppendBatchResult) []byte {
+func appendAppendBatchResult(dst []byte, result ch.AppendBatchResult, version uint8) []byte {
 	dst = appendSliceHeader(dst, len(result.Items), result.Items == nil)
 	for _, item := range result.Items {
 		dst = appendOptionalRPCApplicationError(dst, item.Err)
 		dst = appendUvarint(dst, item.MessageID)
 		dst = appendUvarint(dst, item.MessageSeq)
-		dst = appendMessage(dst, item.Message)
+		dst = appendMessage(dst, item.Message, version)
 	}
 	return dst
 }
@@ -1113,9 +1134,9 @@ func readAppendBatchResult(body []byte, offset int, version uint8) (ch.AppendBat
 func appendLastVisibleResponse(dst []byte, resp LastVisibleResponse, version uint8) []byte {
 	dst = appendBool(dst, resp.Found)
 	if resp.Found {
-		dst = appendMessage(dst, resp.Message)
+		dst = appendMessage(dst, resp.Message, version)
 	}
-	if version < codecVersion {
+	if version < legacyCodecVersionV7 {
 		return dst
 	}
 	dst = appendUvarint(dst, resp.LastCommittedSeq)
@@ -1135,7 +1156,7 @@ func readLastVisibleResponse(body []byte, offset int, version uint8) (LastVisibl
 			return LastVisibleResponse{}, offset, err
 		}
 	}
-	if version < codecVersion {
+	if version < legacyCodecVersionV7 {
 		return resp, offset, nil
 	}
 	if resp.LastCommittedSeq, offset, err = readUvarint(body, offset); err != nil {
@@ -1259,7 +1280,7 @@ func appendCommittedReadsResponse(dst []byte, resp CommittedReadsResponse, versi
 	dst = appendSliceHeader(dst, len(resp.Items), resp.Items == nil)
 	for _, item := range resp.Items {
 		dst = appendOptionalRPCApplicationError(dst, item.Err)
-		dst = appendMessages(dst, item.Read.Messages)
+		dst = appendMessages(dst, item.Read.Messages, version)
 		dst = appendUvarint(dst, item.Read.NextSeq)
 	}
 	return dst
@@ -1317,7 +1338,7 @@ func readChannelID(body []byte, offset int) (ch.ChannelID, int, error) {
 	return ch.ChannelID{ID: id, Type: channelType}, next, nil
 }
 
-func appendMessage(dst []byte, msg ch.Message) []byte {
+func appendMessage(dst []byte, msg ch.Message, version uint8) []byte {
 	dst = appendUvarint(dst, msg.MessageID)
 	dst = appendUvarint(dst, msg.MessageSeq)
 	dst = appendString(dst, msg.ChannelID)
@@ -1329,6 +1350,10 @@ func appendMessage(dst []byte, msg ch.Message) []byte {
 	dst = appendString(dst, msg.TraceID)
 	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
 	dst = appendOptionalBytes(dst, msg.Payload)
+	if version >= codecVersion {
+		dst = appendBool(dst, msg.RedDot)
+		dst = appendBool(dst, msg.SyncOnce)
+	}
 	return dst
 }
 
@@ -1358,8 +1383,17 @@ func readMessage(body []byte, offset int, version uint8) (ch.Message, int, error
 		return readMessageV3LegacyRemainder(body, offset, msg)
 	case legacyCodecVersionV4:
 		return readMessageV4Remainder(body, offset, msg)
-	case legacyCodecVersionV5, legacyCodecVersionV6, codecVersion:
+	case legacyCodecVersionV5, legacyCodecVersionV6, legacyCodecVersionV7:
 		return readMessageV5Remainder(body, offset, msg)
+	case codecVersion:
+		msg, offset, err = readMessageV5Remainder(body, offset, msg)
+		if err == nil {
+			msg.RedDot, offset, err = readBool(body, offset, "red dot")
+		}
+		if err == nil {
+			msg.SyncOnce, offset, err = readBool(body, offset, "sync once")
+		}
+		return msg, offset, err
 	default:
 		return ch.Message{}, offset, fmt.Errorf("channels: unsupported message codec version %d", version)
 	}
@@ -1414,10 +1448,10 @@ func readMessageV3AfterTrace(body []byte, offset int, msg ch.Message) (ch.Messag
 	return msg, offset, nil
 }
 
-func appendMessages(dst []byte, messages []ch.Message) []byte {
+func appendMessages(dst []byte, messages []ch.Message, version uint8) []byte {
 	dst = appendSliceHeader(dst, len(messages), messages == nil)
 	for _, msg := range messages {
-		dst = appendMessage(dst, msg)
+		dst = appendMessage(dst, msg, version)
 	}
 	return dst
 }
@@ -1576,10 +1610,10 @@ func readNodeIDs(body []byte, offset int) ([]ch.NodeID, int, error) {
 	return ids, offset, nil
 }
 
-func appendRecords(dst []byte, records []ch.Record) []byte {
+func appendRecords(dst []byte, records []ch.Record, version uint8) []byte {
 	dst = appendSliceHeader(dst, len(records), records == nil)
 	for _, record := range records {
-		dst = appendRecord(dst, record)
+		dst = appendRecord(dst, record, version)
 	}
 	return dst
 }
@@ -1602,7 +1636,7 @@ func readRecords(body []byte, offset int, version uint8) ([]ch.Record, int, erro
 	return records, offset, nil
 }
 
-func appendRecord(dst []byte, record ch.Record) []byte {
+func appendRecord(dst []byte, record ch.Record, version uint8) []byte {
 	dst = appendUvarint(dst, record.ID)
 	dst = appendUvarint(dst, record.Index)
 	dst = appendUvarint(dst, record.Epoch)
@@ -1612,6 +1646,10 @@ func appendRecord(dst []byte, record ch.Record) []byte {
 	dst = append(dst, record.Setting)
 	dst = appendOptionalBytes(dst, record.Payload)
 	dst = appendVarint(dst, int64(record.SizeBytes))
+	if version >= codecVersion {
+		dst = appendBool(dst, record.RedDot)
+		dst = appendBool(dst, record.SyncOnce)
+	}
 	return dst
 }
 
@@ -1632,8 +1670,17 @@ func readRecord(body []byte, offset int, version uint8) (ch.Record, int, error) 
 		return readRecordV3LegacyRemainder(body, offset, record)
 	case legacyCodecVersionV4:
 		return readRecordV4Remainder(body, offset, record)
-	case legacyCodecVersionV5, legacyCodecVersionV6, codecVersion:
+	case legacyCodecVersionV5, legacyCodecVersionV6, legacyCodecVersionV7:
 		return readRecordV5Remainder(body, offset, record)
+	case codecVersion:
+		record, offset, err = readRecordV5Remainder(body, offset, record)
+		if err == nil {
+			record.RedDot, offset, err = readBool(body, offset, "red dot")
+		}
+		if err == nil {
+			record.SyncOnce, offset, err = readBool(body, offset, "sync once")
+		}
+		return record, offset, err
 	default:
 		return ch.Record{}, offset, fmt.Errorf("channels: unsupported record codec version %d", version)
 	}

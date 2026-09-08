@@ -228,3 +228,35 @@ func newMessagePagePlugin(t *testing.T, reader *message.PageReader) *pluginuseca
 	require.NoError(t, err)
 	return app
 }
+
+func TestMessagePageCompositionFindsHistoryBehindRecoveryBarriers(t *testing.T) {
+	node, messages, reader := newMessagePageComposition(1)
+	membershipKey := fakeMembershipKey{uid: "u1", channelID: "g1", channelType: 2}
+	membership := node.memberships[membershipKey]
+	membership.JoinSeq = 1
+	node.memberships[membershipKey] = membership
+	key := metadb.ChannelKey{ChannelID: "g1", ChannelType: 2}
+	for i := range node.messages[key] {
+		node.messages[key][i].SyncOnce = i >= 3
+	}
+	query := message.SyncChannelMessagesQuery{LoginUID: "u1", ChannelID: "g1", ChannelType: 2, Limit: 2}
+	got, err := messages.SyncChannelMessages(context.Background(), query)
+	require.NoError(t, err)
+	require.True(t, got.More)
+	require.Equal(t, []uint64{2, 3}, messagePageSequences(got.Messages))
+	query.StartMessageSeq = 1
+	got, err = messages.SyncChannelMessages(context.Background(), query)
+	require.NoError(t, err)
+	require.False(t, got.More)
+	require.Equal(t, []uint64{1}, messagePageSequences(got.Messages))
+	node.memberships = nil
+	plugin := newMessagePagePlugin(t, reader)
+	gotPlugin, err := plugin.ChannelMessages(context.Background(), &pluginproto.ChannelMessageBatchReq{ChannelMessageReqs: []*pluginproto.ChannelMessageReq{{ChannelId: "g1", ChannelType: 2, Limit: 2}}}, "wk.reader")
+	require.NoError(t, err)
+	require.Len(t, gotPlugin.ChannelMessageResps, 1)
+	rows := gotPlugin.ChannelMessageResps[0].GetMessages()
+	require.Len(t, rows, 2)
+	require.EqualValues(t, 2, rows[0].MessageSeq)
+	require.EqualValues(t, 3, rows[1].MessageSeq)
+	require.Zero(t, node.membershipMutationWrites)
+}

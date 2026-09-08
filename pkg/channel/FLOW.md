@@ -6,20 +6,16 @@ summary: Implements the reusable multi-reactor Channel log runtime, replication,
 # Channel Runtime Flow
 
 ## Responsibility
-
 `pkg/channel` is the reusable replicated Channel log runtime. It owns Channel
 metadata fences, per-Channel ordering, leader append, durable-quorum commits, follower pull replication,
-committed progress, retention adoption, runtime lifecycle, and synchronous
-facades over reactor futures.
+committed progress, retention, lifecycle, and synchronous reactor facades.
 
-The subtree is split by role: `machine` holds pure transitions, `reactor` owns
-Channel state and scheduling, `replication` holds protocol decisions, `service`
-is the public synchronous facade, `store` defines persistence, `transport`
-defines RPC DTOs, and `worker` bounds blocking I/O.
-It does not own product permission, authority selection, fanout, or SENDACK policy.
+`machine` holds pure transitions, `reactor` owns state and scheduling,
+`replication` holds protocol decisions, `service`
+is the synchronous facade, `store` defines persistence, `transport` defines RPC
+DTOs, and `worker` bounds blocking I/O.
 
 ## Boundaries
-
 - Product permission, authority selection, subscriber fanout, and SENDACK
   orchestration stay above this package.
 - `store/channel_adapter.go` is the only Channel file allowed to import message
@@ -47,8 +43,11 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
    checkpointed stop before either runtime can be evicted.
    In durable-log mode, authority installation seeds non-voting learner catch-up
    from the quorum-proved frontier; fixed repair workers retain one-page progress.
+   Tail growth preserves that cursor; new gap evidence and authority replacement fence it.
 3. Committed reads expose only HW-covered records above the logical retention
-   floor; optional physical trim runs later when all local and replica safety
+   floor. Runtime probes distinguish a loaded Leader from completed quorum
+   recovery, including when a durable write fence permits only reads. Optional
+   physical trim runs later when all local and replica safety
    watermarks cover that boundary.
 
 ## Invariants and Failure Semantics
@@ -58,14 +57,23 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
 - Durable quorum success requires local durability plus a distinct-voter quorum.
   Exact manifests and closed durable/already-durable/absent/conflict/unknown
   outcomes make ambiguous commits safely retryable after cancellation or
-  restart; caller cancellation cannot revoke admitted durability.
-- A longer durable suffix remains intact. When a read quorum proves all observed
-  tails share one chain, recovery copies bounded immutable pages to lagging voters
-  without truncation, then re-probes quorum before admission; divergent tails stay closed.
+  restart; caller cancellation cannot revoke admitted durability. A definitive
+  local conflict reaches durable command lookup without waiting for missing
+  peers or retaining an impossible local pending proposal. A valid newer durable
+  authority invalidates a resumed former leader and returns stale metadata;
+  same-authority, missing, or malformed evidence remains a conflict.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
-  Install selects a quorum-identical hash-chain prefix, repairs bounded pages,
-  and makes writes ready only after the deterministic current-term barrier; migration fences still reject business writes.
+  Install preserves every observed suffix, proves compatible voter tails on one
+  exact hash chain, and copies at most one bounded page before yielding for a fresh proof. Probe rounds
+  consume arrived evidence plus the local result, then use a quorum without waiting
+  for outstanding voters; convergence rechecks require all previously observed
+  tails, while ordinary identity pages retain stable quorum supporters. A fresh
+  quorum-identical prefix proof precedes append-only local repair; authority
+  recovery completes only after the deterministic current-term barrier. Non-ISR learners receive quorum-proven exact proposals through the
+  bounded repair workers without contributing votes; page progress survives
+  retry deadlines. Recovery can complete under a transfer write fence for new-leader
+  verification; business Commit stays blocked until the fence is cleared.
 - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
   only positive sequences covered by local HW and the logical retention floor.
   Committed-read results own their payload bytes beyond store-handle closure,
@@ -75,8 +83,8 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
 - Unloaded state is absence from the reactor map. Cold PullHint activation must
   resolve authoritative metadata and prove local replica membership before
   opening storage.
-- Mailboxes, Channel count, append queues, worker queues, batching windows,
-  recovery probes, maintenance turns, and result payloads are bounded.
+- Mailboxes, Channel count, append/worker queues, batching, recovery probes,
+  maintenance turns, and result payloads are bounded.
 - Write fencing rejects new append admission without discarding already
   accepted work. Lifecycle eviction requires no pending work and current
   fenced checkpoint/replica evidence.

@@ -61,14 +61,15 @@ func quorumAuthorityFromMeta(meta ch.Meta) (replication.Authority, error) {
 	}
 	var learners []ch.NodeID
 	for _, replica := range meta.Replicas {
-		if _, voter := seen[replica]; !voter {
+		if !slices.Contains(meta.ISR, replica) {
 			learners = append(learners, replica)
 		}
 	}
 	return replication.Authority{
-		Key: meta.Key, ChannelID: meta.ID,
-		ID:       replication.AuthorityID{ChannelEpoch: meta.Epoch, LeaderTerm: meta.LeaderEpoch, FenceVersion: meta.RouteGeneration},
-		Learners: learners, Leader: meta.Leader, Voters: append([]ch.NodeID(nil), meta.ISR...), WriteQuorum: meta.MinISR, WriteFence: meta.WriteFence,
+		Learners: learners,
+		Key:      meta.Key, ChannelID: meta.ID,
+		ID:     replication.AuthorityID{ChannelEpoch: meta.Epoch, LeaderTerm: meta.LeaderEpoch, FenceVersion: meta.RouteGeneration},
+		Leader: meta.Leader, Voters: append([]ch.NodeID(nil), meta.ISR...), WriteQuorum: meta.MinISR, WriteFence: meta.WriteFence,
 	}, nil
 }
 
@@ -82,6 +83,7 @@ func (r *Reactor) startQuorumInstall(rc *runtimeChannel, meta ch.Meta, futures [
 	if !r.quorumInstallRequired(rc) {
 		return ch.ErrInvalidConfig
 	}
+	rc.quorumReadReady = false
 	authority, err := quorumAuthorityFromMeta(meta)
 	if err != nil {
 		return err
@@ -95,6 +97,7 @@ func (r *Reactor) startQuorumInstall(rc *runtimeChannel, meta ch.Meta, futures [
 		rc.quorumInstall = nil
 	}
 	if sameQuorumAuthority(rc.quorumAuthority, authority) {
+		rc.quorumReadReady = true
 		rc.state.CommitReady = !authority.WriteFence.Set()
 		r.completeFutures(futures, Result{})
 		return nil
@@ -137,6 +140,7 @@ func (r *Reactor) handleQuorumInstallResult(result worker.Result) {
 	}
 	installed := result.QuorumInstall.Installed
 	rc.quorumAuthority = pending.authority
+	rc.quorumReadReady = true
 	rc.state.LEO = installed.LEO
 	rc.state.HW = installed.HW
 	rc.state.CheckpointHW = max(rc.state.CheckpointHW, installed.HW)

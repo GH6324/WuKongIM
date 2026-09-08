@@ -32,14 +32,23 @@ If the page opens but WebSocket fails, check that Docker mappings or SSH forward
 
 - **API base URL**: the WuKongIM HTTP API address.
 - **Login account**: the unique user UID from the business system.
-- **Login password**: a test token that the Demo stores and uses for connection authentication.
+- **Login token**: the existing Web-device token. By default, the Demo connects without calling `/user/token` or changing server credentials.
+- **Create or update demo credentials**: an explicit option for dedicated test accounts; it writes a Web slave-device credential through `/user/token`.
+
+Credentials stay in this tab's `sessionStorage` and are never placed in the URL. Reloading or
+choosing **Synchronize again** rebuilds SDK message, conversation, and cursor state before
+synchronizing with the server. Logging out removes only the Demo credential entry.
+The resynchronization action refuses to discard a nonempty draft; send or save it first.
+
+Use existing-token mode for migration acceptance. This only resets the Demo's in-memory
+cache; it does not clear another business app's database or certify its migration integration.
 
 Connections with the same UID and primary-device flag may replace each other. For parallel tests, use different UIDs or independent browser sessions.
 
 ## Production boundary
 
 <Callout type="error" title="Do not expose the demo authentication flow">
-  The Chat Demo calls `/user/token` directly for local demonstration. Production clients must not register or reset their own tokens. A trusted business backend should validate identities and issue credentials.
+  The Chat Demo calls `/user/token` directly only when demo credential creation is explicitly selected. Production clients must not register or reset their own tokens. A trusted business backend should validate identities and issue credentials.
 </Callout>
 
 A production integration also needs to:

@@ -12,6 +12,7 @@ func TestExchangeCodecRoundTripsEveryRequestAndResultKind(t *testing.T) {
 
 	first := testReplicateRequest(t, "1:codec", "codec", 7, []byte("first"))
 	first.ServerAllocatedMessageIDs = true
+	first.Records[0].RedDot = true
 	manifest, records := first.Manifest, first.Records
 	_, firstEntries, ok := ch.SealProposalManifest(manifest, records)
 	if !ok {
@@ -105,5 +106,32 @@ func TestExchangeCodecRejectsOversizedCountsBeforeAllocation(t *testing.T) {
 	encoded = append(encoded, make([]byte, MaxExchangeBatchBytes-len(encoded)+1)...)
 	if _, err := DecodeExchangeBatch(encoded); err == nil {
 		t.Fatal("DecodeExchangeBatch(oversized bytes) error = nil")
+	}
+}
+
+// A data-bearing exchange may never silently fall back to peers that drop RedDot.
+func TestExchangeCodecRejectsPreviousDataBearingVersion(t *testing.T) {
+	request := testReplicateRequest(t, "1:red-dot", "red-dot", 9, []byte("payload"))
+	request.Records[0].RedDot = true
+	batch := ExchangeBatch{Version: ExchangeVersion, Items: []ExchangeItem{{RequestID: 1, Kind: ExchangeReplicate, Replicate: &request}}}
+	data, err := EncodeExchangeBatch(batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data[0] = 3
+	if _, err := DecodeExchangeBatch(data); err == nil {
+		t.Fatal("previous exchange version was accepted")
+	}
+	batch.Version = 3
+	if _, err := EncodeExchangeBatch(batch); err == nil {
+		t.Fatal("previous exchange version was emitted")
+	}
+	response, err := EncodeExchangeBatchResult(ExchangeBatchResult{Version: ExchangeVersion, Items: []ExchangeItemResult{{RequestID: 1}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response[0] = 3
+	if _, err := DecodeExchangeBatchResult(response); err == nil {
+		t.Fatal("previous exchange result version was accepted")
 	}
 }

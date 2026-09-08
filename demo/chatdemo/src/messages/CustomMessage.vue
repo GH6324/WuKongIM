@@ -2,13 +2,14 @@
 
 <script setup lang="ts">
 import { t } from '../i18n'
+import { computed } from 'vue'
 
 
 const props = defineProps<{
     message: any
 }>()
 
-const order = props.message.content
+const order = computed(() => props.message.content)
 
 </script>
 

@@ -678,6 +678,7 @@ func TestRuntimeRepairProgressIsBoundedAndFencedToExactWork(t *testing.T) {
 		t.Fatal("cursor escaped pending range or regressed")
 	}
 	entry.version++
+	entry.gapVersion = entry.version
 	owner.retainProgress(key, entry, 1, 299)
 	if entry.repair.needFrom != 257 {
 		t.Fatal("stale gap generation advanced the cursor")

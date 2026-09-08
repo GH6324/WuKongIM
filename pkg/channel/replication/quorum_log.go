@@ -87,9 +87,7 @@ func newQuorumLog(cfg quorumLogConfig) (*quorumLog, error) {
 }
 
 func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed, error) {
-	if l == nil || ctx == nil || !validAuthority(authority) || authority.Leader != l.cfg.Local ||
-		len(authority.Voters) > l.cfg.MaxVoters || len(authority.Voters)+len(authority.Learners) > l.cfg.MaxVoters+1 ||
-		(len(authority.Learners) > 0 && l.cfg.RepairAuthorities == nil) {
+	if l == nil || ctx == nil || !validAuthority(authority) || len(authority.Voters) > l.cfg.MaxVoters || len(authority.Voters)+len(authority.Learners) > l.cfg.MaxVoters+1 || (len(authority.Learners) > 0 && l.cfg.RepairAuthorities == nil) || authority.Leader != l.cfg.Local {
 		return Installed{}, ch.ErrInvalidConfig
 	}
 	if err := ctx.Err(); err != nil {
@@ -136,10 +134,11 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	// Installation proves recovered state even while a migration fences business
 	// writes. Commit retains the fence until authoritative metadata clears it.
 
-	selection, err := recoverQuorumPrefix(ctx, recoveryProbeRequest{
+	request := recoveryProbeRequest{
 		ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
 		Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout,
-	}, l.cfg.Recovery)
+	}
+	selection, err := recoverQuorumPrefix(ctx, request, l.cfg.Recovery)
 	if err != nil {
 		return Installed{}, err
 	}
@@ -183,21 +182,10 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	state.frontier = installedFrontier
 	state.hw = installedFrontier.LEO
 	state.ready = true
-	// A learner is outside the voter quorum and cannot use reactor pull
-	// replication in durable-log mode. Seed its catch-up after the voter
-	// quorum proves this frontier, including the current authority barrier.
-	if l.cfg.RepairAuthorities != nil && installedFrontier.LEO > 0 {
-		for _, learner := range authority.Learners {
-			l.cfg.RepairAuthorities.RecordFollowerRepair(followerRepair{
-				channelKey: authority.Key, channelID: authority.ChannelID,
-				leader: authority.Leader, follower: learner, needFrom: 1,
-				manifest: installedFrontier.Manifest, committed: state.hw,
-			})
-		}
-	}
 	state.pending = nil
 	state.retained = make(map[ch.CommandID]retainedProposal, l.cfg.MaxRetainedCommands)
 	state.order = state.order[:0]
+	l.scheduleLearners(state, 1)
 	return Installed{Authority: authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 }
 
@@ -311,6 +299,13 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 }
 
 func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumChannel, proposal Proposal) (Receipt, error) {
+	// Follower catch-up can advance a resumed former leader's durable replica
+	// before its cached routing and sequencer receive the new metadata. Only a
+	// validated newer durable authority proves that this is a stale owner.
+	if l.durableAuthorityAdvanced(ctx, state) {
+		state.ready = false
+		return Receipt{}, ch.ErrStaleMeta
+	}
 	loaded, found, err := l.loadRetainedProposal(ctx, state, proposal.CommandID)
 	if err != nil {
 		return Receipt{}, err
@@ -320,6 +315,26 @@ func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumC
 	}
 	l.remember(state, loaded)
 	return loaded.receipt, nil
+}
+
+// durableAuthorityAdvanced performs one bounded frontier read on the conflict
+// path. Missing, malformed, or same-authority evidence cannot reclassify a
+// command conflict or authorize a retry as a different leader.
+func (l *quorumLog) durableAuthorityAdvanced(ctx context.Context, state *quorumChannel) bool {
+	loaded, err := l.cfg.Store.Load(ctx, LoadBatch{Items: []LoadRequest{{
+		ChannelKey: state.authority.Key, ChannelID: state.authority.ChannelID,
+	}}})
+	if err != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
+		return false
+	}
+	frontier := loaded.Items[0].State
+	if !validReplicaState(frontier) || frontier.LEO == 0 {
+		return false
+	}
+	tail := frontier.TailIdentity
+	return compareAuthorityID(AuthorityID{
+		ChannelEpoch: tail.ChannelEpoch, LeaderTerm: tail.LeaderTerm, FenceVersion: tail.FenceVersion,
+	}, state.authority.ID) > 0
 }
 
 func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChannel, command ch.CommandID) (retainedProposal, bool, error) {
@@ -361,6 +376,13 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, retained retainedProposal) (Receipt, error) {
 	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability)
 	if err != nil {
+		if result.outcome == ch.AppendOutcomeConflict {
+			state.pending = nil
+			return l.reconcileCommandConflict(ctx, state, Proposal{
+				Key: state.authority.Key, Expected: state.authority.ID,
+				CommandID: retained.proposal.manifest.CommandID, Records: retained.proposal.records,
+			})
+		}
 		return Receipt{}, err
 	}
 	return l.finishCommit(state, retained, result)
@@ -391,6 +413,7 @@ func (l *quorumLog) finishCommit(state *quorumChannel, retained retainedProposal
 	// Payloads are needed only while an outcome is unresolved.
 	retained.proposal.records = nil
 	l.remember(state, retained)
+	l.scheduleLearners(state, proposal.first)
 	return receipt, nil
 }
 
@@ -532,4 +555,20 @@ func compareAuthorityID(left, right AuthorityID) int {
 func frontierUsesAuthority(frontier ReplicaState, authority AuthorityID) bool {
 	return frontier.LEO > 0 && frontier.Manifest.ChannelEpoch == authority.ChannelEpoch &&
 		frontier.Manifest.LeaderTerm == authority.LeaderTerm && frontier.Manifest.FenceVersion == authority.FenceVersion
+}
+
+// scheduleLearners transfers only quorum-proven progress to bounded background
+// workers. Learners never participate in recovery selection or write quorum.
+func (l *quorumLog) scheduleLearners(state *quorumChannel, from uint64) {
+	sink, ok := l.cfg.RepairAuthorities.(followerRepairSink)
+	if !ok || state.hw == 0 {
+		return
+	}
+	for _, learner := range state.authority.Learners {
+		sink.RecordFollowerRepair(followerRepair{
+			channelKey: state.authority.Key, channelID: state.authority.ChannelID,
+			leader: state.authority.Leader, follower: learner, manifest: state.frontier.Manifest,
+			needFrom: from, committed: state.hw,
+		})
+	}
 }

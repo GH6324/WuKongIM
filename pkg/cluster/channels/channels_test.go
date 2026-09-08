@@ -1630,12 +1630,12 @@ func TestCodecV6PreservesOriginalLastVisibleLayout(t *testing.T) {
 	require.Zero(t, gotResponse.RetentionThroughSeq)
 	require.Zero(t, gotResponse.CurrentUserLastSendSeq)
 
-	v7Request, err := encodeLastVisibleRequestVersion(wantRequest, codecVersion)
+	v7Request, err := encodeLastVisibleRequestVersion(wantRequest, legacyCodecVersionV7)
 	require.NoError(t, err)
 	gotRequest, err = decodeLastVisibleRequest(v7Request)
 	require.NoError(t, err)
 	require.Equal(t, wantRequest, gotRequest)
-	v7Response, err := encodeRPCResultVersion(codecVersion, kindLastVisibleResponse, wantResponse, nil)
+	v7Response, err := encodeRPCResultVersion(legacyCodecVersionV7, kindLastVisibleResponse, wantResponse, nil)
 	require.NoError(t, err)
 	gotResponse, err = decodeLastVisibleResponse(v7Response)
 	require.NoError(t, err)
@@ -3020,7 +3020,7 @@ func TestServiceReadConversationHeadsActivatesColdQuorumLeaderBeforeUsingLagging
 	require.Equal(t, []byte("committed-before-restart"), heads[0].Head.Message.Payload)
 }
 
-func TestServiceReadConversationHeadsKeepsColdQuorumLeaderUnloadedWhenCheckpointIsCurrent(t *testing.T) {
+func TestServiceReadConversationHeadsRecoversColdQuorumLeaderEvenWhenCheckpointEqualsLEO(t *testing.T) {
 	id := ch.ChannelID{ID: "conversation-head-cold-checkpoint-current", Type: 2}
 	factory := channelstore.NewMemoryFactory()
 	store, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
@@ -3039,6 +3039,9 @@ func TestServiceReadConversationHeadsKeepsColdQuorumLeaderUnloadedWhenCheckpoint
 	runtime := &runtimeHWProbeRuntime{
 		fakeRuntime: &fakeRuntime{},
 		probe:       ch.RuntimeProbeResult{Checked: 1, Missing: []ch.ChannelID{id}},
+		probeAfterApply: &ch.RuntimeProbeResult{Channels: []ch.RuntimeProbeChannel{{
+			ChannelID: id, ChannelEpoch: 3, LeaderEpoch: 5, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 1, LEO: 1,
+		}}},
 	}
 	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source, Store: factory})
 	require.NoError(t, err)
@@ -3047,8 +3050,8 @@ func TestServiceReadConversationHeadsKeepsColdQuorumLeaderUnloadedWhenCheckpoint
 	require.NoError(t, err)
 	require.Len(t, heads, 1)
 	require.NoError(t, heads[0].Err)
-	require.Zero(t, runtime.applyCalls)
-	require.Equal(t, 1, runtime.probeCalls)
+	require.Equal(t, 1, runtime.applyCalls)
+	require.Equal(t, 2, runtime.probeCalls)
 	require.Equal(t, uint64(1), heads[0].Head.LastCommittedSeq)
 	require.True(t, heads[0].Head.Found)
 	require.Equal(t, []byte("checkpointed"), heads[0].Head.Message.Payload)
@@ -4418,7 +4421,7 @@ func appendLegacyV5PullResponse(dst []byte, resp channeltransport.PullResponse) 
 	dst = appendVarint(dst, int64(resp.NextPullAfter))
 	dst = append(dst, byte(resp.Control))
 	dst = appendLegacyV5MetaPtr(dst, resp.Meta)
-	return appendRecords(dst, resp.Records)
+	return appendRecords(dst, resp.Records, legacyCodecVersionV5)
 }
 
 func appendLegacyV5MetaPtr(dst []byte, meta *ch.Meta) []byte {

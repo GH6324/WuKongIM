@@ -143,6 +143,7 @@ func toChannelMessages(in []channelappend.Message) []channelruntime.Message {
 			ChannelKey:        msg.ChannelKey,
 			Payload:           append([]byte(nil), msg.Payload...),
 			SyncOnce:          msg.SyncOnce,
+			RedDot:            msg.RedDot,
 			ServerTimestampMS: msg.ServerTimestampMS,
 		})
 	}
@@ -182,6 +183,7 @@ func fromChannelMessage(msg channelruntime.Message) channelappend.Message {
 		ChannelKey:        msg.ChannelKey,
 		Payload:           append([]byte(nil), msg.Payload...),
 		SyncOnce:          msg.SyncOnce,
+		RedDot:            msg.RedDot,
 		ServerTimestampMS: msg.ServerTimestampMS,
 	}
 }

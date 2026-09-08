@@ -245,6 +245,13 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		return nil, fmt.Errorf("internal/app: create message id generator: %w", err)
 	}
 	app.messageIDs = messageIDs
+	if imported, found, err := cluster.ReadOfflineImportSeal(clusterCfg.DataDir); err != nil {
+		return nil, err
+	} else if found {
+		if err := messageIDs.SetFloor(imported.MaxMessageID); err != nil {
+			return nil, err
+		}
+	}
 
 	app.ensureOnlineRegistry()
 	if err := app.wireWebhook(); err != nil {

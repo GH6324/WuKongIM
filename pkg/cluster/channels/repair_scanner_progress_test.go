@@ -27,7 +27,9 @@ func TestRepairScannerProgressesPastFirstSlotAcrossTicks(t *testing.T) {
 func TestRepairScannerContinuesLaterPagesAcrossTicks(t *testing.T) {
 	id := ch.ChannelID{ID: "later-page", Type: 1}
 	source := newFakeRepairScannerSource(id)
-	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{nil, {failoverPlannerMeta(id)}}
+	first := ch.ChannelID{ID: "already-active", Type: 1}
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{failoverPlannerMeta(first)}, {failoverPlannerMeta(id)}}
+	source.active[first] = true
 	store := &fakeRepairScannerStore{}
 	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 64, MaxPagesPerTick: 1, MaxTasksPerTick: 1}, source, store)
 	for range 2 {

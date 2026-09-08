@@ -340,20 +340,22 @@ func (b *Batch) Commit(ctx context.Context) error {
 	// Callers commonly defer Batch.Close, so returning an ambiguous cancellation
 	// here would otherwise allow Close to clear operations still queued for Build.
 	commitCtx := context.WithoutCancel(ctx)
-	state := &batchCommitState{
-		db:               b.db,
-		tableRows:        make(map[string]tableRowOverlay),
-		tableCreates:     make(map[string]struct{}),
-		runtimeMeta:      make(map[string]runtimeMetaOverlay),
-		migrationTasks:   make(map[string]migrationTaskOverlay),
-		subscriberRows:   make(map[string]bool),
-		channelPublishes: make(map[string]Channel),
-		channelDeletes:   make(map[string]struct{}),
-	}
+	var state *batchCommitState
 	return b.db.committer.Submit(commitCtx, commit.Request{
-		Lane:    commit.Lane{Name: "meta"},
-		Records: len(b.ops),
+		Lane:                commit.Lane{Name: "meta"},
+		RebuildOnGroupAbort: true,
+		Records:             len(b.ops),
 		Build: func(engineBatch *engine.Batch) error {
+			state = &batchCommitState{
+				db:               b.db,
+				tableRows:        make(map[string]tableRowOverlay),
+				tableCreates:     make(map[string]struct{}),
+				runtimeMeta:      make(map[string]runtimeMetaOverlay),
+				migrationTasks:   make(map[string]migrationTaskOverlay),
+				subscriberRows:   make(map[string]bool),
+				channelPublishes: make(map[string]Channel),
+				channelDeletes:   make(map[string]struct{}),
+			}
 			for _, op := range b.ops {
 				if err := op.apply(commitCtx, state, engineBatch); err != nil {
 					return err
