@@ -448,6 +448,8 @@ describe('Rust EasySDK crates.io distribution', () => {
       expect(page).toContain('https://crates.io/crates/wukong-easy-sdk/0.1.0');
       expect(page).toContain('5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b');
       expect(page).toContain('34190886664');
+      expect(page).toContain('registry-e2e-0.1.0-macos-120s.json');
+      expect(page).toContain('cfa48a038c2cfd56948ace43afe3b2f5f91dace3');
       expect(page).toContain('0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719');
       expect(page).not.toMatch(/尚未发布到 crates\.io|has not been published to crates\.io/u);
     }
