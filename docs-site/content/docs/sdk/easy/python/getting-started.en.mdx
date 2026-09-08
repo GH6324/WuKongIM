@@ -1,21 +1,18 @@
 ---
 title: Python quickstart
-description: Install pinned WuKongEasySDK-Python source and use asyncio for online messaging, heartbeat, reconnect, and cleanup.
+description: Install a pinned WuKongEasySDK-Python PyPI version and use asyncio for online messaging, heartbeat, reconnect, and cleanup.
 ---
 
 [WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) follows JS `v2.0.4` and uses Python 3.11+, `asyncio`, and `websockets` for WebSocket JSON-RPC CONNECT, online messaging, automatic RECVACK, heartbeat, reconnect, and custom events.
 
-## 1. Install pinned source
+## 1. Install a pinned version
 
-This tutorial pins project version `0.1.0` at source `c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a`. Install from source; there is no PyPI release yet. The distribution name is `wukong-easy-sdk`; the import name is `wukong_easy_sdk`.
+This tutorial uses [PyPI `wukong-easy-sdk==0.1.0`](https://pypi.org/project/wukong-easy-sdk/0.1.0/) and requires Python 3.11+. The distribution name is `wukong-easy-sdk`; the import name is `wukong_easy_sdk`.
 
 ```sh
-git clone https://github.com/WuKongIM/WuKongEasySDK-Python.git
-cd WuKongEasySDK-Python
-git checkout c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install .
+python -m pip install --index-url https://pypi.org/simple "wukong-easy-sdk==0.1.0"
 ```
 
 On Windows PowerShell, replace activation with `.venv\Scripts\Activate.ps1`. The runtime dependency is `websockets>=15.0.1,<18`; `uv.lock` pins development and validation dependencies.
@@ -26,10 +23,16 @@ Follow [authentication and Tokens](/en/guide/integration/authentication) so your
 
 Device categories are APP `0`, WEB `1`, and PC/Desktop `2`. **Python defaults to Desktop `2`**; provision the Token for that same device category. The usual development address is `ws://127.0.0.1:5200`. Use `ws://127.0.0.1:5200/ws` only when the listener or proxy configures `/ws`. Use a reachable client address across machines and `wss://` in production.
 
+Download the matching example source and keep using the same virtual environment:
+
+```sh
+git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Python.git
+```
+
 In two terminals, set each user's `WKIM_UID`, `WKIM_TOKEN`, `WKIM_PEER`, and optional `WKIM_URL`, then run:
 
 ```sh
-python examples/chat.py
+python WuKongEasySDK-Python/examples/chat.py
 ```
 
 For Alice, set `WKIM_UID=alice` and `WKIM_PEER=bob`; reverse these for Bob. Supply each Token through its trusted environment. Once both display `Connected`, send in both directions. Enter `/quit` to clean up. The example deliberately displays chat content; the SDK is silent by default.

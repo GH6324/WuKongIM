@@ -1,21 +1,18 @@
 ---
 title: Python 快速接入
-description: 安装 WuKongEasySDK-Python 固定源码，用 asyncio 完成在线收发、心跳、重连和资源清理。
+description: 安装 WuKongEasySDK-Python 固定 PyPI 版本，用 asyncio 完成在线收发、心跳、重连和资源清理。
 ---
 
 [WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) 参考 JS `v2.0.4`，使用 Python 3.11+、`asyncio` 与 `websockets`，提供 WebSocket JSON-RPC CONNECT、在线收发、自动 RECVACK、心跳、重连和自定义事件。
 
-## 1. 安装固定源码
+## 1. 安装固定版本
 
-本文固定工程版本 `0.1.0`、源码 `c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a`。当前通过源码安装，尚未发布到 PyPI；分发名是 `wukong-easy-sdk`，导入名是 `wukong_easy_sdk`。
+本文使用 [PyPI `wukong-easy-sdk==0.1.0`](https://pypi.org/project/wukong-easy-sdk/0.1.0/)，要求 Python 3.11+。分发名是 `wukong-easy-sdk`，导入名是 `wukong_easy_sdk`。
 
 ```sh
-git clone https://github.com/WuKongIM/WuKongEasySDK-Python.git
-cd WuKongEasySDK-Python
-git checkout c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install .
+python -m pip install --index-url https://pypi.org/simple "wukong-easy-sdk==0.1.0"
 ```
 
 Windows PowerShell 将激活命令替换为 `.venv\Scripts\Activate.ps1`。运行依赖为 `websockets>=15.0.1,<18`，仓库 `uv.lock` 固定开发与验证依赖。
@@ -26,10 +23,16 @@ Windows PowerShell 将激活命令替换为 `.venv\Scripts\Activate.ps1`。运�
 
 设备类别是 APP `0`、WEB `1`、PC/Desktop `2`。**Python 默认 Desktop `2`**，后端保存 Token 时必须使用相同设备类别。开发地址通常为 `ws://127.0.0.1:5200`；仅当 listener 或代理配置了 `/ws` 时使用 `ws://127.0.0.1:5200/ws`。生产使用 `wss://`，跨机器时使用客户端实际可达地址。
 
+下载与安装包一致的示例源码，继续使用当前虚拟环境：
+
+```sh
+git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Python.git
+```
+
 两个终端分别设置自己的 `WKIM_UID`、`WKIM_TOKEN`、`WKIM_PEER` 和可选的 `WKIM_URL`，运行：
 
 ```sh
-python examples/chat.py
+python WuKongEasySDK-Python/examples/chat.py
 ```
 
 例如 Alice 的 `WKIM_UID=alice`、`WKIM_PEER=bob`；Bob 相反。Token 通过各自受信环境提供。两端都显示 `Connected` 后输入消息，再反向发送，输入 `/quit` 清理退出。示例主动展示聊天内容，SDK 自身默认静默。
