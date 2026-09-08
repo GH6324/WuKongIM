@@ -10,6 +10,10 @@ move those entries into a version section named for that exact tag.
 
 - Document Python EasySDK group examples and installed-package membership/permission acceptance, including the required server cache fix. / 补充 Python EasySDK 群聊示例、正式包成员与权限验收，以及所需的服务端缓存修复说明。
 
+- Document Rust EasySDK weak-network and resource-boundary acceptance, including SEND ambiguity, backpressure, observer lag and repeated cleanup. / 补充 Rust EasySDK 弱网与资源边界验收，覆盖发送结果未知、背压、监听器落后和反复清理。
+
+- Document C++ EasySDK released-package three-node WSS recovery acceptance and clarify uncertain SEND outcomes and same-endpoint reconnect behavior. / 补充 C++ EasySDK 正式包三节点 WSS 恢复验收，明确 SEND 结果不确定性与原地址重连边界。
+
 - Document independent Python EasySDK three-node WSS fault recovery and bounded stability acceptance. / 补充 Python EasySDK 三节点 WSS 故障恢复与限时稳定性验收说明。
 
 - Document Rust EasySDK group messaging and released-package checks for member fanout, permissions, membership changes and reconnect. / 补充 Rust EasySDK 群聊用法及正式包成员投递、权限、成员变更与重连验收。
@@ -27,6 +31,8 @@ move those entries into a version section named for that exact tag.
 - Improve Manager node-log troubleshooting with explicit keyword search, a navigable details drawer and copy feedback, reliable retry, and live scrolling that preserves the reading position. / 优化管理台节点日志排查：关键字提交查询、可切换事件的详情抽屉与复制反馈、可靠重试，以及保护阅读位置的实时跟随。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Refresh group recipient versions from the current Slot leader before routed sends so membership changes through another ingress exclude removed users and include new members. / 群消息发送前从当前 Slot Leader 读取成员版本，修复跨入口变更成员后被移除用户仍收消息、新成员漏收的问题。
 
 - Bundle Prometheus binaries built from pinned source with dependency security fixes in Linux amd64/arm64 Docker images so enabling the managed Prometheus process starts successfully and persists metrics on the existing data volume. / Docker 镜像为 Linux amd64/arm64 内嵌从固定源码构建并修复依赖漏洞的 Prometheus 二进制，修复开启内置进程后启动失败、容器反复重启的问题，指标随现有数据卷持久化。
 
