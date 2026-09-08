@@ -119,3 +119,41 @@ A separate [three-node WSS acceptance workflow](https://github.com/WuKongIM/WuKo
 The same PyPI `0.1.0` then completed a **30-minute WSS acceptance** against WuKongIM `e7ef61ba702e045648b9fa535f051e5b2ee4a1db` on a local three-node cluster with 256 hash slots, 12 physical Slots and three Slot replicas, matching **35,380 SENDACK/RECV pairs**. Six transport/ACK-loss faults, an ingress node restart and Token rotation on all three nodes passed. No duplicate callbacks were observed; connection/task counts remained stable, with zero owned processes, connections or extra tasks after cleanup. The run uses explicitly configured fault-test deadlines and reconnect limits. See the [three-node WSS validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/a9be49e69f4b7155a9a6244ef63f9cb6baf00cb9/docs/CLUSTER_VALIDATION.md) for versions, resource samples and raw JSON; this is not a production-capacity or exactly-once-delivery guarantee.
 
 Offline sync, conversations, unread counts, and push require the full SDK. Validate your actual WSS proxy, Token rotation, duplicate handling, and capacity, or return to the [EasySDK overview](/en/sdk/easy) and [official examples](/en/sdk/easy/examples).
+
+## 7. Online group messaging and permissions
+
+Keep the installed package at `wukong-easy-sdk==0.1.0`. Groups use the same connection, `WKIMChannelType.GROUP` (`2`) and `WKIMEvent.MESSAGE`; there is no client subscription call:
+
+```python
+await im.send("team-chat", WKIMChannelType.GROUP, {"type": 1, "content": "Hello, group"})
+```
+
+**A trusted backend first creates the group, adds members, and supplies device-category `2` Tokens.** Execute this Product HTTP request only on the trusted server; do not expose management access to untrusted clients. This example adds Alice and Bob and explicitly rejects nonmember sends:
+
+```http
+POST /channel
+Content-Type: application/json
+
+{"channel_id":"team-chat","channel_type":2,"allow_stranger":0,"reset":1,"subscribers":["alice","bob"]}
+```
+
+`reset:1` replaces existing membership, so use it only for a new example group. For subsequent changes, the backend uses `/channel/subscriber_add` or `/channel/subscriber_remove` with `channel_id`, `channel_type:2` and `subscribers`. Blacklist changes use `/channel/blacklist_add` or `/channel/blacklist_remove` with `uids` instead of `subscribers`.
+
+Download the pinned source containing the new group example; the original `v0.1.0` tag predates this file. Example source and the installed PyPI package are pinned separately:
+
+```sh
+git clone https://github.com/WuKongIM/WuKongEasySDK-Python.git WuKongEasySDK-Python-group
+git -C WuKongEasySDK-Python-group checkout --detach 527f37c876326e7ad3cc48c89828c4c3ffed09fc
+export WKIM_UID=alice
+export WKIM_GROUP=team-chat
+# Supply WKIM_TOKEN and WKIM_URL securely; set WKIM_CA_FILE for a private CA.
+python WuKongEasySDK-Python-group/examples/group_chat.py
+```
+
+Use Bob's UID and Token with the same group ID in another terminal. Once both members are online, type messages or `/quit` to exit. The example displays message content and numeric errors. Under the policy above, nonmember sends raise `WKIMError.code == 3`; blacklist rejection uses code `4`. Server policy is authoritative. Check membership and reconcile uncertain send outcomes before retrying. SENDACK is not a read receipt; reconnection does not fetch missed history.
+
+**Server requirement:** cross-ingress membership acceptance uses fixed server source [`2a295e0d9881ef5356728a85d56b052c4b0d9c86`](https://github.com/WuKongIM/WuKongIM/commit/2a295e0d9881ef5356728a85d56b052c4b0d9c86). Older servers can retain stale recipients after membership changes through another node; upgrading the Python package cannot correct that server behavior. This record validates fixed source and does not imply that older server installation packages contain the fix.
+
+The [group package validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/4d39f9e43265f88415f2fe01fc5418182e405c52/docs/GROUP_VALIDATION.md) separately covers three-node WSS, four Python/JS clients, two groups and 13 phases: member fanout, channel isolation, add/remove/readd, nonmember/blacklist rejection, and membership/permissions after all four clients reconnect. Python 3.11 and 3.14 PyPI consumers also execute the real group CLI. Each phase observes excluded clients for one second. This is functional acceptance, not large-group capacity or an exactly-once guarantee. Independent CI candidate-wheel receipts remain separate from PyPI download evidence.
+
+Clients log in after all 12 Slots finish initial preferred-leader convergence, with both topology snapshots recorded. Startup leader changes previously left temporary gaps in online routes; [issue #7](https://github.com/WuKongIM/WuKongEasySDK-Python/issues/7) retains the diagnosis and failed receipts. The existing server reconstructs presence after an authority change from the next valid client activity. This validation does not guarantee uninterrupted online delivery during Slot leader migration or automatically recover missing messages.
