@@ -2,6 +2,7 @@ package replication
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 func TestInstallRestoresAcknowledgedSuffixWithOneDurableSupporterUnavailable(t *testing.T) {
 	for _, leader := range []ch.NodeID{1, 3} {
 		for _, empty := range []bool{false, true} {
-			t.Run(string(rune('0'+leader))+map[bool]string{true: "-empty", false: "-behind"}[empty], func(t *testing.T) {
+			t.Run(fmt.Sprintf("leader=%d/empty=%t", leader, empty), func(t *testing.T) {
 				key := ch.ChannelKey("1:successive-faults")
 				id := ch.ChannelID{ID: "successive-faults", Type: 1}
 				first, firstTail := recoveryMutationAfter(t, key, id, 1, 0, ch.EntryIdentity{})
@@ -71,11 +72,13 @@ func newRecoveryConvergenceCluster(t *testing.T, rows map[ch.NodeID][]Mutation, 
 	for node, mutations := range rows {
 		store, err := NewStoreAdapter(StoreAdapterConfig{Factory: channelstore.NewMemoryFactory(), MaxBatchItems: 64, MaxBatchBytes: 4 << 20})
 		require.NoError(t, err)
-		if len(mutations) > 0 {
-			for _, got := range store.Sync(context.Background(), mutations) {
+		for len(mutations) > 0 {
+			n := min(len(mutations), 64)
+			for _, got := range store.Sync(context.Background(), mutations[:n]) {
 				require.NoError(t, got.Err)
 				require.True(t, got.Outcome.Durable())
 			}
+			mutations = mutations[n:]
 		}
 		runtime, err := NewRuntime(RuntimeConfig{LocalNode: node, Store: store, Link: runtimeTestLink{from: node, router: router}, Goroutines: goruntimeregistry.New()})
 		require.NoError(t, err)
@@ -93,4 +96,31 @@ func newRecoveryConvergenceCluster(t *testing.T, rows map[ch.NodeID][]Mutation, 
 		}
 	})
 	return runtimes, stores, router
+}
+
+// A page boundary yields without admission; a later Install resumes using the
+// fresh durable frontier, without replaying a SEND or retaining the whole tail.
+func TestRecoveryConvergenceResumesAcrossBoundedPages(t *testing.T) {
+	key := ch.ChannelKey("1:paged-convergence")
+	id := ch.ChannelID{ID: "paged-convergence", Type: 1}
+	var rows []Mutation
+	var previous ch.EntryIdentity
+	for i := uint64(1); i <= 257; i++ {
+		item, tail := recoveryMutationAfter(t, key, id, i, i-1, previous)
+		rows = append(rows, item)
+		previous = tail
+	}
+	runtimes, stores, _ := newRecoveryConvergenceCluster(t, map[ch.NodeID][]Mutation{1: nil, 2: rows, 3: rows}, []ch.NodeID{1, 3})
+	authority := Authority{Key: key, ChannelID: id, ID: AuthorityID{ChannelEpoch: 3, LeaderTerm: 6, FenceVersion: 8}, Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2}
+	_, err := runtimes[1].Log().Install(context.Background(), authority)
+	require.ErrorIs(t, err, ch.ErrNotReady)
+	partial, err := loadRecoveryReplicaState(context.Background(), stores[1], key, id, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(256), partial.State.LEO)
+	installed, err := runtimes[1].Log().Install(context.Background(), authority)
+	require.NoError(t, err)
+	require.Equal(t, uint64(258), installed.HW)
+	got, err := loadRecoveryReplicaState(context.Background(), stores[1], key, id, []uint64{257})
+	require.NoError(t, err)
+	require.Equal(t, previous, got.Entries[0].Identity)
 }
