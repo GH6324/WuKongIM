@@ -1,5 +1,9 @@
 # WuKongIM v3 Documentation — Phase 15 Specification
 
+> Historical phase specification. Current eight-platform learning order and
+> tutorial versions are maintained in `EASY_SDK_DOCUMENTATION_SPEC.md`. Earlier
+> source and package receipts remain in the linked engineering validation history.
+
 ## Goal
 
 Publish a reader-first WuKongEasySDK path for iOS, Android, Flutter, and Web.
@@ -29,7 +33,7 @@ revisions are recorded below. Physical devices, WSS/proxy deployment, offline
 sync, push, subscriptions, batches, capacity, and production token validation
 remain outside that receipt.
 Logging-security fixes were later merged and released in the four official SDK
-distributions. Current maintained pins are iOS `1.1.1`, Android `1.0.5`,
+distributions. The pins for that acceptance were iOS `1.1.1`, Android `1.0.5`,
 Flutter `1.1.0`, and Web `2.0.4`. They make diagnostics default-off, restrict
 enabled output to sanitized operational metadata, and redact public model
 string output. On 2026-09-01, a separate acceptance resolved these exact

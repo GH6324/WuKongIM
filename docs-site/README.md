@@ -45,6 +45,8 @@ runs its fast unit tests from the documentation-site root and is part of `verify
   and `.en.mdx` variants for every published page.
 - `SDK_DOCUMENTATION_SPEC.md` defines the maintained full-SDK versions,
   learning order, and writing contract.
+- `EASY_SDK_DOCUMENTATION_SPEC.md` defines the eight EasySDK quickstarts,
+  example-first learning path, and separate engineering validation history.
 - `redirects.json` records public route migrations. Removed pages must not be
   retained as duplicate MDX content.
 - `NAVIGATION.md` is generated. Refresh it with `bun run navigation:write`.

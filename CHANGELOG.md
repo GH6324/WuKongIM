@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Restructure all eight EasySDK quickstarts and examples in Chinese and English around first-message integration, move historical validation into engineering reference, and pin Web installation to 2.0.5. / 重整八个平台的中英文 EasySDK 入门与示例，统一首次收发流程，将历史验证移入工程文档，并将 Web 安装版本更新为 2.0.5。
+
 - Use current health, retain fair Channel repair scan progress, and activate authoritative cold replicas from consistent durable frontiers for migration probes after node loss; allow fenced leader recovery while keeping business writes closed. / 频道修复使用最新健康状态、保留公平扫描进度，并按权威元数据和一致持久化状态加载冷副本；写入栅栏内可完成新 leader 恢复，业务写入仍保持关闭。
 
 - Document C# EasySDK application endpoint replacement and optional three-node reproduction, with server blockers tracked separately. / 补充 C# EasySDK 应用侧地址切换与三节点手动复现说明，单独记录服务端阻塞。

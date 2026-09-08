@@ -1,34 +1,11 @@
 ---
 title: Android quickstart
-description: Install exactly WuKongEasySDK Android 1.0.5 and use contiguous Kotlin code for connection, online messaging, and lifecycle cleanup.
+description: Install version 1.0.5, obtain credentials from your backend, exchange online messages, and clean up.
 ---
 
-Use one process singleton to install, initialize, listen, send a person message, and clean up with the Activity lifecycle. Alice and Bob run in two independent devices, emulators, or application processes.
+This tutorial uses **1.0.5** to exchange online messages between Alice and Bob in separate clients. WebSocket JSON-RPC CONNECT authenticates the connection.
 
-<Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports pinned `v1.0.5` JSON-RPC CONNECT and online bidirectional messaging, including Android snake_case, camel-case fields, JSON text strings, JSON objects, and Base64 payloads. The tutorial installs [Maven Central 1.0.5](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.5). The official Android example passed at source revision `7134bbd0263fd01d9e7f71b7bd05b226f75b2292`, which is now included in the [v1.0.5 Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.5). The Maven artifact then completed bidirectional messaging and disconnect on a hosted Android 14 / API 34 emulator.
-</Callout>
-
-## What you will have
-
-- An Android dependency pinned to Maven Central version `1.0.5`.
-- A Kotlin screen that initializes and registers listeners in the required order.
-- A two-client acceptance scaffold for Alice's send result and Bob's realtime receive.
-- Explicit blockers for singleton identity switching, field compatibility, tokens, and production security.
-
-## Run the official example first (recommended)
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
-cd WuKongEasySDK-Android
-git checkout 7134bbd0263fd01d9e7f71b7bd05b226f75b2292
-./gradlew test :example:assembleDebug
-./gradlew :example:installDebug
-```
-
-Use `ws://10.0.2.2:5200` from an Android Emulator, not `localhost`. [Run the Official Examples](/en/sdk/easy/examples) covers server preparation and Alice/Bob acceptance. The source example and Maven `1.0.5` artifact now have separate runtime receipts; keep those evidence classes distinct.
-
-## Before you begin
+## 1. Prepare
 
 Prepare the following:
 
@@ -39,7 +16,11 @@ Prepare the following:
 
 Read [Identity & Token](/en/guide/integration/authentication) first. Example variables come from the product backend; real tokens never belong in the APK, repository, Logcat, or crash reports.
 
-## Step 1: install an exact version
+To see messages first, follow [the official example](/en/sdk/easy/examples#android) with two clients. The steps below integrate the SDK into your application.
+
+The default device category is **APP `0`**. Store the Token with the same `device_flag` on your backend: APP is `0`, WEB is `1`, and PC is `2`.
+
+## 2. Install the SDK
 
 Add this to the application module's `build.gradle.kts`:
 
@@ -63,7 +44,8 @@ Confirm that `gradle.properties` enables AndroidX:
 android.useAndroidX=true
 ```
 
-## Step 2: declare network permissions
+
+### Network permissions
 
 Add these entries to `AndroidManifest.xml`:
 
@@ -74,7 +56,7 @@ Add these entries to `AndroidManifest.xml`:
 
 Production uses `wss://`. Android 9 and later restrict cleartext traffic by default; do not globally enable cleartext as a production TLS workaround.
 
-## Step 3: receive connection material from the product backend
+## 3. Connect and listen
 
 ```kotlin
 data class IMBootstrap(
@@ -85,8 +67,6 @@ data class IMBootstrap(
 ```
 
 The product backend authenticates the current product user and selects a WebSocket address. The Android client receives only its own connection material and no Product HTTP management credential.
-
-## Step 4: initialize, listen, and connect
 
 Android EasySDK is a process singleton, and `v1.0.5` cannot be initialized a second time with another configuration. This example fits a minimal run with one UID per process. A production application that switches accounts must first design and test a complete logout strategy around this limitation.
 
@@ -207,7 +187,9 @@ class ChatActivity : AppCompatActivity() {
 
 Listeners are registered only after `init`, and the same object references are retained for `removeEventListener`. The outer `withTimeout` bounds the complete wait at 20 seconds and disconnects after failure; SDK connection and request limits are 15 seconds, with at most 5 reconnect attempts. On Activity recreation, the page reads `isConnected()` instead of waiting for a `CONNECT` event that will not be replayed. A changed identity, token, URL, or connection setting stops explicitly rather than silently retaining a stale value. The example sets `debugLogging(false)` explicitly. Maven `1.0.5` applies that master gate to protocol-parsing and event-dispatch diagnostics and redacts public model strings. A production application normally lets an Application-scoped connection manager own the SDK while Activities or Fragments subscribe only to UI events. The screen-level owner above makes the minimal lifecycle visible.
 
-## Step 5: send the first message
+## 4. Exchange the first message
+
+Add this method inside the `ChatActivity` class above and call it from your send button after connection.
 
 ```kotlin
 fun sendText(targetUid: String, text: String) {
@@ -236,8 +218,6 @@ fun sendText(targetUid: String, text: String) {
 
 A returned `send` result means Alice obtained a result for the request. Bob must independently observe the message through his `MESSAGE` listener. Do not mark the peer as “received” inside Alice's send callback.
 
-## Step 6: accept with Alice and Bob
-
 Because the SDK is a process singleton, use two devices, two emulators, or two independent application processes:
 
 1. Alice and Bob each obtain their own connection material from the product backend.
@@ -247,9 +227,11 @@ Because the SDK is a process singleton, use two devices, two emulators, or two i
 5. Bob sends back to Alice and proves the reverse direction.
 6. Recreate the Activity and confirm listeners are not duplicated; exit the application and confirm the connection closes.
 
-That exact source ran against the same WuKongIM revision on an Android 14 / API 34 emulator and completed bidirectional messaging, manual disconnect, and heartbeat-timeout verification. The Maven `1.0.5` artifact then passed instrumentation bidirectional messaging and disconnect on a hosted API 34 emulator. Retain the server revision, SDK revision, package-resolution result, device, and network environment, and do not hide failures with blind retries. Physical-device execution, log redaction, offline recovery, and production security require separate acceptance.
+## 5. Clean up
 
-## Troubleshooting
+`onDestroy()` removes this page’s listeners and disconnects when the Activity finishes. An application connection belongs to the Application. Version `1.0.5` cannot reinitialize with another identity or configuration; never silently reuse an old Token.
+
+## 6. Troubleshooting
 
 - **`SDK is not initialized`:** preserve the `init → addEventListener → connect` order.
 - **The same UID gets a refreshed token or route and configuration changes:** `v1.0.5` has no public reset API. Stop explicitly and restart the process; do not continue with a stale token or URL.
@@ -258,14 +240,6 @@ That exact source ran against the same WuKongIM revision on an Android 14 / API 
 - **Raw JSON or `Params` still appears in Logcat with `debugLogging` disabled:** first confirm Gradle resolved `1.0.5`, clean the old build, then use a non-production canary to distinguish SDK output from application or third-party network logs. Stop the rollout and file a minimal reproduction if the Release artifact still exposes that canary.
 - **Messages are duplicated:** prevent repeated listener registration and deduplicate by `messageId`.
 
-## Before production
-
-- Use `wss://` and verify certificates, proxy Upgrade, connection timeouts, and network recovery from a physical device.
-- Handle the `v1.0.5` restriction on reinitializing with changed configuration; account switching must not retain a stale UID, token, or route.
-- Release diagnostics are default-silent. Keep `debugLogging(false)` in production and use non-production canaries to confirm that Logcat and crash reports omit tokens, payloads, raw JSON, and error details.
-- Check device wire values as APP `0`, WEB `1`, and PC `2`, and retain the Release build, Android version, device, network, and server revision.
-- Continue with [Integration Acceptance](/en/guide/integration/acceptance) for offline behavior, push, multi-device, capacity, upgrades, and rollback.
-
 ## Next
 
-Return to the [WuKongEasySDK overview](/en/sdk/easy), then read [Messaging](/en/guide/integration/messaging) and the [Release Checks](/en/guide/integration/acceptance).
+Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#android) retain the exact environments and scope of past runs.

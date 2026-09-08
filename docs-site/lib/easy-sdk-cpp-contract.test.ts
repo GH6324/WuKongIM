@@ -14,14 +14,14 @@ describe('C++ EasySDK vcpkg and source tutorial', () => {
       expect(getNavigationEntry(locale, 'sdk', ['easy', 'cpp', 'getting-started'])?.status).toBe('published');
       expect(getIndexedNavigationEntries(locale).map((entry) => entry.url)).toContain(`/${locale}/sdk/easy/cpp/getting-started`);
       for (const content of [page, overview, examples]) {
-        expect(content).toContain(repository);
-        expect(content).toContain(revision);
+        if (content === page || content === overview) expect(content).toContain(repository);
         expect(content).not.toContain('CPP_SOURCE_REV');
-        expect(content).toContain('0.1.0');
+        if (content !== examples) expect(content).toContain('0.1.0');
       }
       for (const content of [overview, examples]) {
         expect(content).toContain(`/${locale}/sdk/easy/cpp/getting-started`);
       }
+      expect(page).toContain(revision);
       expect(page).toContain(`${repository}/releases/tag/v0.1.0`);
       for (const platform of ['linux-x64-gcc13.zip', 'macos-arm64-appleclang.zip', 'windows-x64-msvc143-md.zip']) {
         expect(page).toContain(platform);
@@ -30,7 +30,7 @@ describe('C++ EasySDK vcpkg and source tutorial', () => {
         expect(page).toContain(contract);
       }
       expect(page).not.toMatch(/没有预编译 SDK 压缩包|no prebuilt SDK archive/);
-      expect(page).toMatch(/不属于微软默认目录|not Microsoft’s curated catalog/);
+      expect(page).toMatch(/(?:不属于|不是)微软默认目录|not Microsoft[’']s curated catalog/);
       const manifests = [...page.matchAll(/```json\n([\s\S]*?)\n```/g)]
         .map((match) => JSON.parse(match[1]));
       expect(manifests[0]).toEqual({ dependencies: ['wukong-easy-sdk'] });

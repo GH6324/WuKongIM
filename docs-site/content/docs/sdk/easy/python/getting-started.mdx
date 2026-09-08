@@ -1,11 +1,19 @@
 ---
 title: Python 快速接入
-description: 安装 WuKongEasySDK-Python 固定 PyPI 版本，用 asyncio 完成在线收发、心跳、重连和资源清理。
+description: 按准备、安装、连接、收发和清理顺序完成首次接入。
 ---
 
-[WuKongEasySDK-Python](https://github.com/WuKongIM/WuKongEasySDK-Python) 参考 JS `v2.0.4`，使用 Python 3.11+、`asyncio` 与 `websockets`，提供 WebSocket JSON-RPC CONNECT、在线收发、自动 RECVACK、心跳、重连和自定义事件。
+使用 Python 3.11+、asyncio 和 PyPI **0.1.0** 完成在线收发。每个客户端属于一个事件循环。
 
-## 1. 安装固定版本
+## 1. 准备接入
+
+按[认证与 Token](/zh/guide/integration/authentication)让受信业务后端分别提供两人的 `uid`、`token` 和 `websocketUrl`。客户端只连接 Gateway，不调用 Product HTTP 管理接口。
+
+设备类别是 APP `0`、WEB `1`、PC/Desktop `2`。**Python 默认 Desktop `2`**，后端保存 Token 时必须使用相同设备类别。开发地址通常为 `ws://127.0.0.1:5200`；仅当 listener 或代理配置了 `/ws` 时使用 `ws://127.0.0.1:5200/ws`。生产使用 `wss://`，跨机器时使用客户端实际可达地址。
+
+想先看到实际收发效果，可按[运行官方示例](/zh/sdk/easy/examples#python)准备两端；下文说明如何接入自己的应用。
+
+## 2. 安装 SDK
 
 本文使用 [PyPI `wukong-easy-sdk==0.1.0`](https://pypi.org/project/wukong-easy-sdk/0.1.0/)，要求 Python 3.11+。分发名是 `wukong-easy-sdk`，导入名是 `wukong_easy_sdk`。
 
@@ -17,29 +25,9 @@ python -m pip install --index-url https://pypi.org/simple "wukong-easy-sdk==0.1.
 
 Windows PowerShell 将激活命令替换为 `.venv\Scripts\Activate.ps1`。运行依赖为 `websockets>=15.0.1,<18`，仓库 `uv.lock` 固定开发与验证依赖。
 
-## 2. 准备 Alice 和 Bob
+## 3. 连接与监听
 
-按[认证与 Token](/zh/guide/integration/authentication)让受信业务后端分别提供两人的 `uid`、`token` 和 `websocketUrl`。客户端只连接 Gateway，不调用 Product HTTP 管理接口。
-
-设备类别是 APP `0`、WEB `1`、PC/Desktop `2`。**Python 默认 Desktop `2`**，后端保存 Token 时必须使用相同设备类别。开发地址通常为 `ws://127.0.0.1:5200`；仅当 listener 或代理配置了 `/ws` 时使用 `ws://127.0.0.1:5200/ws`。生产使用 `wss://`，跨机器时使用客户端实际可达地址。
-
-下载与安装包一致的示例源码，继续使用当前虚拟环境：
-
-```sh
-git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Python.git
-```
-
-两个终端分别设置自己的 `WKIM_UID`、`WKIM_TOKEN`、`WKIM_PEER` 和可选的 `WKIM_URL`，运行：
-
-```sh
-python WuKongEasySDK-Python/examples/chat.py
-```
-
-例如 Alice 的 `WKIM_UID=alice`、`WKIM_PEER=bob`；Bob 相反。Token 通过各自受信环境提供。两端都显示 `Connected` 后输入消息，再反向发送，输入 `/quit` 清理退出。示例主动展示聊天内容，SDK 自身默认静默。
-
-## 3. 在应用中连接和发送
-
-下面代码用 Alice 的身份发送一条消息，并继续接收 10 秒；Bob 必须已经在线。实际应用应让客户端存活到应用退出。
+下面代码用环境中的身份向 `WKIM_PEER` 发送一条消息，并继续接收 10 秒；Bob 必须已经在线。实际应用应让客户端存活到应用退出。
 
 ```python
 import asyncio
@@ -51,19 +39,19 @@ from wukong_easy_sdk import AuthOptions, WKIM, WKIMChannelType, WKIMEvent
 async def main():
     im = WKIM.init(
         os.environ.get("WKIM_URL", "ws://127.0.0.1:5200"),
-        AuthOptions(uid="alice", token=os.environ["WKIM_TOKEN"]),
+        AuthOptions(uid=os.environ["WKIM_UID"], token=os.environ["WKIM_TOKEN"]),
     )
 
     def receive(message):
         # 将 message["payload"] 交给应用 UI 或有界队列。
         # 不要把完整消息或 Token 写入生产日志。
-        pass
+        print("Message received")
 
     listener = im.on(WKIMEvent.MESSAGE, receive)
     im.on(WKIMEvent.ERROR, lambda error: print("EasySDK operation failed"))
     async with im:
         ack = await im.send(
-            "bob", WKIMChannelType.PERSON,
+            os.environ["WKIM_PEER"], WKIMChannelType.PERSON,
             {"type": 1, "content": "你好，Python！"},
         )
         assert ack["reasonCode"] == 1
@@ -82,7 +70,25 @@ Python 参数使用 snake_case，消息和结果字典保留 JS 的 camelCase：
 
 自动 RECVACK 表示消息已进入 SDK 分发队列，不代表业务处理完成或已读。发送成功、对端接收和业务处理的区别见[消息收发](/zh/guide/integration/messaging)。
 
-## 4. 管理异步生命周期
+## 4. 收发第一条消息
+
+下载与安装包一致的示例源码，继续使用当前虚拟环境：
+
+```sh
+git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Python.git
+```
+
+两个终端分别设置自己的 `WKIM_UID`、`WKIM_TOKEN`、`WKIM_PEER` 和可选的 `WKIM_URL`，运行：
+
+```sh
+python WuKongEasySDK-Python/examples/chat.py
+```
+
+例如 Alice 的 `WKIM_UID=alice`、`WKIM_PEER=bob`；Bob 相反。Token 通过各自受信环境提供。两端都显示 `Connected` 后输入消息，再反向发送，输入 `/quit` 清理退出。示例主动展示聊天内容，SDK 自身默认静默。
+
+两端都连接成功后，Alice 向 `bob` 发送，Bob 在消息回调中核对发送者和正文；再由 Bob 向 `alice` 回发。发送结果表示服务端接受请求，不能代替对端接收或已读。
+
+## 5. 清理连接
 
 每个实例只属于一个 asyncio 事件循环，没有全局单例。同步与异步回调在独立任务中串行分发，异步回调可以 `await im.send(...)` 回复，也可以断开或销毁客户端。不要阻塞事件循环，或在回调中等待同一串行分发器上的后续事件。
 
@@ -98,7 +104,7 @@ Python 参数使用 snake_case，消息和结果字典保留 JS 的 camelCase：
 
 取消一个 `connect()` 等待者不会取消共享连接，需要停止时调用 `disconnect()`。取消或超时的发送会释放请求占用，但已到达服务端的消息仍可能提交。
 
-## 5. 超时、重连和容量
+## 6. 常见问题
 
 `WKIMOptions` 的时间单位均为秒：连接总超时 10 秒、请求 15 秒、心跳间隔 25 秒、Pong 超时 10 秒、关闭超时 2 秒。成功鉴权后的意外断线最多重试 5 次，从 1 秒指数增长到最多 30 秒，附带 20% 抖动。首次连接失败、鉴权拒绝、服务端主动断开、协议错误、事件队列满、证书校验失败和手动退出停止自动重试。
 
@@ -106,54 +112,14 @@ Python 参数使用 snake_case，消息和结果字典保留 JS 的 camelCase：
 
 SDK 不离线排队或自动重发。超时与丢失 SENDACK 可能导致提交结果未知，应保留 `client_msg_no` 通过业务后端对账，再决定是否重试。错误通过 `WKIMError.code` 保留服务端原因码或本地 `ErrorCode`，错误文本不回显敏感响应。
 
-## 6. WSS 与验证范围
-
 WSS 默认验证证书链与主机名，最低 TLS 1.2。私有 CA 使用 `WKIMOptions(ca_file="/path/ca.pem")`，交互示例读取 `WKIM_CA_FILE`。不提供跳过校验的选项；不自动读取系统代理，直接使用传入的 Gateway/代理 URL。
 
 默认不输出日志；`WKIMOptions(debug_logging=True)` 只启用固定生命周期元数据，不记录 Token、Payload、URL、原始帧、服务端响应文本或底层异常对象。
 
-PyPI `0.1.0` 来自发布源码 `ec2c62c73eca29be99ac15ba76ff7466c13617d5`。公开 wheel 与 sdist 的 SHA-256 均与发布工作流产物一致。从 PyPI 新安装的 Python `3.11.12` / websockets `15.0.1` 和 Python `3.14.7` / websockets `17.1` 两种环境，各通过 64 项测试，并在 WuKongIM `0348c0539bbee420a859439695acdac911afa854`、开启 Token 鉴权的 256 Hash Slot 单节点集群上完成 Python/Python 与真实 JS `2.0.4` 双向消息、Ping、手动重新连接、错误 Token 拒绝和在线清理。JS 来自固定源码构建。独立 WS/WSS 测试覆盖自动重连、请求取消、队列边界和证书拒绝。完整哈希、安装回执、版本与复现命令见 [PyPI 正式包验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/90018a9ac53bdef4cb15dadb169ff835cbfcb2a6/docs/PYPI_VALIDATION.md)。
+## 可选：群聊
 
-另外提供独立的[三节点 WSS 验收流程](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/a9be49e69f4b7155a9a6244ef63f9cb6baf00cb9/docs/CLUSTER_ACCEPTANCE.md)：从 PyPI 安装固定版本，通过私有 CA TLS 代理连接三个真实节点，覆盖跨节点收发、丢失 SENDACK、断网重连、节点重启、Token 轮换与资源清理。日常 CI 跑短验收，手动运行可选择 30 或 60 分钟；每次结果单独记录包、服务端、JS 与测试脚本身份。
+群聊使用 `WKIMChannelType.GROUP`，无需客户端订阅。由可信后端建立群、添加成员并管理权限；接收继续使用 `WKIMEvent.MESSAGE`。跨节点成员变更需要包含[成员缓存修复](https://github.com/WuKongIM/WuKongIM/commit/2a295e0d9881ef5356728a85d56b052c4b0d9c86)的服务端，只升级 Python 包无法修复旧服务端行为。Slot Leader 切换时在线路由需要恢复，不能保证切换期间连续投递。完整示例与版本条件见[群聊说明](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/527f37c876326e7ad3cc48c89828c4c3ffed09fc/examples/group_chat.py)。
 
-同一 PyPI `0.1.0` 随后在 WuKongIM `e7ef61ba702e045648b9fa535f051e5b2ee4a1db`、256 Hash Slot、12 个物理 Slot、每个 Slot 三副本的本机三节点集群上完成 **30 分钟 WSS 验收**，核对 **35,380 条 SENDACK/RECV**。6 次断网与 ACK 丢失、入口节点重启、三节点 Token 轮换均通过；未观察到重复回调，连接数和异步任务数保持稳定，退出后进程、连接与额外任务均清零。该验收使用明确配置的故障测试超时和重试参数；完整版本、资源采样和原始 JSON 见[三节点 WSS 验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/a9be49e69f4b7155a9a6244ef63f9cb6baf00cb9/docs/CLUSTER_VALIDATION.md)，不代表生产容量或恰好一次投递保证。
+## 下一步
 
-不提供离线同步、会话、未读或推送；这些需求请使用完整版 SDK。继续验证实际部署的 WSS 代理、Token 轮换、重复投递和容量，或回到 [WuKongEasySDK 概览](/zh/sdk/easy)与[运行官方示例](/zh/sdk/easy/examples)。
-
-## 7. 在线群聊与成员权限
-
-PyPI 包继续使用 `wukong-easy-sdk==0.1.0`。群聊通过同一个连接、`WKIMChannelType.GROUP`（`2`）和 `WKIMEvent.MESSAGE` 收发，不需要客户端订阅接口：
-
-```python
-await im.send("team-chat", WKIMChannelType.GROUP, {"type": 1, "content": "群内消息"})
-```
-
-**先由可信后端创建群、添加成员并提供设备类别 `2` 的 Token。** 以下 Product HTTP 请求只在可信服务端执行；不要把管理地址或权限交给不可信客户端。示例将 Alice 和 Bob 加入群，并明确禁止非成员发送：
-
-```http
-POST /channel
-Content-Type: application/json
-
-{"channel_id":"team-chat","channel_type":2,"allow_stranger":0,"reset":1,"subscribers":["alice","bob"]}
-```
-
-`reset:1` 会替换已有群的成员，仅对新建示例群使用。日常通过 `/channel/subscriber_add`、`/channel/subscriber_remove` 修改成员；请求字段为 `channel_id`、`channel_type:2`、`subscribers`。黑名单使用 `/channel/blacklist_add`、`/channel/blacklist_remove`，成员字段为 `uids`。这些操作均由后端控制。
-
-下载新增群聊示例的固定源码；原 `v0.1.0` 标签不包含这个新增文件。示例源码和已安装的 PyPI 包版本分别固定：
-
-```sh
-git clone https://github.com/WuKongIM/WuKongEasySDK-Python.git WuKongEasySDK-Python-group
-git -C WuKongEasySDK-Python-group checkout --detach 527f37c876326e7ad3cc48c89828c4c3ffed09fc
-export WKIM_UID=alice
-export WKIM_GROUP=team-chat
-# 通过安全环境设置 WKIM_TOKEN、WKIM_URL；私有 CA 可设置 WKIM_CA_FILE。
-python WuKongEasySDK-Python-group/examples/group_chat.py
-```
-
-另一终端使用 Bob 的 UID 和 Token、相同群 ID。双方在线后输入消息，`/quit` 退出。示例显示消息内容及数字错误码。上述策略下，非成员发送抛出 `WKIMError.code == 3`，黑名单发送返回错误码 `4`。策略由服务端决定；错误或超时后先核对成员关系及发送结果，再决定是否重试。SENDACK 不是用户已读确认；重连不会自动补拉离线历史。
-
-**服务端版本要求：**跨入口成员变更验收使用包含修复的服务端源码 [`2a295e0d9881ef5356728a85d56b052c4b0d9c86`](https://github.com/WuKongIM/WuKongIM/commit/2a295e0d9881ef5356728a85d56b052c4b0d9c86)。旧服务端可能在其他节点变更成员后仍使用过期投递缓存；只升级 Python 包不能修复这一行为。该记录验证的是修复源码，不代表旧服务端安装包已包含修复。
-
-[群聊正式包验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/4d39f9e43265f88415f2fe01fc5418182e405c52/docs/GROUP_VALIDATION.md)独立记录三节点 WSS、4 个 Python/JS 客户端、2 个群的 13 个阶段：成员投递、群隔离、加入/移除/重新加入、非成员与黑名单拒绝，以及四个客户端重连后的成员与权限保持。Python 3.11 和 3.14 的 PyPI 消费环境还实际运行群聊 CLI。每个阶段对不应收到消息的客户端观察 1 秒；这是功能验收，不是大群容量或恰好一次投递保证。独立 CI 的候选 wheel 记录与 PyPI 下载记录分开保留。
-
-验收在 12 个 Slot 完成初始 Leader 收敛后才登录客户端，并记录前后拓扑。启动期间的 Leader 调整曾导致在线路由暂时缺失，诊断与失败记录保留在[问题 #7](https://github.com/WuKongIM/WuKongEasySDK-Python/issues/7)。现有服务端在 Slot Leader 变化后依靠下一次有效客户端活动重建在线路由；本次验证不保证 Slot Leader 切换期间连续在线投递，也不自动补拉缺失消息。
+继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#python)保留各次验证的完整环境和范围。

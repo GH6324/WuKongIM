@@ -1,15 +1,11 @@
 ---
 title: C# 快速接入
-description: 使用 WuKongEasySDK-CSharp NuGet 正式包接入 .NET 8，完成认证、在线消息、自动重连和异步释放。
+description: 按准备、安装、连接、收发和清理顺序完成首次接入。
 ---
 
-[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) 参考 JavaScript EasySDK 的 WebSocket JSON-RPC 协议，提供符合 C# 习惯的异步 API 和强类型事件。运行时不依赖第三方包。
+使用 .NET 8+ 和 NuGet **1.0.0**，让两个独立控制台客户端完成在线收发。
 
-<Callout type="info" title="NuGet 正式版 1.0.0">
-  [WuKongEasySDK 1.0.0](https://www.nuget.org/packages/WuKongEasySDK/1.0.0) 已发布到 nuget.org，对应源码 `02ea7d60cd94feef1996f41bca35ffc3b8e18ea6`。下文默认使用公共 NuGet 安装；源码引用与本地打包用于需要自行构建的场景。
-</Callout>
-
-## 开始前
+## 1. 准备接入
 
 - 准备 .NET 8 或更新版本，以及 Windows、Linux 或 macOS 开发环境。当前目标框架为 `net8.0`，不包含 Unity、.NET Framework 和浏览器 WebAssembly 支持。
 - 启动 `/readyz` 健康的 WuKongIM 单节点集群或多节点集群，确认客户端可以访问 WebSocket Gateway。单节点集群同样遵循集群语义，默认使用 256 Hash Slots。
@@ -17,36 +13,6 @@ description: 使用 WuKongEasySDK-CSharp NuGet 正式包接入 .NET 8，完成�
 - C# 默认使用 PC/Desktop `2`。后端签发 Token 的 `device_flag` 必须与客户端一致；APP 为 `0`，Web 为 `1`。
 
 先阅读 [身份与 Token](/zh/guide/integration/authentication)。生产环境使用 HTTPS/WSS，不关闭证书验证，不把 Token 放入 URL、日志或源码。
-
-## 1. 安装 NuGet 正式包
-
-```bash
-dotnet new console -n MyChat --framework net8.0
-dotnet add MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source https://api.nuget.org/v3/index.json
-```
-
-### 可选：从固定源码构建
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
-git -C WuKongEasySDK-CSharp checkout 02ea7d60cd94feef1996f41bca35ffc3b8e18ea6
-dotnet new console -n MyChat --framework net8.0
-dotnet add MyChat/MyChat.csproj reference WuKongEasySDK-CSharp/src/WuKongEasySDK/WuKongEasySDK.csproj
-```
-
-两个目录处于同一级。将确切源码 revision 记录到构建配置，或通过固定 commit 的子模块维护引用。
-
-如需本地 NuGet 安装，先在这个固定 checkout 中生成包：
-
-```bash
-cd WuKongEasySDK-CSharp
-dotnet pack src/WuKongEasySDK -c Release -o artifacts
-dotnet add ../MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source ./artifacts
-```
-
-公共包、项目引用和本地包三选一，不要同时引用。此处的 `--source ./artifacts` 指向你刚生成的本地源。
-
-## 2. 由业务后端提供连接材料
 
 登录业务系统后，通过受保护的业务接口取得：
 
@@ -60,7 +26,16 @@ dotnet add ../MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --sourc
 
 下面的控制台示例从 `WUKONGIM_WS_URL`、`WUKONGIM_UID`、`WUKONGIM_TOKEN` 环境变量读取这些值；桌面应用可以改为读取登录响应。它们是本示例的变量，不是服务端的 `WK_` 配置项。
 
-## 3. 连接、监听并发送
+服务端、测试账号与地址的公共准备步骤见[运行官方示例](/zh/sdk/easy/examples)。准备完成后，继续下面的安装步骤。
+
+## 2. 安装 SDK
+
+```bash
+dotnet new console -n MyChat --framework net8.0
+dotnet add MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source https://api.nuget.org/v3/index.json
+```
+
+## 3. 连接与监听
 
 用下面代码替换 `MyChat/Program.cs`。启动前设置当前账号的三个环境变量，通过命令行参数传入对方 UID。
 
@@ -125,7 +100,9 @@ finally
 
 库默认没有日志。只有显式设置 `WKIMOptions.DebugLogger` 才输出固定运行状态文本，不包含 Token、Payload、原始帧或服务端错误正文。
 
-## 4. 群聊、发送结果与接收数据
+## 4. 收发第一条消息
+
+两端都连接成功后，Alice 向 `bob` 发送，Bob 在消息回调中核对发送者和正文；再由 Bob 向 `alice` 回发。发送结果表示服务端接受请求，不能代替对端接收或已读。
 
 群聊使用 `ChannelType.Group` 和业务后端管理的群 ID；成员关系和权限仍由服务端判定。可传入 `SendOptions` 设置 `ClientMsgNo`、`Header`、`Setting` 和 `Topic`。默认 Header 为 `RedDot = true`，显式传入的 Header 不会被 SDK 覆盖。
 
@@ -135,7 +112,7 @@ finally
 
 `RecvMessage.Payload` 和 `EventNotification.Data` 为拥有独立生命周期的 `JsonElement`。接收 Payload 支持 JSON 对象和 Base64 JSON；无法解码的字符串保留原值。自定义事件的 JSON 字符串会解析为 JSON 值，普通字符串保持不变。
 
-## 5. 重连、取消与释放
+## 5. 清理连接
 
 | 行为 | C# SDK 约定 |
 | --- | --- |
@@ -155,60 +132,35 @@ RECVACK 表示消息进入 SDK 接收队列，不是业务处理确认。默认�
 
 SDK 不缓存离线消息，也不自动重发 SEND。请求超时、取消或断线时，发送可能已经成功。应用应先核对业务状态，需要重试同一条逻辑消息时复用 `SendOptions.ClientMsgNo`。离线恢复、会话、未读数、推送与业务回执由应用自行维护。
 
-## 6. 运行官方示例和验收
+## 6. 常见问题
 
-在固定源码目录执行：
+**断线后是否自动切换地址？** 每个实例重连到固定地址。由业务后端选择新的可用入口，等待旧实例 `DisposeAsync`，再用新地址创建实例。完整三节点故障恢复仍存在[已知服务端问题](https://github.com/WuKongIM/WuKongIM/issues/927)，不要据单节点收发推断集群故障期间连续可用。
 
-```bash
-dotnet build -c Release
-dotnet test -c Release
-dotnet run --project examples/ConsoleChat -- bob
-```
+**发送超时能否重试？** 结果可能未知；先对账，再按 `ClientMsgNo` 幂等约定处理。
 
-控制台示例使用同样的环境变量，输入文本发送，`/quit` 或 Ctrl+C 退出。它把正文显示为聊天界面内容，不输出完整协议对象。
+**UI 更新报线程错误？** 事件从后台派发，WinForms/WPF 必须切回 UI 线程。
 
-已有服务端二进制时，还可运行自动化真实进程测试：
+## 其他安装方式：源码与本地包
 
 ```bash
-WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py
+git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
+git -C WuKongEasySDK-CSharp checkout 02ea7d60cd94feef1996f41bca35ffc3b8e18ea6
+dotnet new console -n MyChat --framework net8.0
+dotnet add MyChat/MyChat.csproj reference WuKongEasySDK-CSharp/src/WuKongEasySDK/WuKongEasySDK.csproj
 ```
 
-该脚本只启动和清理自己拥有的回环地址单节点集群，使用 256 Hash Slots 并启用 Token 认证。它自动准备两个测试账号，检查双向 Unicode 消息的 SENDACK/RECV 一致性、重连、心跳和错误 Token 拒绝。
+两个目录处于同一级。将确切源码 revision 记录到构建配置，或通过固定 commit 的子模块维护引用。
 
-原始实现 `d365a354f5e0f25fbd7f83bb59aa365ba43e899f` 在 macOS arm64、.NET SDK `8.0.424` / runtime `8.0.30` 通过 35 项测试、Release 构建与本地 NuGet 打包，并对 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 完成上述真实进程验证。自定义事件与故障重连由回环 WebSocket 测试覆盖。此记录不包含公共 NuGet 下载、生产 WSS、离线恢复、多节点容量或长期稳定性验证。
+如需本地 NuGet 安装，先在这个固定 checkout 中生成包：
 
-NuGet `1.0.0` 的[独立发布验证](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34188740990)覆盖 Windows、Linux、macOS 构建、35 项 SDK 测试、7 项发布校验测试与全新项目本地包安装。发布后从 nuget.org 下载精确版本，比较除 NuGet 签名外的全部包内容与测试产物，并在空包缓存、仅公共源的独立项目中完成还原、编译、加载和释放。此公共安装记录与上述真实服务端通信记录分别保留。
+```bash
+cd WuKongEasySDK-CSharp
+dotnet pack src/WuKongEasySDK -c Release -o artifacts
+dotnet add ../MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source ./artifacts
+```
 
-### C# / JavaScript 真实互通
-
-早期独立的 [C#/JS 互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34191886039) 分别测试公共 NuGet `WuKongEasySDK 1.0.0`（空包缓存安装）与当前 C# 源码。固定对端为 npm `easyjssdk 2.0.4`、Node 24 + `ws 8.21.3`，服务端为 `v3.0.0-beta.9` / `734166e0ec30fc0f6f10fef6f6d1889d079ab636`。测试工具源码为 `1db387c4f794a45bdb6f4e419d68dbe2bfef740f`，与 NuGet 包源码分别记录。
-
-五组场景覆盖双向中文/emoji 与嵌套自定义 Payload、超出 JavaScript 安全整数范围的消息 ID 及 SENDACK/RECV 一致性、错误 Token 拒绝、断网后自动重连、真实服务端崩溃重启，以及主动断开后拒绝离线 SEND 并允许显式重连。该服务端的 SENDACK 不返回 `clientMsgNo`，测试会校验 RECV 保留原始关联号。
-
-上述[早期复现记录](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/1db387c4f794a45bdb6f4e419d68dbe2bfef740f/docs/interoperability.md)的范围为 Node + `ws`。其中发现的 Node 原生 WebSocket 重连停滞，已在下面的独立源码修复与验收中处理。
-
-### Chromium/WSS 与原生 Node 恢复
-
-[早期扩展互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34195913516)分别使用正式 NuGet `1.0.0` 和 C# 候选源码，验证 Node `24.3.0` 原生 WebSocket，以及 Playwright `1.62.1` 驱动的真实 Chromium。服务端仍固定为 `734166e0ec30fc0f6f10fef6f6d1889d079ab636`，JS 固定为修复源码 `5e5dfb727fb0ea08294939962ae799e998b7ca5c`。该修复结束只发出 `error`、没有后续 `close` 的握手失败，让有限次数重连继续执行；npm `easyjssdk 2.0.4` **不包含此修复**。
-
-浏览器从真实 HTTPS 页面建立 WSS 连接，C# 使用原有 `ClientWebSocket`。测试通过临时 CA 和隔离的浏览器 NSS 信任库保留正常证书校验，要求双方拒绝不受信任的 CA 和主机名不匹配的证书，且没有解密后的应用请求进入服务端协议。证书控制通过后，再执行双向消息、错误 Token、断网恢复、服务端重启和主动断开五组场景。
-
-JS 修复已随 [npm `easyjssdk 2.0.5`](https://www.npmjs.com/package/easyjssdk/v/2.0.5) 正式发布，对应源码 `b6d0bbe822b9c5b6f95a10d55b593d30184414f6`。[公共包互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34198683155) 从空缓存安装该固定 npm 包，六组正式 NuGet / C# 候选源码与 `ws`、原生 Node、Chromium WSS 的组合均通过，包含上述证书拒绝控制。
-
-该单节点矩阵运行四条 Linux 任务，产生六份报告，记录 npm 下载地址及 SHA-512、实际测试提交、Chromium 版本和证书控制结果；[复现与信任范围](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/c143be832d6439295a213176274faf2ffb4b9868/docs/interoperability.md)说明运行方法。这里验证的是临时 CA、回环 TLS 代理和 Chromium，不代表所有公网 CA、反向代理、Firefox/WebKit、多节点容量或长期稳定性。
-
-### 三节点集群与应用切换地址
-
-完整三节点故障恢复验收尚未通过，服务端迁移、恢复日志冲突和重启后漏收问题已记录在 [Issue #927](https://github.com/WuKongIM/WuKongIM/issues/927)。本轮只处理 SDK、测试和文档；此前未合并的服务端实验不能作为已发布能力依据。上文已通过的单节点 WS／WSS 验证仍保留各自的精确版本和运行记录。
-
-**地址切换由应用负责。** 一个 SDK 实例只有一个固定地址，自动重连仍访问该地址。业务后端选择存活入口并取得其 `/route`，客户端等待旧实例 `DisposeAsync` 完成，再使用新地址与原有凭据创建实例、注册事件并连接。中断中的 SEND 可能结果未知，不应自动重发已经确认或结果不明的消息。
-
-[三节点手动复现工具](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/8a1525dce74ad23cf8f7f47d91adaa9fc5b459f1/docs/cluster-acceptance.md)固定公共 NuGet `WuKongEasySDK 1.0.0`、npm `easyjssdk 2.0.5`、Node `24.3.0`，服务端使用已发布的 `v3.0.0-beta.9` 源码 `734166e0ec30fc0f6f10fef6f6d1889d079ab636`。三个回环进程使用 256 Hash Slots、10 个逻辑 Slot 和三副本；测试覆盖入口间单聊/群聊、断线与离线发送拒绝、应用替换实例、节点重新加入，并严格检查 ACK/RECV 的关联和消息内容。节点上线、ISR 元数据齐全不等于物理副本已经追平。
-
-常规 push/PR CI 运行四条单节点任务，产生六份 WS／原生 Node／Chromium WSS 报告。手动触发时选择 `include_cluster=true` 才追加两条三节点复现任务；遇到服务端阻塞会正常失败，不计为 SDK 三节点验收通过。本地运行命令为 `python3 scripts/interop.py --transport native --topology three-node`，候选源码增加 `--candidate`，并按工具说明提供精确服务端二进制。
-
-复现工具记录服务端默认 90 秒在线路由租期引起的登录延迟，以及显式的迁移扫描预算。对已观察到的登录错误 `15` 有限重试是复现控制，不是重试所有系统错误或 SEND 的建议。完整三节点恢复、立即切换、多节点 WSS、离线同步、大群容量与长期稳定性均未由该工具建立保证。
+公共包、项目引用和本地包三选一，不要同时引用。此处的 `--source ./artifacts` 指向你刚生成的本地源。
 
 ## 下一步
 
-查看 [运行官方示例](/zh/sdk/easy/examples) 和 [SDK 验证记录](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/d365a354f5e0f25fbd7f83bb59aa365ba43e899f/docs/validation.md)，或回到 [WuKongEasySDK](/zh/sdk/easy) 比较平台。生产接入继续参考 [消息收发](/zh/guide/integration/messaging) 与 [集成验收](/zh/guide/integration/acceptance)。
+继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#csharp)保留各次验证的完整环境和范围。

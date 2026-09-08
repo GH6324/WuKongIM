@@ -1,66 +1,23 @@
 ---
-title: Run the Official Examples
-description: Use one pinned WuKongIM revision to run the Web, Android, iOS, and Flutter source examples and released packages.
+title: Run official examples
+description: Prepare a server and two accounts, run the eight platform examples, and check online bidirectional messaging.
 ---
 
-This page records two reproducible evidence classes. On August 31, 2026, the source examples in all four official repositories connected to WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`; the server process-level JSON-RPC E2E also passed at that revision. On September 1, the packages resolved from npm, Maven Central, CocoaPods, and pub.dev connected to test-merge server `35f314cc2512f3f0f5d55d9677e817cb64129985` for final PR head `1c9430f15fc8844e7025df07d54ab6e80e026414` and completed Alice → Bob, Bob → Alice, and disconnect cleanup.
+Exchange messages between Alice and Bob before integrating the tutorial code into your application. Choose one platform below; the two clients may also use different platforms.
 
-<Callout type="warn" title="Source examples and released packages are separate evidence">
-  A source run proves one repository revision; a released-package run proves the archive actually served by a registry. Web `v2.0.4`, Android `v1.0.5`, and iOS `v1.1.1` now include the previously verified example and connection-lifecycle fixes, while Flutter remains on `v1.1.0`. Keep both evidence classes in every result.
-</Callout>
+## 1. Prepare a development single-node cluster
 
-## Verified results
-
-### Released packages (September 1, 2026)
-
-| Platform | Released package and release source | Build and runtime | Observed result |
-| --- | --- | --- | --- |
-| Web | [`easyjssdk@2.0.4`](https://www.npmjs.com/package/easyjssdk/v/2.0.4) · [`9c03c98c725982fac224cd1d3b52456eae983975`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/9c03c98c725982fac224cd1d3b52456eae983975) | Chrome 151; hosted Node.js peer | Browser and released-package-peer bidirectional messaging, SENDACK, and disconnect passed |
-| Android | [`com.githubim:easysdk-android:1.0.5`](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.5) · [`61ae6dc6d0077b15e47cda1fd530296b97a06a7a`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/61ae6dc6d0077b15e47cda1fd530296b97a06a7a) | JDK 17, Android 14 / API 34 hosted emulator | Maven resolution, instrumentation bidirectional messaging, and disconnect passed |
-| iOS | [`WuKongEasySDK 1.1.1`](https://cocoapods.org/pods/WuKongEasySDK) · [`ca688fcac2c4cd8d6f8e8163faf165376b520ba9`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/ca688fcac2c4cd8d6f8e8163faf165376b520ba9) | CocoaPods 1.16.2, iOS Simulator | Pod resolution, bidirectional messaging, and disconnect passed |
-| Flutter | [`wukong_easy_sdk 1.1.0`](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) · [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | Flutter 3.41.4, iOS Simulator | Hosted dependency resolution, bidirectional messaging, and disconnect passed |
-
-The Android, iOS, and Flutter hosted jobs—and the released npm `2.0.4` peer shared by each—are recorded in the [final-head released-package acceptance run](https://github.com/WuKongIM/WuKongIM/actions/runs/33484491015).
-
-### Official source examples (August 31, 2026)
-
-| Platform | Official example source | Build and runtime | Observed result |
-| --- | --- | --- | --- |
-| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/tree/a055b3667247333b6b3183249f5d5929673dfd53/example) | Node.js 22.12, Chrome 151, macOS | 61 tests passed, ESM/CJS builds passed, browser bidirectional messaging plus disconnect/reconnect passed |
-| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/tree/7134bbd0263fd01d9e7f71b7bd05b226f75b2292/example) | JDK 17, Gradle 8.4, Android 14 / API 34 emulator | Gradle tests and Debug build passed; bidirectional messaging, manual disconnect, and heartbeat-timeout semantics passed |
-| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/tree/40014c16c0becd390c105098d359048901f4d87c/Examples/WuKongIMExample-Unified) | Xcode 16.2, iPhone 16 / iOS 18.3 Simulator | 30 tests and Release build passed; macOS/iOS scripts passed; bidirectional message content and timestamps rendered correctly |
-| Flutter | [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/tree/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6/example) (`v1.1.0`) | Flutter 3.41.4, Dart 3.11.1, iOS Simulator | 25 tests and static analysis passed; official-example bidirectional messaging passed |
-
-The server also passed its fixed process-level regression:
-
-```bash
-GOWORK=off go test -tags=e2e ./test/e2e/message/easy_sdk_jsonrpc \
-  -count=1 -timeout 2m -p=1 -v
-```
-
-This result covers a single-node cluster, the default 256 hash slots, JSON-RPC CONNECT, Ping, SEND/SENDACK, RECV/RECVACK, online bidirectional messaging, and client cleanup. It does not cover physical devices, WSS proxies, production-token rejection, offline synchronization, push, multi-device behavior, capacity, or long-duration stability.
-
-## 1. Start the same WuKongIM revision
-
-Start a development single-node cluster in one terminal:
-
-```bash
-git clone https://github.com/WuKongIM/WuKongIM.git
-cd WuKongIM
-git checkout 5676700d2dc966fa6fc9b2f0620a6ae429adad5a
-cp wukongim.toml.example wukongim.toml
-go run ./cmd/wukongim -config ./wukongim.toml
-```
-
-Check readiness from another terminal:
+Follow [Docker deployment](/en/server/deployment/docker) to start a development single-node cluster. Make WebSocket port `5200` and Product HTTP port `5001` reachable. The default uses 256 hash slots. Keep the server running and check from a trusted development terminal:
 
 ```bash
 curl -fsS http://127.0.0.1:5001/readyz
 ```
 
-The default development endpoints are Product HTTP at `http://127.0.0.1:5001` and the EasySDK WebSocket at `ws://127.0.0.1:5200`. Production must use protected HTTPS/WSS endpoints.
+The readiness request should succeed. The default development URL is `ws://127.0.0.1:5200`; append `/ws` only when configured on the listener or proxy. Use WSS for production clients and keep management APIs within your trusted backend.
 
 ## 2. Prepare Alice and Bob
+
+**Choose the device category first.** The requests below use mobile category `0`. Use `1` for Web and `2` for Rust/C#/C++/Python. Set each account’s value separately when platforms differ. `alice-token` and `bob-token` are local demonstration values only.
 
 A trusted product backend should prepare each user's `uid`, `token`, and WebSocket URL. Only for a loopback development environment, a trusted terminal can call [`POST /user/token`](/en/api/product-http/users/setQuickstartUserToken) to create test identities. The commands below assume two native clients; change a user's `device_flag` to `1` when that user signs in through the Web example:
 
@@ -84,41 +41,16 @@ Choose the WebSocket URL from where the client runs:
 | Android Emulator | `ws://10.0.2.2:5200` |
 | Physical phone | `ws://<development-host LAN IP>:5200`, with firewall and routing verified |
 
-## 3. Run a platform example
+## 3. Choose and run an example
 
-### Web
+Prepare the development tools for your platform. Source examples below use pinned versions. To integrate a distributed package into your application, use the install command in its quickstart.
 
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
-cd WuKongEasySDK-JS
-git checkout 9c03c98c725982fac224cd1d3b52456eae983975
-npm ci
-npm test
-npm run build
-python3 -m http.server 8080
-```
-
-Open `http://127.0.0.1:8080/example/`. Use two isolated browser contexts for Alice and Bob. Do not print tokens or complete payloads to the Console.
-
-### Android
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
-cd WuKongEasySDK-Android
-git checkout 61ae6dc6d0077b15e47cda1fd530296b97a06a7a
-./gradlew test :example:assembleDebug
-./gradlew :example:installDebug
-```
-
-Launch the `example` on an API 21+ device or emulator. An Android Emulator reaches the host at `ws://10.0.2.2:5200`, not `localhost`. Use two devices or emulators for two native identities, or use the browser example as the peer.
-
-### iOS and macOS
+### iOS [#ios]
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-iOS.git
 cd WuKongEasySDK-iOS
-git checkout ca688fcac2c4cd8d6f8e8163faf165376b520ba9
-swift test
+git checkout v1.1.1
 swift build -c release
 cd Examples/WuKongIMExample-Unified
 ./build.sh macos
@@ -133,15 +65,29 @@ Boot an iOS Simulator, then run:
 
 You can instead start the macOS variant with `./build.sh macos --run`. The iOS ATS cleartext exception in the example exists only for local `ws://` development; do not copy it into a production app.
 
-### Flutter
+[iOS quickstart](/en/sdk/easy/ios/getting-started)
+
+### Android [#android]
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
+cd WuKongEasySDK-Android
+git checkout v1.0.5
+./gradlew :example:assembleDebug
+./gradlew :example:installDebug
+```
+
+Launch the `example` on an API 21+ device or emulator. An Android Emulator reaches the host at `ws://10.0.2.2:5200`, not `localhost`. Use two devices or emulators for two native identities, or use the browser example as the peer.
+
+[Android quickstart](/en/sdk/easy/android/getting-started)
+
+### Flutter [#flutter]
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Flutter.git
 cd WuKongEasySDK-Flutter
-git checkout 98ab8f3d9a1ad53f40c32caef0979845a37ae9a6
+git checkout v1.1.0
 flutter pub get
-flutter analyze
-flutter test
 cd example
 flutter pub get
 flutter devices
@@ -150,105 +96,93 @@ flutter run -d <device-id>
 
 Run every target you intend to ship. An iOS Simulator result cannot stand in for Android, Web, or desktop acceptance.
 
-The current Web, Android, and iOS release commits change only version, changelog, or release-documentation metadata above the verified sources; their example behavior source is unchanged. Flutter's release source is the previously verified revision. Use the “Official source examples” table above when reproducing the exact August 31 source receipts.
+[Flutter quickstart](/en/sdk/easy/flutter/getting-started)
 
-### C# / .NET source example
-
-The new [WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) targets .NET 8 and is released as [WuKongEasySDK 1.0.0](https://www.nuget.org/packages/WuKongEasySDK/1.0.0) on NuGet. It is separate from the four historical released-package receipts above.
+### Web [#javascript]
 
 ```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
-cd WuKongEasySDK-CSharp
-git checkout d365a354f5e0f25fbd7f83bb59aa365ba43e899f
-dotnet build -c Release
-dotnet test -c Release
-dotnet run --project examples/ConsoleChat -- bob
+git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
+cd WuKongEasySDK-JS
+git checkout v2.0.5
+npm ci
+npm run build
+python3 -m http.server 8080
 ```
 
-Set `WUKONGIM_WS_URL`, `WUKONGIM_UID`, and `WUKONGIM_TOKEN` first, using Alice and Bob's own credentials in separate terminals. Prepare backend tokens with `device_flag` set to `2`, matching the C# default `DeviceFlag.Desktop`. See the complete [C# quickstart](/en/sdk/easy/csharp/getting-started).
+Open `http://127.0.0.1:8080/example/`. Use two isolated browser contexts for Alice and Bob. Do not print tokens or complete payloads to the Console.
 
-The C# source passed 35 tests and local NuGet packing on macOS arm64 / .NET `8.0.424`. Against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, a token-authenticated single-node cluster passed bidirectional messaging, reconnect, heartbeat, invalid-token rejection, and cleanup. Reproduce with `WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py`; the script owns only its loopback test processes. This is not public NuGet download or production WSS evidence.
+[Web quickstart](/en/sdk/easy/javascript/getting-started)
 
-See [C# cluster recovery](/en/sdk/easy/csharp/getting-started#three-node-clusters-and-application-address-replacement) for application endpoint replacement, optional three-node reproduction, and tracked server blockers.
+### Rust [#rust]
 
-## 4. Rerun released-package automation
-
-`Safety Automation - EasySDK Released Package Acceptance` resolves the exact four registry versions, builds the current WuKongIM, then uses the released npm package as Bob while Android API 34 and two iOS Simulator jobs complete bidirectional messaging. Trigger a rerun with:
+Requires Rust 1.86+. Check out source matching crates.io 0.1.0:
 
 ```bash
-gh workflow run easysdk-release-acceptance.yml --ref main
+git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Rust.git
+cd WuKongEasySDK-Rust
+cargo build --locked --example chat
 ```
 
-The workflow checks the actual Gradle, Podfile.lock, and Dart package-config sources so a local source dependency cannot masquerade as a release. Keep real-browser acceptance as a separate Web check.
+In two terminals set `WK_WS_URL`, `WK_UID`, `WK_TOKEN`, and `WK_PEER_UID`, then run `cargo run --locked --example chat`. Once both connect, type text and observe received events. Enter `/quit` to exit.
 
-## 5. Complete bidirectional acceptance
+[Rust quickstart](/en/sdk/easy/rust/getting-started)
 
-1. Wait for both clients to report connected before enabling send.
-2. Alice sends `{"type":1,"content":"hello bob"}` to person Channel `bob`.
-3. Alice observes SEND completion; Bob checks `fromUid`, `channelId`, `messageId`, content, and timestamp.
-4. Bob replies to person Channel `alice` to prove the reverse path.
-5. Disconnect and reconnect, checking that each transition emits once and listeners do not duplicate messages.
-6. Stop the server or cut the network. The client should enter a bounded failure or reconnect state instead of hanging in Connecting.
-7. On page or account exit, remove listeners and call the platform's `disconnect`, `dispose`, or `destroy` operation.
+### C# [#csharp]
 
-Send success, peer realtime receipt, peer display, and product handling are four different states. Design recovery and deduplication separately with [Messaging](/en/guide/integration/messaging).
+Create `MyChat` with the complete `Program.cs` in the [C# quickstart](/en/sdk/easy/csharp/getting-started) and install public NuGet 1.0.0. Set `WUKONGIM_WS_URL`, `WUKONGIM_UID`, and `WUKONGIM_TOKEN` in each terminal:
 
-## Troubleshooting
-
-- **The Android emulator cannot connect:** replace `localhost` with `10.0.2.2`; use the development host's LAN address on a physical phone.
-- **A checked-out tag behaves differently from the table:** verify that `git rev-parse HEAD` and each package-manager lockfile match the current pins. Do not let a local `path`, `project(':')`, or cached dependency stand in for the registry artifact.
-- **SEND succeeds but the peer sees nothing:** verify that the target Channel ID equals the peer UID, both clients are online, and the receiver did not drop RECV through duplicate listeners or incorrect deduplication.
-- **An iOS or Android build asks for a License:** accept the applicable Xcode or Android SDK Manager license and download the target runtime, then rerun the same command.
-- **A local token connects:** that proves only the built-in exact match. Continue until invalid, revoked, and product-expired tokens are rejected, and define replay limits for still-valid credentials.
-
-## Next step
-
-Continue with the [iOS](/en/sdk/easy/ios/getting-started), [Android](/en/sdk/easy/android/getting-started), [Flutter](/en/sdk/easy/flutter/getting-started), or [Web](/en/sdk/easy/javascript/getting-started) quickstart, then use the [Release Checks](/en/guide/integration/acceptance) to close WSS, physical-device, offline, capacity, and rollback evidence.
-
-## Rust source example (2026-09-08)
-
-The Rust repository is [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust), with [version `0.1.0` published on crates.io](https://crates.io/crates/wukong-easy-sdk/0.1.0). Applications install `wukong-easy-sdk = "=0.1.0"`; the repository source examples remain available below. Follow the [Rust quickstart](/en/sdk/easy/rust/getting-started), pin revision `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`, and run `cargo run --locked --example chat` or `cargo run --locked --example roundtrip`. Both Rust identities use PC `2` for `device_flag`.
-
-Verified source `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b` passed Linux CI against WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, which fixes WebSocket buffer ownership: Rust/Rust checks, 120 seconds of Rust/`easyjssdk@2.0.4` WSS Unicode echoes, three transport interruptions, invalid-Token rejection and cleanup. JS uses WEB `1`; the server is a 256 Hash Slot single-node cluster. The public package separately passed empty-cache download, archive checksum comparison and tutorial compilation; see the [Rust verification record](/en/sdk/easy/rust/getting-started#verification-record). These source results are separate from the four registry receipts above and do not establish capacity or multi-day stability.
-
-## C++ prebuilt, vcpkg and source examples
-
-After downloading a [v0.1.0 prebuilt archive](https://github.com/WuKongIM/WuKongEasySDK-CPP/releases/tag/v0.1.0), compile its `example` using the [C++ quickstart](/en/sdk/easy/cpp/getting-started), without installing vcpkg. Its `wukong_chat` uses the same Token and command-line arguments.
-
-For C++ project `0.1.0`, [vcpkg integration](/en/sdk/easy/cpp/getting-started) installs the SDK and its dependencies automatically. The source-based interactive example below is retained, separately from the four-platform historical released-package acceptance above. Each terminal supplies its own backend-issued Token through `WKIM_TOKEN`.
-
-```sh
-git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
-cd WuKongEasySDK-CPP
-git checkout 3e367a908f42385ab9306f9708b7456399cace7d
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel 2
-ctest --test-dir build -C Release --output-on-failure
-./build/wukong_chat ws://127.0.0.1:5200 alice bob
-./build/wukong_chat ws://127.0.0.1:5200 bob alice
+```bash
+# Alice
+dotnet run --project MyChat -- bob
+# Bob
+dotnet run --project MyChat -- alice
 ```
 
-After both connect, send in both directions, observe `SEND completed` and peer `Message`, then enter `/quit`. The default device category is Desktop `2` and must match the backend Token record. The default development listener uses `/`. For dependencies, Windows, private CAs, and thread ownership, see [C++ quickstart](/en/sdk/easy/cpp/getting-started).
+After both print `Connected.`, press Enter to send and observe `Message received.` at the peer. Press Enter again after checking both directions to exit.
 
-The 2026-09-08 source acceptance used WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, Token authentication and 256 hash slots for C++/C++, C++/JS messaging, reconnect, invalid-token rejection, and presence cleanup. For environment and WS/WSS evidence, see [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md).
+[C# quickstart](/en/sdk/easy/csharp/getting-started)
 
-## Python: run the example with a pinned PyPI package
+### C++ [#cpp]
 
-The Python tutorial uses Python 3.11+ and asyncio with [PyPI `wukong-easy-sdk==0.1.0`](https://pypi.org/project/wukong-easy-sdk/0.1.0/). Follow the [Python quickstart](/en/sdk/easy/python/getting-started) to create a virtual environment, install the package, and download the `v0.1.0` example source. Set each user's `WKIM_UID`, `WKIM_TOKEN`, `WKIM_PEER`, and `WKIM_URL` in two terminals and run:
+Use the [C++ quickstart](/en/sdk/easy/cpp/getting-started) to build `my_app` with vcpkg, or use `wukong_chat` from a prebuilt archive. For `my_app`, set `WKIM_URL`, `WKIM_UID`, and `WKIM_TOKEN`, then run `./build/my_app bob` (Bob uses `alice`). For the archive client, set `WKIM_TOKEN` and run `./build/wukong_chat ws://127.0.0.1:5200 alice bob`.
 
-```sh
+With `my_app`, wait for both clients to connect, press Enter to send, then Enter again to exit. With `wukong_chat`, type messages interactively and `/quit` to exit. Windows executables are under `build/Release/` with an `.exe` suffix.
+
+[C++ quickstart](/en/sdk/easy/cpp/getting-started)
+
+### Python [#python]
+
+Run in a Python 3.11+ virtual environment:
+
+```bash
+python -m pip install --index-url https://pypi.org/simple "wukong-easy-sdk==0.1.0"
+git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Python.git
 python WuKongEasySDK-Python/examples/chat.py
 ```
 
-Python defaults to PC/Desktop `2`. Once both display `Connected`, send in both directions and enter `/quit` to exit. The PyPI-installed package run used WuKongIM `0348c0539bbee420a859439695acdac911afa854`, independently of the historical four-platform server revisions above. A Token-authenticated 256-hash-slot single-node cluster passed Python/Python and actual JS `2.0.4` bidirectional messaging, heartbeat, reconnect, invalid-Token rejection, and online cleanup. Reproduce the separate process-level acceptance with:
+First set each terminal’s `WKIM_URL`, `WKIM_UID`, `WKIM_TOKEN`, and `WKIM_PEER`. Type text after both show `Connected`; enter `/quit` to exit.
 
-```sh
-python WuKongEasySDK-Python/tests/product.py --server /absolute/path/to/wukongim \
-  --js-entry /absolute/path/to/WuKongEasySDK-JS/dist/cjs/index.js
-```
+[Python quickstart](/en/sdk/easy/python/getting-started)
 
-The script starts a temporary local cluster, provisions test identities and checks online cleanup through public endpoints, then stops its own processes. Independent protocol tests cover WSS, automatic reconnect, and queue bounds. See the [Python validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/90018a9ac53bdef4cb15dadb169ff835cbfcb2a6/docs/PYPI_VALIDATION.md) for the full scope.
+## 4. Check results and exit
 
-See the [separate acceptance record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/a9be49e69f4b7155a9a6244ef63f9cb6baf00cb9/docs/CLUSTER_VALIDATION.md) for the subsequent three-node WSS 30-minute run and fault recovery of the same PyPI package; it distinguishes the long run, short CI and their exact versions.
+1. Both clients show a successful connection.
+2. Alice receives a server send result, and Bob observes Alice’s message event.
+3. Bob replies and Alice receives it.
+4. Exit using the platform instructions or close the page. Reopening should not leave duplicate events or an old connection.
 
-Python also provides a [group example and validation record](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/4d39f9e43265f88415f2fe01fc5418182e405c52/docs/GROUP_VALIDATION.md): four Python/JS clients verify membership changes, isolation, permissions and reconnect over three-node WSS after initial leader convergence. This scenario requires the recorded server recipient-cache fix; the installed PyPI package remains `0.1.0`. See the [Python group quickstart](/en/sdk/easy/python/getting-started#7-online-group-messaging-and-permissions) for backend setup and CLI commands.
+Example interfaces may display test content; production logs must not record Tokens or full messages.
+
+## Troubleshooting
+
+**Cannot connect:** check `/readyz`, the reachable address, and ports. Android Emulator uses `10.0.2.2`; physical devices use the development machine’s LAN address.
+
+**Authentication fails:** check UID, Token, and `device_flag`. Use different UIDs for the two clients.
+
+**Send succeeds but nothing arrives:** ensure the peer is online, the destination is its UID, and the message listener is registered. SENDACK does not prove recipient delivery.
+
+**Messages are missing after being offline:** EasySDK does not fetch history. Recover through your backend or choose the full SDK.
+
+## Next
+
+[Choose a platform and integrate your application](/en/sdk/easy). Historical versions and independent source/package results are in [engineering validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md). Continue testing WSS, Token rotation, and recovery in your deployment.

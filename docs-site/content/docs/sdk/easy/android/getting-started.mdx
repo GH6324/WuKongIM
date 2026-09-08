@@ -1,34 +1,11 @@
 ---
 title: Android 快速接入
-description: 精确安装 WuKongEasySDK Android 1.0.5，用可连续复制的 Kotlin 代码完成连接、在线收发与生命周期清理。
+description: 安装固定版本 1.0.5，通过业务后端提供的连接材料完成在线双向收发和退出清理。
 ---
 
-使用一个进程内单例依次完成安装、初始化、监听、单聊发送和 Activity 清理。Alice 与 Bob 需要运行在两个独立设备、模拟器或应用进程中。
+本教程使用 **1.0.5**，让 Alice 与 Bob 在两个独立客户端中在线收发。连接由 WebSocket JSON-RPC CONNECT 完成鉴权。
 
-<Callout type="info" title="当前 Product Gateway 支持这条连接路径">
-  当前 Product Gateway 支持固定 `v1.0.5` 的 JSON-RPC CONNECT 与在线双向收发，兼容 Android snake_case、驼峰字段、JSON 文本字符串、JSON 对象和 Base64 Payload。教程安装 [Maven Central 1.0.5](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.5)；官方 Android example 已在源码 `7134bbd0263fd01d9e7f71b7bd05b226f75b2292` 上实测通过，该源码已进入 [v1.0.5 Release](https://github.com/WuKongIM/WuKongEasySDK-Android/releases/tag/v1.0.5)。Maven 正式包随后在 Android 14 / API 34 托管模拟器完成双向消息和断开。
-</Callout>
-
-## 完成后你会得到什么
-
-- Maven Central 中锁定为 `1.0.5` 的 Android 依赖；
-- 一个按正确顺序初始化和注册监听器的 Kotlin 页面；
-- 一套 Alice 发送结果与 Bob 实时接收的双端验收骨架；
-- 对单例身份切换、字段兼容、Token 与生产安全的明确阻断项。
-
-## 先运行官方 example（推荐）
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
-cd WuKongEasySDK-Android
-git checkout 7134bbd0263fd01d9e7f71b7bd05b226f75b2292
-./gradlew test :example:assembleDebug
-./gradlew :example:installDebug
-```
-
-Android Emulator 填写 `ws://10.0.2.2:5200`，不能填写 `localhost`。完整的服务端准备与 Alice/Bob 验收见[运行官方示例](/zh/sdk/easy/examples)。源码 example 与 Maven `1.0.5` 正式包已经分别留下运行凭据，记录时仍要区分两者。
-
-## 开始前
+## 1. 准备接入
 
 准备以下条件：
 
@@ -39,7 +16,11 @@ Android Emulator 填写 `ws://10.0.2.2:5200`，不能填写 `localhost`。完整
 
 先阅读[身份与 Token](/zh/guide/integration/authentication)。示例变量来自业务后端，不应把真实 Token 写进 APK、源码、Logcat 或崩溃报告。
 
-## 步骤 1：安装精确版本
+想先看到实际收发效果，可按[运行官方示例](/zh/sdk/easy/examples#android)准备两端；下文说明如何接入自己的应用。
+
+默认设备类别为 **APP `0`**；业务后端保存 Token 时使用相同的 `device_flag`。APP 为 `0`，WEB 为 `1`，PC 为 `2`。
+
+## 2. 安装 SDK
 
 在应用模块的 `build.gradle.kts` 中添加：
 
@@ -63,7 +44,8 @@ dependencies {
 android.useAndroidX=true
 ```
 
-## 步骤 2：声明网络权限
+
+### 网络权限
 
 在 `AndroidManifest.xml` 中加入：
 
@@ -74,7 +56,7 @@ android.useAndroidX=true
 
 生产环境使用 `wss://`。Android 9 及以后默认会限制明文网络，不要通过全局放开 cleartext 来绕过生产 TLS。
 
-## 步骤 3：接收业务后端的连接材料
+## 3. 连接与监听
 
 ```kotlin
 data class IMBootstrap(
@@ -85,8 +67,6 @@ data class IMBootstrap(
 ```
 
 业务后端负责认证当前产品用户并选择 WebSocket 地址。Android 客户端只得到自己的连接材料，不获得 Product HTTP 管理凭据。
-
-## 步骤 4：初始化、监听并连接
 
 Android EasySDK 是进程内单例，而且 `v1.0.5` 初始化后不能用另一份配置再次 `init`。下面示例适合一个进程只登录一个 UID 的最小验证；生产应用若支持账号切换，必须先针对该限制设计并实测完整退出策略。
 
@@ -207,7 +187,9 @@ class ChatActivity : AppCompatActivity() {
 
 监听器必须在 `init` 之后注册，并保留同一个对象引用供 `removeEventListener` 使用。外层 `withTimeout` 把完整连接等待限制为 20 秒，失败后断开；SDK 内部连接与请求上限为 15 秒，自动重连最多 5 次。Activity 重建时先读取 `isConnected()`，不会等待一个不会重放的 `CONNECT` 事件。身份、Token、URL 或连接配置变化会显式停止，而不是静默沿用旧值。示例显式设置 `debugLogging(false)`；Maven `1.0.5` 会让协议解析和事件分发诊断同样服从该总开关，并对公开模型字符串脱敏。生产应用通常由 Application 级连接管理器持有 SDK，Activity 或 Fragment 只订阅 UI 所需事件；上面的页面级写法用于看清最小生命周期。
 
-## 步骤 5：发送第一条消息
+## 4. 收发第一条消息
+
+把下面方法放进上一节的 `ChatActivity` 类，连接成功后从发送按钮调用。
 
 ```kotlin
 fun sendText(targetUid: String, text: String) {
@@ -236,8 +218,6 @@ fun sendText(targetUid: String, text: String) {
 
 `send` 返回只代表 Alice 得到了发送请求的结果。Bob 必须在自己的 `MESSAGE` 监听器中独立观察消息；不要在 Alice 的发送回调里把对端状态直接标为“已收到”。
 
-## 步骤 6：用 Alice 和 Bob 验收
-
 由于 SDK 是进程内单例，请使用两台设备、两个模拟器或两个独立应用进程：
 
 1. Alice 与 Bob 分别从业务后端取得自己的连接材料；
@@ -247,9 +227,11 @@ fun sendText(targetUid: String, text: String) {
 5. Bob 向 Alice 回发，验证反向链路；
 6. 重建 Activity，确认监听器没有重复；退出应用时确认连接已关闭。
 
-上述精确源码已在 Android 14 / API 34 模拟器连接同一版 WuKongIM，完成双向消息、手动断开和心跳超时验证；Maven `1.0.5` 正式包随后在托管 API 34 模拟器通过 instrumentation 双向消息与断开。仍应保留服务端 revision、SDK revision、包解析结果、设备与网络环境，不要用盲目重试掩盖失败；物理真机、日志脱敏、离线恢复与生产安全需要另外验收。
+## 5. 清理连接
 
-## 常见问题
+`onDestroy()` 移除本页面的监听器；页面结束时断开连接。应用级连接应由 Application 持有。`1.0.5` 不能重新 `init` 另一份身份或配置，退出后也不能静默复用旧 Token。
+
+## 6. 常见问题
 
 - **`SDK is not initialized`**：严格执行 `init → addEventListener → connect` 顺序。
 - **同一 UID 刷新 Token 或路由后提示配置变化**：`v1.0.5` 没有公开重置配置 API；显式停止流程并重启进程，不能继续使用旧 Token 或旧地址。
@@ -258,14 +240,6 @@ fun sendText(targetUid: String, text: String) {
 - **关闭 `debugLogging` 后仍在 Logcat 看到原始 JSON 或 `Params`**：先确认 Gradle 依赖解析到 `1.0.5`，清理旧构建，再用非生产 canary 区分 SDK 输出、应用自身日志和第三方网络日志。若 Release 产物仍泄露 canary，应停止上线并提交最小复现。
 - **消息重复**：避免重复注册监听器，并按 `messageId` 去重。
 
-## 上线前检查
-
-- 使用 `wss://`，从真机验证证书、代理 Upgrade、连接超时和断网恢复；
-- 处理 `v1.0.5` 无法用新配置重新初始化的限制，账号切换时不得继续使用旧 UID、Token 或地址；
-- 正式版诊断默认静默；生产保持 `debugLogging(false)`，用非生产 canary 确认 Logcat 与崩溃报告不含 Token、Payload、原始 JSON 或错误详情；
-- 按 APP `0`、WEB `1`、PC `2` 核对设备值，并保存 Release 构建、Android 版本、设备、网络和服务端 revision；
-- 使用[上线验收](/zh/guide/integration/acceptance)继续验证离线、推送、多设备、容量、升级与回滚。
-
 ## 下一步
 
-回到 [WuKongEasySDK 概览](/zh/sdk/easy)，再阅读[消息收发](/zh/guide/integration/messaging)和[上线检查](/zh/guide/integration/acceptance)。
+继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#android)保留各次验证的完整环境和范围。
