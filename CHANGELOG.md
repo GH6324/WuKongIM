@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Document C# EasySDK application endpoint replacement and optional three-node reproduction, with server blockers tracked separately. / 补充 C# EasySDK 应用侧地址切换与三节点手动复现说明，单独记录服务端阻塞。
+
 - Document Python EasySDK group examples and installed-package membership/permission acceptance, including the required server cache fix. / 补充 Python EasySDK 群聊示例、正式包成员与权限验收，以及所需的服务端缓存修复说明。
 
 - Document Rust EasySDK released-package three-node messaging, permissions and same-endpoint ingress crash recovery acceptance. / 补充 Rust EasySDK 正式包三节点通信、权限与接入节点崩溃后原地址重连验收。
