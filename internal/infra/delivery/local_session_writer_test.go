@@ -178,3 +178,16 @@ func TestCommandRecvPacketUsesSourceChannelAndCommandFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildOnlineDeliveryRecvPacketPreservesNoPersist(t *testing.T) {
+	for _, seq := range []uint64{0, 1} {
+		event := channelappendcontract.CommittedEnvelope{MessageID: 1, MessageSeq: seq, ChannelID: "room", ChannelType: frame.ChannelTypeGroup}
+		packet, err := (&LocalSessionWriter{}).buildOnlineDeliveryRecvPacket(event, "u2", 123)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if packet.NoPersist != (seq == 0) {
+			t.Fatalf("seq=%d NoPersist=%v, want %v", seq, packet.NoPersist, seq == 0)
+		}
+	}
+}

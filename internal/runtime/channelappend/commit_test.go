@@ -904,7 +904,7 @@ func TestStopDeadlineRetainsCommitBacklogForNextDrain(t *testing.T) {
 	}
 }
 
-func TestNoPersistNonCommandReturnsSuccessWithoutAppendOrRealtime(t *testing.T) {
+func TestNoPersistNonCommandDispatchesRealtimeWithoutAppend(t *testing.T) {
 	ids := newSequenceIDsForPrepare(1400)
 	appender := newRecordingAppenderForAppendTest()
 	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
@@ -912,6 +912,7 @@ func TestNoPersistNonCommandReturnsSuccessWithoutAppendOrRealtime(t *testing.T) 
 		LocalNodeID:                1,
 		MessageID:                  ids,
 		Appender:                   appender,
+		Subscribers:                &recordingSubscriberSourceForRecipientTest{pages: []SubscriberPage{{Recipients: []Recipient{{UID: "u2"}}, Done: true}}},
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
 		OnlineDeliveryEnqueuer:     enqueuer,
 	})
@@ -926,17 +927,24 @@ func TestNoPersistNonCommandReturnsSuccessWithoutAppendOrRealtime(t *testing.T) 
 
 	results := waitFutureForTest(t, future)
 	requireResultReason(t, results, 0, ReasonSuccess)
-	if results[0].Result.MessageID != 0 || results[0].Result.MessageSeq != 0 {
-		t.Fatalf("no-persist non-command id/seq = %d/%d, want 0/0", results[0].Result.MessageID, results[0].Result.MessageSeq)
+	if results[0].Result.MessageID != 1400 || results[0].Result.MessageSeq != 0 {
+		t.Fatalf("no-persist non-command id/seq = %d/%d, want 1400/0", results[0].Result.MessageID, results[0].Result.MessageSeq)
 	}
-	if got := ids.allocatedCount(); got != 0 {
-		t.Fatalf("allocated ids = %d, want 0", got)
+	if got := ids.allocatedCount(); got != 1 {
+		t.Fatalf("allocated ids = %d, want 1", got)
 	}
 	if got := appender.Calls(); got != 0 {
 		t.Fatalf("append calls = %d, want 0", got)
 	}
-	if got := enqueuer.callCount(); got != 0 {
-		t.Fatalf("recipient delivery calls = %d, want 0", got)
+	if got := enqueuer.callCount(); got != 1 {
+		t.Fatalf("recipient delivery calls = %d, want 1", got)
+	}
+	plans := enqueuer.plansSnapshot()
+	if len(plans) != 1 || plans[0].Mode != onlinedelivery.ModeTransient || plans[0].Event.ChannelID != "room" || plans[0].Event.SyncOnce {
+		t.Fatalf("delivery plans = %#v, want ordinary transient delivery", plans)
+	}
+	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2"}) {
+		t.Fatalf("recipients = %v, want subscriber u2", got)
 	}
 }
 

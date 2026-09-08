@@ -13,9 +13,10 @@ allocates message IDs, serializes per-Channel durable append, completes aligned
 futures, and hands committed messages to bounded best-effort delivery and
 side-effect runtimes.
 
-Command-style `NoPersist` sends use the same authority and recipient machinery
-but create no Channel log or membership state. Plain non-command `NoPersist`
-sends terminate successfully before routing.
+`NoPersist` sends use the same authority and recipient machinery but create no
+Channel log or membership state. Ordinary sends retain the source Channel;
+command-style sends retain the command Channel. Both allocate a transient
+message ID and enter online delivery with sequence zero.
 
 ## Boundaries
 
