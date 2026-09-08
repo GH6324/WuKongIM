@@ -7,10 +7,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 
 ## Responsibility
 
-`pkg/cluster` is the reusable cluster composition root. `Node` owns lifecycle,
-readiness, public facade delegation, route publication, and bounded snapshots;
-focused subpackages own Controller adaptation, immutable routing, typed node
-RPC, Slot reconciliation/proposal, Channel hosting, and observation loops.
+`pkg/cluster` composes Controller adaptation, routing, typed RPC, Slot
+reconciliation/proposals, Channel hosting, and observation loops. `Node` owns
+lifecycle, readiness, public facades, route publication, and bounded snapshots.
 
 All deployments, including a single-node cluster, use these semantics.
 
@@ -81,6 +80,8 @@ All deployments, including a single-node cluster, use these semantics.
   concurrency. Directory-ready can never hide missing UID membership or
   missing append runtime metadata.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
+  Repair scans rotate Slots and retain per-Slot row cursors across tick/task
+  budgets. Losing Slot leadership discards its cursor; reacquisition rescans.
 - Maintenance closes business admission before storage replacement and keeps
   only explicitly allowed restore RPC available. Backup and restore retain
   cluster routing and exact authority fences.
@@ -95,6 +96,5 @@ All deployments, including a single-node cluster, use these semantics.
 
 ## Update Triggers
 
-Update this file when `Node` lifecycle or readiness changes, subtree ownership
-moves, route identity or publication changes, Slot or Channel authority flow
-changes, a typed RPC gains policy, or maintenance/backup semantics change.
+Update when lifecycle, readiness, ownership, route/authority publication,
+typed RPC policy, or maintenance/backup semantics change.

@@ -20,7 +20,10 @@ sends terminate successfully before routing.
 ## Boundaries
 
 - `Router` owns authority resolution, bounded local/remote grouping, and stale-
-  route retry; only a resolved local target may call `SubmitLocal`.
+  route retry; only a resolved local target may call `SubmitLocal`. Remote
+  forwarding attempts have an independent deadline. Ambiguous timeouts refresh
+  the exact failed route and retry only persistent sends with an unchanged
+  idempotency key; caller cancellation remains terminal.
 - Product permission and Channel business policy remain in usecases. Concrete
   routing, durable storage, presence, and owner push are injected ports.
 - The runtime owns scheduling and handoff state, not subscriber metadata or

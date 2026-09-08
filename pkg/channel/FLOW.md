@@ -61,7 +61,8 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
   restart; caller cancellation cannot revoke admitted durability.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
-  Install selects a quorum-identical hash-chain prefix, repairs bounded pages,
+  Install selects a quorum-identical hash-chain prefix, refuses suffix removal
+  when an unavailable voter could hold another acknowledged copy, repairs bounded pages,
   and completes authority recovery only after the deterministic current-term
   barrier. Non-ISR learners receive quorum-proven exact proposals through the
   bounded repair workers without contributing votes; page progress survives

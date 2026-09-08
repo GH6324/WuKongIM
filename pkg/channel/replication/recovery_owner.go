@@ -258,7 +258,8 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		return recoverySelection{}, ch.ErrLogConflict
 	}
 	if quorumLEO == 0 {
-		return recoverySelection{CertifiedCommitted: certifiedCommitted}, nil
+		selected := recoverySelection{CertifiedCommitted: certifiedCommitted}
+		return selected, validateRecoverySuffixEvidence(selected, frontierReports, len(frontierReports), len(request.Voters))
 	}
 	selected := recoverySelection{CertifiedCommitted: certifiedCommitted}
 	firstIndex := certifiedCommitted
@@ -354,7 +355,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 			identity, ok := quorumIdentityAt(stableReports, position, index, request.Quorum)
 			if !ok {
 				selected.Continuation = nil
-				return selected, nil
+				return selected, validateRecoverySuffixEvidence(selected, frontierReports, len(stable), len(request.Voters))
 			}
 			if selected.Index == 0 {
 				if index != 1 || identity.PreviousIndex != 0 || identity.PreviousTerm != 0 || identity.PreviousDigest != (ch.EntryDigest{}) {
@@ -371,7 +372,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		pageEnd := indexes[len(indexes)-1]
 		if pageEnd == quorumLEO {
 			selected.Continuation = nil
-			return selected, nil
+			return selected, validateRecoverySuffixEvidence(selected, frontierReports, len(stable), len(request.Voters))
 		}
 		stable = recoveryIdentitySupporters(stableReports, len(indexes)-1, selected.Identity)
 		if len(stable) < request.Quorum {
@@ -380,6 +381,22 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		pageStart = pageEnd + 1
 		selected.Continuation = makeRecoveryContinuation(request, certifiedCommitted, quorumLEO, pageStart, selected, stable)
 	}
+}
+
+// validateRecoverySuffixEvidence prevents a read quorum from treating an
+// unavailable voter's copy as absent. A visible suffix may have been acknowledged
+// by that voter and one survivor, even before their committed checkpoint advances.
+// Until all voters are accounted for, recovery may not discard such a suffix.
+func validateRecoverySuffixEvidence(selected recoverySelection, reports []recoveryProbeReport, stableVoters, configuredVoters int) error {
+	for _, report := range reports {
+		if report.Result.State.Committed > selected.Index {
+			return ch.ErrLogConflict
+		}
+		if stableVoters < configuredVoters && report.Result.State.LEO > selected.Index {
+			return errRecoveryProbeIncomplete
+		}
+	}
+	return nil
 }
 
 func validRecoveryContinuationShape(request recoveryProbeRequest, configured map[ch.NodeID]struct{}) bool {

@@ -13,6 +13,7 @@ import (
 
 const (
 	defaultRouterRetryBackoff                  = time.Millisecond
+	defaultRouterForwardTimeout                = 5 * time.Second
 	defaultRouterMaxRouteAttempts              = 3
 	defaultRouterMaxConcurrentResolvesPerBatch = 16
 	// Bound aggregate group submissions across concurrent SendBatch calls. Five
@@ -24,6 +25,8 @@ const (
 	// wave while reserving downstream RPC and store-worker headroom.
 	defaultRouterMaxConcurrentGroupsPerBatch = 96
 )
+
+var errRouterForwardTimeout = errors.New("channelappend: remote forwarding attempt timed out")
 
 // AuthorityResolver resolves the append authority for a canonical channel.
 // Implementations must be safe for concurrent calls from one or more Router instances.
@@ -66,6 +69,8 @@ type RouterOptions struct {
 	RetryBackoff time.Duration
 	// MaxRouteAttempts bounds retries for items that do not carry deadlines.
 	MaxRouteAttempts int
+	// ForwardTimeout bounds each remote attempt independently of caller lifetime. Zero uses five seconds.
+	ForwardTimeout time.Duration
 	// MaxOutboundPerNode bounds concurrent remote forwards per leader node. Values <= 0 disable this limit.
 	MaxOutboundPerNode int
 	// MaxConcurrentResolvesPerBatch bounds concurrent authority lookups for independent canonical channels. Values <= 0 use the default.
@@ -87,6 +92,7 @@ type Router struct {
 	local       LocalSubmitter
 	remote      RemoteForwarder
 
+	forwardTimeout                time.Duration
 	retryBackoff                  time.Duration
 	maxRouteAttempts              int
 	maxConcurrentResolvesPerBatch int
@@ -107,6 +113,10 @@ func NewRouter(opts RouterOptions) *Router {
 	retryBackoff := opts.RetryBackoff
 	if retryBackoff <= 0 {
 		retryBackoff = defaultRouterRetryBackoff
+	}
+	forwardTimeout := opts.ForwardTimeout
+	if forwardTimeout <= 0 {
+		forwardTimeout = defaultRouterForwardTimeout
 	}
 	maxRouteAttempts := opts.MaxRouteAttempts
 	if maxRouteAttempts <= 0 {
@@ -130,6 +140,7 @@ func NewRouter(opts RouterOptions) *Router {
 		local:                         opts.Local,
 		remote:                        opts.Remote,
 		retryBackoff:                  retryBackoff,
+		forwardTimeout:                forwardTimeout,
 		maxRouteAttempts:              maxRouteAttempts,
 		maxConcurrentResolvesPerBatch: maxConcurrentResolvesPerBatch,
 		maxConcurrentGroupsPerBatch:   maxConcurrentGroupsPerBatch,
@@ -588,7 +599,7 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 		return finishActive(routerErrorResults(len(activeItems), ErrBackpressured))
 	}
 	defer r.releaseOutbound(group.target.LeaderNodeID)
-	activeResults := r.remote.ForwardSendBatch(ctx, group.target, activeItems)
+	activeResults := r.forwardBatch(ctx, group.target, activeItems)
 	activeResults = rewriteTerminalRouterErrors(activeItems, activeResults, time.Now())
 	return finishActive(activeResults)
 }
@@ -639,12 +650,48 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 		return finish(SendBatchItemResult{Err: ErrBackpressured})
 	}
 	defer r.releaseOutbound(target.LeaderNodeID)
-	activeResults := r.remote.ForwardSendBatch(ctx, target, []SendBatchItem{item})
+	activeResults := r.forwardBatch(ctx, target, []SendBatchItem{item})
 	if len(activeResults) != 1 {
 		return finish(SendBatchItemResult{Err: ErrAppendResultMissing})
 	}
 	result := rewriteTerminalRouterError(item, activeResults[0], time.Now())
 	return finish(result)
+}
+
+// forwardBatch releases an unresponsive leader without canceling caller-owned
+// work. Only persistent, keyed sends can safely retry an ambiguous RPC outcome.
+func (r *Router) forwardBatch(ctx context.Context, target AuthorityTarget, items []SendBatchItem) []SendBatchItemResult {
+	attempt, cancel := context.WithTimeout(ctx, r.forwardTimeout)
+	defer cancel()
+	results := r.remote.ForwardSendBatch(attempt, target, items)
+	if len(results) != len(items) || attempt.Err() == nil {
+		return results
+	}
+	if ctx.Err() != nil {
+		// The caller keeps its cancellation result. Evict only this failed
+		// route so a later send cannot repeatedly spend its entire deadline
+		// waiting on the same disconnected authority.
+		for _, result := range results {
+			if errors.Is(result.Err, context.DeadlineExceeded) || errors.Is(result.Err, context.Canceled) {
+				r.invalidateAppendAuthority(target.ChannelID, target)
+				break
+			}
+		}
+		return results
+	}
+	if !errors.Is(attempt.Err(), context.DeadlineExceeded) {
+		return results
+	}
+	for i := range results {
+		if routerItemError(items[i], time.Now()) != nil || (!errors.Is(results[i].Err, context.DeadlineExceeded) && !errors.Is(results[i].Err, context.Canceled)) {
+			continue
+		}
+		results[i].Err = errors.Join(errRouterForwardTimeout, context.DeadlineExceeded)
+		if !items[i].Command.NoPersist && items[i].Command.ClientMsgNo != "" {
+			results[i].Err = errors.Join(ErrRouteNotReady, results[i].Err)
+		}
+	}
+	return results
 }
 
 func prepareRouterItem(item SendBatchItem, now time.Time) (SendBatchItem, ChannelID, SendBatchItemResult, bool) {
@@ -765,7 +812,7 @@ func shouldRetryRouterError(err error) bool {
 }
 
 func shouldInvalidateRouterAuthority(err error) bool {
-	return errors.Is(err, ErrStaleRoute) ||
+	return errors.Is(err, errRouterForwardTimeout) || errors.Is(err, ErrStaleRoute) ||
 		errors.Is(err, ErrNotChannelAuthority) ||
 		errors.Is(err, ErrNotLeader) ||
 		errors.Is(err, ErrRouteNotReady)

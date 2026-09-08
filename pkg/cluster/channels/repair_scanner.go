@@ -3,6 +3,7 @@ package channels
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -86,6 +87,10 @@ type RepairScanner struct {
 	store   RepairScannerStore
 	planner FailoverPlanner
 	repair  ReplicaRepairPlanner
+	// cursors retain bounded per-Slot progress; RunOnce is called serially by its owner.
+	cursors map[uint32]metadb.ChannelRuntimeMetaCursor
+	// lastSlot rotates the next tick beyond the Slot that consumed the prior budget.
+	lastSlot uint32
 }
 
 // NewRepairScanner creates a bounded Channel repair scanner.
@@ -99,7 +104,7 @@ func NewRepairScanner(cfg RepairScannerConfig, source RepairScannerSource, store
 	if cfg.MaxTasksPerTick <= 0 {
 		cfg.MaxTasksPerTick = defaultRepairScannerMaxTasksPerTick
 	}
-	return &RepairScanner{cfg: cfg, source: source, store: store, planner: NewFailoverPlanner(), repair: NewReplicaRepairPlanner()}
+	return &RepairScanner{cfg: cfg, source: source, store: store, planner: NewFailoverPlanner(), repair: NewReplicaRepairPlanner(), cursors: make(map[uint32]metadb.ChannelRuntimeMetaCursor)}
 }
 
 // RunOnce scans bounded local Slot-leader pages and creates repair tasks.
@@ -122,8 +127,22 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 	if err != nil {
 		return result, err
 	}
-	for _, slotID := range slotIDs {
-		cursor := metadb.ChannelRuntimeMetaCursor{}
+	// Reconcile cursor ownership and rotate even when one Slot has many pages.
+	owned := make(map[uint32]bool, len(slotIDs))
+	for _, id := range slotIDs {
+		owned[id] = true
+	}
+	for id := range s.cursors {
+		if !owned[id] {
+			delete(s.cursors, id)
+		}
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	start := sort.Search(len(slotIDs), func(i int) bool { return slotIDs[i] > s.lastSlot })
+	for offset := 0; offset < len(slotIDs); offset++ {
+		slotID := slotIDs[(start+offset)%len(slotIDs)]
+		s.lastSlot = slotID
+		cursor := s.cursors[slotID]
 		for result.PagesScanned < s.cfg.MaxPagesPerTick {
 			page, next, done, err := s.source.ListRepairScannerRuntimeMetaPage(ctx, slotID, cursor, s.cfg.PageLimit)
 			if err != nil {
@@ -137,11 +156,16 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 				if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
 					return result, err
 				}
+				// A task budget can interrupt a page. Resume after the last
+				// processed row, never after the unread remainder of the page.
+				s.cursors[slotID] = metadb.ChannelRuntimeMetaCursor{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}
 			}
 			if done {
+				delete(s.cursors, slotID)
 				break
 			}
 			cursor = next
+			s.cursors[slotID] = next
 		}
 		if result.PagesScanned >= s.cfg.MaxPagesPerTick || result.TasksCreated+result.TasksAborted >= s.cfg.MaxTasksPerTick {
 			break
