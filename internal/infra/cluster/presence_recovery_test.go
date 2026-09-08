@@ -71,3 +71,15 @@ func TestRecoveryReadsSurvivingIngressAndRejectsStaleOwnerGeneration(t *testing.
 		t.Fatalf("old generation proof=%v", err)
 	}
 }
+
+func TestRecoveryOwnerMembershipDoesNotAssumeDataReplicaRole(t *testing.T) {
+	nodes := recoveryOwnerNodes(control.Snapshot{Nodes: []control.Node{
+		{NodeID: 3, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateJoining},
+		{NodeID: 2, Roles: []control.Role{control.RoleController}, JoinState: control.NodeJoinStateActive},
+		{NodeID: 1, Roles: []control.Role{control.RoleData}, JoinState: control.NodeJoinStateActive},
+		{NodeID: 4, JoinState: control.NodeJoinStateRemoved},
+	}})
+	if len(nodes) != 2 || nodes[0].NodeID != 1 || nodes[1].NodeID != 2 {
+		t.Fatalf("owner membership=%+v, want both active ingress-capable members", nodes)
+	}
+}

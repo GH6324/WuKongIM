@@ -3,7 +3,6 @@ package cluster
 import (
 	"context"
 	"errors"
-	"slices"
 	"sort"
 	"time"
 
@@ -124,10 +123,12 @@ func (r *PresenceRecoveryOwners) RecoverRoutes(ctx context.Context, target prese
 	return routes, nil
 }
 
+// recoveryOwnerNodes includes every active member: gateway session ownership
+// is independent of whether a node hosts Channel data replicas.
 func recoveryOwnerNodes(snapshot control.Snapshot) []control.Node {
 	nodes := make([]control.Node, 0, len(snapshot.Nodes))
 	for _, node := range snapshot.Nodes {
-		if node.NodeID == 0 || node.JoinState == control.NodeJoinStateRemoved || node.JoinState == control.NodeJoinStateJoining || !slices.Contains(node.Roles, control.RoleData) {
+		if node.NodeID == 0 || node.JoinState == control.NodeJoinStateRemoved || node.JoinState == control.NodeJoinStateJoining {
 			continue
 		}
 		nodes = append(nodes, node)
