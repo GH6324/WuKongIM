@@ -125,6 +125,32 @@ ssh -N \
 
 </details>
 
+### Enable the bundled Prometheus process
+
+Use an image whose release notes include the Docker bundled Prometheus fix. Add the following to `wukongim.toml`, then restart the container:
+
+```toml
+[prometheus]
+enable = true
+
+[observability]
+metrics_enable = true
+```
+
+`metrics_enable` exposes WuKongIM's `/metrics`; `prometheus.enable` starts a Prometheus child process managed by WuKongIM. Images carry the matching binary for `linux/amd64` and `linux/arm64`, so `binary_path` can stay empty and startup needs no download.
+
+By default, Prometheus scrapes `127.0.0.1:5001/metrics` inside the container and listens on `127.0.0.1:9099`. Manager automatically queries that address. Data lives in `/var/lib/wukongim/prometheus` on the existing `wukongim-data` Volume. Retention defaults to 15 days; adjust `prometheus.retention_time` and `prometheus.retention_size` as needed.
+
+```bash
+docker restart wukongim
+docker exec wukongim wget -qO- http://127.0.0.1:9099/-/ready
+docker exec wukongim wget -qO- 'http://127.0.0.1:9099/api/v1/query?query=up%7Bjob%3D%22wukongim%22%7D'
+```
+
+After readiness, allow one default 15-second scrape interval. The query result's `value` should contain `"1"`. These checks run inside the container and need no additional host port mapping. WuKongIM stops the child process when the container stops. Reuse the same data volume when recreating the container to retain historical metrics.
+
+If an older image reports `embedded prometheus binary missing`, upgrade to an image containing this fix and recreate the container; restarting the old image cannot supply the missing binary. With an external Prometheus service, keep `prometheus.enable=false` and set `prometheus.query_base_url` as needed.
+
 <details>
 <summary>Common operations</summary>
 

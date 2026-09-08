@@ -2,6 +2,29 @@ ARG GO_IMAGE=golang:1.26.7-bookworm@sha256:e8c859f5632dcfde7b32d2012b4351728f643
 ARG RUNTIME_IMAGE=alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 ARG GOPROXY=https://goproxy.cn,direct
 
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS prometheus
+ARG TARGETOS
+ARG TARGETARCH
+COPY docker/prometheus/toolchain.env /tmp/prometheus-toolchain.env
+RUN set -eu; \
+    . /tmp/prometheus-toolchain.env; \
+    case "$TARGETOS/$TARGETARCH" in \
+      linux/amd64) checksum="$PROMETHEUS_LINUX_AMD64_SHA256" ;; \
+      linux/arm64) checksum="$PROMETHEUS_LINUX_ARM64_SHA256" ;; \
+      *) echo "unsupported Prometheus platform: $TARGETOS/$TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    archive="prometheus-${PROMETHEUS_VERSION}.linux-${TARGETARCH}"; \
+    curl --fail --location --retry 3 --connect-timeout 15 --max-time 300 \
+      --proto '=https' --tlsv1.2 \
+      "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/${archive}.tar.gz" \
+      -o /tmp/prometheus.tar.gz; \
+    echo "$checksum  /tmp/prometheus.tar.gz" | sha256sum --check -; \
+    tar -xzf /tmp/prometheus.tar.gz -C /tmp \
+      "$archive/prometheus" "$archive/LICENSE" "$archive/NOTICE"; \
+    install -D -m 0755 "/tmp/$archive/prometheus" "/out/bin/prometheus-linux-$TARGETARCH"; \
+    install -D -m 0644 "/tmp/$archive/LICENSE" /out/licenses/LICENSE; \
+    install -D -m 0644 "/tmp/$archive/NOTICE" /out/licenses/NOTICE
+
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS builder
 ARG TARGETOS=linux
 ARG TARGETARCH
@@ -13,6 +36,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+COPY --from=prometheus /out/bin/ ./internal/app/prometheus_embedded/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wukongim ./cmd/wukongim \
  && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkbench ./cmd/wkbench \
  && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkanalysis ./cmd/wkanalysis \
@@ -29,6 +53,7 @@ COPY --from=builder --chown=root:root --chmod=0755 /out/wukongim /usr/local/bin/
 COPY --from=builder --chown=root:root --chmod=0755 /out/wkbench /usr/local/bin/wkbench
 COPY --from=builder --chown=root:root --chmod=0755 /out/wkanalysis /usr/local/bin/wkanalysis
 COPY --from=builder --chown=root:root --chmod=0755 /out/wkcloudsim /usr/local/bin/wkcloudsim
+COPY --from=prometheus --chown=root:root /out/licenses/ /usr/share/licenses/prometheus/
 
 EXPOSE 5001 5100 5200 5301 7000 19092
 STOPSIGNAL SIGTERM
