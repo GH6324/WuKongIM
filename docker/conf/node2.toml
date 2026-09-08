@@ -5,7 +5,8 @@ data_dir = "/var/lib/wukongim"
 [cluster]
 listen_addr = "0.0.0.0:7000"
 hash_slot_count = 256
-initial_slot_count = 10
+# Applied only during first initialization; existing clusters retain their persisted Slot count.
+initial_slot_count = 12
 slot_replica_n = 3
 slot_tick_interval = "50ms"
 slot_heartbeat_tick = 2

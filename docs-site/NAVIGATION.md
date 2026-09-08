@@ -135,7 +135,7 @@ Route: `/{lang}/sdk`
       - **媒体与历史消息 / Media & History** `/{lang}/sdk/harmonyos/advanced/media-and-history` — 接入图片或语音消息，并在本地数据不足时补齐历史消息。 / Connect image or voice messages and fill history when local data is incomplete.
     - **API 参考 / API Reference** `/{lang}/sdk/harmonyos/api-reference` — 按管理器查找常用入口、监听器、Provider、模型和状态。 / Find common manager entry points, listeners, providers, models, and states.
   - **升级 SDK / Upgrade SDKs** `/{lang}/sdk/wukongim/upgrade` — 用一套简洁流程升级依赖、检查数据兼容并准备回滚。 / Upgrade dependencies, check data compatibility, and prepare rollback with one concise workflow.
-- **WuKongEasySDK / WuKongEasySDK** `/{lang}/sdk/easy` — 选择 iOS、Android、Flutter、Web、C#、C++ 或 Rust 快速接入，使用已验证的正式包或固定源码完成在线双向消息。 / Choose an iOS, Android, Flutter, Web, C#, C++, or Rust quickstart with verified released packages or pinned source for online bidirectional messaging.
+- **WuKongEasySDK / WuKongEasySDK** `/{lang}/sdk/easy` — 选择 iOS、Android、Flutter、Web、C#、C++、Rust 或 Python 快速接入，使用已验证的正式包或固定源码完成在线双向消息。 / Choose an iOS, Android, Flutter, Web, C#, C++, Rust, or Python quickstart with verified released packages or pinned source for online bidirectional messaging.
   - **运行官方示例 / Run Official Examples** `/{lang}/sdk/easy/examples` — 启动同一版 WuKongIM，复现四端正式包与源码 example 的在线双向消息、断开和清理。 / Start the same WuKongIM revision and reproduce online bidirectional messaging, disconnect, and cleanup with four released packages and source examples.
   - **iOS 快速接入 / iOS quickstart** `/{lang}/sdk/easy/ios/getting-started` — 精确安装 v1.1.1，完成单聊收发、监听清理和已验证的 Alice/Bob 正式包验收。 / Install exactly v1.1.1 for person messaging, listener cleanup, and verified released-package Alice/Bob acceptance.
   - **Android 快速接入 / Android quickstart** `/{lang}/sdk/easy/android/getting-started` — 精确安装 v1.0.5，处理单例、单聊收发、清理和已验证的 Alice/Bob 正式包验收。 / Install exactly v1.0.5 for singleton ownership, person messaging, cleanup, and verified released-package Alice/Bob acceptance.
@@ -144,6 +144,7 @@ Route: `/{lang}/sdk`
   - **Rust 快速接入 / Rust quickstart** `/{lang}/sdk/easy/rust/getting-started` — 安装 WuKongEasySDK-Rust 0.1.0 正式包，使用 Tokio 完成在线消息、有限重连和清理。 / Install WuKongEasySDK-Rust 0.1.0 for Tokio online messaging, bounded reconnect, and cleanup.
   - **C# 快速接入 / C# quickstart** `/{lang}/sdk/easy/csharp/getting-started` — 使用 1.0.0 固定源码接入 .NET 8，完成异步连接、消息收发、重连和释放。 / Use pinned 1.0.0 source with .NET 8 for async connections, messaging, reconnect, and cleanup.
   - **C++ 快速接入 / C++ quickstart** `/{lang}/sdk/easy/cpp/getting-started` — 通过 vcpkg 安装 SDK 和依赖，以 C++17 和 CMake 完成在线收发与线程管理。 / Install the SDK and dependencies with vcpkg, then use C++17 and CMake for messaging and thread management.
+  - **Python 快速接入 / Python quickstart** `/{lang}/sdk/easy/python/getting-started` — 安装 0.1.0 固定源码，用 asyncio 完成在线收发、重连和异步资源清理。 / Install pinned 0.1.0 source and use asyncio for online messaging, reconnect, and async cleanup.
 
 ## API 与协议 / API & Protocols
 

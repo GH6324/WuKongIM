@@ -41,7 +41,7 @@ func TestInitCreatesValidatedSingleNodeClusterConfig(t *testing.T) {
 	if cfg.NodeID != 1 || cfg.DataDir != "/var/lib/wukongim" {
 		t.Fatalf("node config = id %d data %q", cfg.NodeID, cfg.DataDir)
 	}
-	if cfg.Cluster.Slots.HashSlotCount != 256 || cfg.Cluster.Slots.ReplicaCount != 1 || cfg.Cluster.Channel.ReplicaCount != 1 {
+	if cfg.Cluster.Slots.InitialSlotCount != 12 || cfg.Cluster.Slots.HashSlotCount != 256 || cfg.Cluster.Slots.ReplicaCount != 1 || cfg.Cluster.Channel.ReplicaCount != 1 {
 		t.Fatalf("cluster slots/channel = %#v/%#v", cfg.Cluster.Slots, cfg.Cluster.Channel)
 	}
 	if cfg.Manager.ListenAddr != "127.0.0.1:5301" || !cfg.Manager.AuthOn || len(cfg.Manager.Users) != 1 || cfg.Manager.Users[0].Password != "test-admin-password" {
