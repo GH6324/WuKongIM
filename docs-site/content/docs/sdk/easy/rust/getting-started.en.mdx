@@ -159,6 +159,45 @@ a nonmember or removed member receives `Error::Server { code: 3 }`; a denylisted
 member receives code `4`. Report these permission failures to the application.
 Membership management credentials belong on the trusted backend.
 
+## Weak networks, queues and shutdown
+
+Handle `Backpressure` as admission rejection: bound producer concurrency instead
+of accumulating unbounded retry tasks. A SEND timeout can occur after another
+client has already received the message; preserve the unknown outcome and let
+the application decide whether to retry under its idempotency contract.
+`RecvError::Lagged` means the observer missed events and needs application-level
+reconciliation. Automatic RECVACK does not provide a durable application inbox.
+
+The repository acceptance harness repeats two-client WSS lifecycles with
+20/40/60 ms per-chunk delay, blocked return traffic, bidirectional blackholes and
+transport aborts. It tests admission at two pending SENDs and a deliberately
+slow observer with 16 retained events. These are test settings: SEND timeout
+800 ms and pong timeout 3 s, distinct from SDK defaults.
+
+A bounded proxy-side WebSocket audit requires exactly 58 outbound SENDs per
+cycle, matching 58 verified deliveries. Server deduplication cannot hide an extra
+retransmission from this count; the audit retains counts only and fails on
+unsupported framing.
+
+After each cycle both clients are destroyed, and both proxies must have zero
+streams and tasks before sampling the Rust probe's RSS and file descriptors.
+After three warmup cycles, the fixed growth allowance is 64 MiB RSS and eight
+file descriptors. These bounded observations do not establish production
+capacity, multi-day stability or the absence of every resource leak.
+
+For an independently downloaded public package, use the pinned server checkout
+from the repository README and run:
+
+```sh
+python3 tests/acceptance/run.py --server-source test-server --distribution registry --seconds 120 --network-seconds 1800 --output .acceptance/network-1800s.json
+```
+
+The weak-network loop lasts at least 30 minutes, in addition to the existing
+person/group checks and build time. CI defaults to a 30-second loop with at
+least four cycles; the longer mode is an explicit manual run. The nested
+`network` receipt retains fault outcomes, recovery timings, resource samples
+and cleanup results. Supported measurement hosts are Linux and macOS.
+
 ## Private CA for WSS
 
 For private PKI, put DER root bytes in `Options.additional_root_certificates`.
@@ -202,6 +241,15 @@ send. All clients and owned processes were cleaned up. This is a four-client
 single-node cluster check, not large-group capacity, offline recovery or
 cross-node routing evidence. No SDK runtime change or new crate release was
 needed for this validation.
+
+The [30-minute weak-network and resource receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-network-0.1.0-macos-1800s.json)
+keeps harness `2bd61a986f4f69418b3ec95de6c272408fc6f3b5` separate from the unchanged
+0.1.0 package and pinned server above. Inspect `network.cycles` for outbound SEND
+counts, expected deliveries, explicit timeouts/backpressure/lag and recovery
+results, and `network.samples` for quiescent RSS/file-descriptor observations.
+A successful receipt requires the entire 1,800-second loop, its last complete
+cycle and process cleanup; separate short runs are never combined into that
+result. The finite resource bounds and test settings are described above.
 
 The same source passed [cross-platform CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886754): 27 protocol, lifecycle and TLS tests, Clippy, API documentation and package verification on Linux Rust 1.86/stable, macOS stable and Windows stable.
 

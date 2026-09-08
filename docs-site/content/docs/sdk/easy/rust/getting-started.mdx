@@ -157,6 +157,34 @@ let ack = client.send(
 禁止陌生人发送的群中，非成员或已移除成员发送会得到 `Error::Server { code: 3 }`，
 被加入黑名单的成员得到原因码 `4`。应用应处理这些权限错误；成员管理凭证由可信后端保管。
 
+## 弱网、队列与退出
+
+`Backpressure` 表示请求未获准进入发送队列：应用应限制生产并发，避免不断堆积重试任务。
+发送超时可能发生在另一客户端已经收到消息之后，应保留“结果未知”，由应用依据幂等约定决定是否重试。
+`RecvError::Lagged` 表示监听器错过了事件，需要应用侧补偿；自动 RECVACK 不提供持久化收件箱。
+
+仓库验收工具反复执行两个客户端的 WSS 生命周期，注入每个数据块 20/40/60 ms 延迟、
+返回方向暂停、双向黑洞和连接中断。通过两个待完成 SEND 检查准入上限，通过保留
+16 个事件的慢监听器检查显式丢失通知。验收使用 800 ms SEND 超时和 3 秒 pong 超时，
+这些是测试参数，与 SDK 默认值不同。
+
+代理侧有界 WebSocket 审计要求每轮恰好 58 个出站 SEND，与 58 次已核对投递匹配，
+避免服务端去重掩盖额外重发；审计仅保留计数，不支持的帧格式直接使验收失败。
+
+每轮销毁两个客户端，并等待两个代理的连接流和任务都归零，再采样 Rust 探针的 RSS
+和文件描述符。前三轮预热后，固定允许相对基线增加 64 MiB RSS 和八个文件描述符。
+这些有限观测不证明生产容量、多日稳定性或不存在任何资源泄漏。
+
+验证独立下载的正式包时，先按仓库 README 准备固定服务端提交，再运行：
+
+```sh
+python3 tests/acceptance/run.py --server-source test-server --distribution registry --seconds 120 --network-seconds 1800 --output .acceptance/network-1800s.json
+```
+
+弱网循环本身至少运行 30 分钟，构建和已有单聊/群聊检查另计。日常 CI 默认循环
+30 秒且至少四轮，长程模式由手动运行明确选择。回执的 `network` 字段记录故障结果、
+恢复耗时、资源采样和清理结果。资源观测支持 Linux 和 macOS。
+
 ## WSS 私有 CA
 
 使用私有 CA 时，将 DER 根证书字节加入 `Options.additional_root_certificates`。
@@ -194,6 +222,13 @@ SENDACK 标识、发送人、群和正文，未观察到重复或事件丢失；
 与服务端版本、macOS Rust 1.86；配套 120 秒 Rust/JS 验证确认 2,608 次回显、三次恢复，
 一次中断发送保留结果未知语义。所有客户端和测试进程均完成清理。这是四客户端的
 单节点集群验证，不证明大群容量、离线恢复或跨节点路由；本次无需修改 SDK 运行时代码或发布新包。
+
+[30 分钟弱网与资源回执](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-network-0.1.0-macos-1800s.json)
+单独保留验收工具提交 `2bd61a986f4f69418b3ec95de6c272408fc6f3b5`，正式包仍为上述
+0.1.0，服务端仍使用上述固定提交。`network.cycles` 记录出站 SEND 数、预期投递、
+显式超时/背压/监听器落后及恢复结果，`network.samples` 记录连接清空后的 RSS 和文件描述符。
+成功回执要求完整 1,800 秒循环、最后一轮完成和进程清理，不将多次短程运行拼接为长程结果。
+资源阈值、测试参数和有限观测范围见上文。
 
 同一源码通过 [跨平台 CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886754)：27 项协议、生命周期和 TLS 测试，以及 Clippy、API 文档和打包校验。覆盖 Linux Rust 1.86/stable、macOS 和 Windows stable。
 
