@@ -786,3 +786,5 @@
 - Channel repair reads current Controller health rather than frozen Node-applied health: report freshness can expire without a placement revision change. Scanning retains one row cursor per locally led Slot and rotates Slot page admission across ticks. Page/task limits bound each tick without starving later Slots or rows; leadership loss removes the corresponding cursor. Slot Raft convergence alone does not prove Channel leader recovery, which requires separate runtime metadata and messaging evidence.
 
 Channel migration probes may find a durable quorum replica absent from the reactor map. The node must resolve current Slot-owned runtime metadata, require active local replica membership, apply that metadata, and re-probe the real loaded runtime; absence alone is not evidence that the replica has no durable data.
+
+Cold Channel loading with a durable quorum log must use `ExactStateLoader`: ordinary cached LEO can lag a physically committed proposal until its publisher releases the append lock. An exact append/checkpoint-consistent load prevents that transient zero from becoming the loaded replica state.
