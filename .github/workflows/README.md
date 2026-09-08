@@ -244,6 +244,13 @@ failure, a digest mismatch, or a missing platform fails the complete release.
 
 ## Binary release publishing
 
+Release delivery also includes the independently signed APT/RPM publication
+and public exact-version client checks in
+[`RELEASING.md`](../../docs/development/RELEASING.md). A successful binary,
+container, or documentation Workflow does not complete that downstream stage.
+The native package publisher remains in `WuKongIM/packages`; source tag
+Workflows do not automatically dispatch it or receive its signing credentials.
+
 `binary-release-publish.yml` publishes downloadable WuKongIM executables from
 the same strict SemVer `v*` source identity used by the container publisher. A
 new tag starts the workflow automatically; the manual `version` input accepts

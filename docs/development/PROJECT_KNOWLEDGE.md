@@ -94,6 +94,14 @@
   cluster runtime, the multi-reactor channel runtime, and the new business
   kernel are canonical under `pkg/controller`, `pkg/cluster`, `pkg/channel`,
   and `internal`; the former v1 server runtime tree has been removed.
+- Release completion includes the signed native package channel and public
+  exact-version APT/RPM client verification, as required by
+  `docs/development/RELEASING.md`. Tag-triggered Docker, binary, and docs
+  publication does not trigger `WuKongIM/packages`; the release operator must
+  carry the same immutable source Release through its reviewed publication
+  sequence. Missing native publication is an incomplete release, even when
+  the `.deb` already exists on GitHub. `/repo` only configures the repository,
+  and `apt update` cannot discover versions absent from its published index.
 - Native Linux package source assets are unsigned amd64 artifacts of an exact
   immutable tagged binary Release. Source CI also builds temporary signed
   APT/RPM repositories with one-run, one-day `TEST ONLY` keys outside the
