@@ -7,10 +7,8 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 
 ## Responsibility
 
-`docs-site` is the standalone Fumadocs application for public WuKongIM v3 docs
-under `/zh` and `/en`. It owns navigation, MDX, search, SEO, machine-readable
-output, SDK and API references, and runnable JavaScript/Web and Go Webhook
-examples. It documents runtime contracts but does not define them.
+`docs-site` owns the bilingual Fumadocs v3 site, navigation, references, runnable
+examples, search, SEO, and machine-readable output. Runtime contracts are defined elsewhere.
 
 ## Boundaries
 
@@ -41,9 +39,9 @@ examples. It documents runtime contracts but does not define them.
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
 4. The separate EasySDK path keeps released package pins distinct from exact
-   repository-example receipts. Its shared runbook starts one server revision,
-   maps host addresses for browser, emulators, and devices, and reproduces the
-   four maintained examples before platform-specific integration.
+   repository-example receipts. Its runbook maps reachable endpoints and
+   reproduces four registry examples plus the C# source console example, each
+   with its recorded server revision, before platform-specific integration.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.
