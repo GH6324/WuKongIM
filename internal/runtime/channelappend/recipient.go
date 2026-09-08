@@ -10,7 +10,8 @@ import (
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
-const subscriberSnapshotLoadLimit = 1 << 30
+// Bound each snapshot read before the Slot store allocates its row page.
+const subscriberSnapshotLoadLimit = 1024
 
 const (
 	inlineRecipientAuthorityUIDLimit = 512
@@ -187,25 +188,37 @@ func dispatchSubscriberSnapshot(ctx context.Context, mode onlinedelivery.Mode, t
 	if err := contextErr(ctx); err != nil {
 		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 	}
-	page, err := ports.subscribers.NextSubscriberPage(ctx, SubscriberPageRequest{
-		ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
-		Limit:     subscriberSnapshotLoadLimit,
-	})
-	if err != nil {
-		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "subscriber_snapshot"})
-	}
-	if !page.Done {
-		return recipientDispatchResult{}, withPostCommitFailureDetail(ErrInvalidSubscriberCursor, PostCommitFailureDetail{
-			Phase:          "subscriber_snapshot",
-			RecipientCount: len(page.Recipients),
+	var recipients []Recipient
+	cursor := ""
+	for {
+		if err := contextErr(ctx); err != nil {
+			return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
+		}
+		page, err := ports.subscribers.NextSubscriberPage(ctx, SubscriberPageRequest{
+			ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
+			Cursor:    cursor,
+			Limit:     subscriberSnapshotLoadLimit,
 		})
+		if err != nil {
+			return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "subscriber_snapshot"})
+		}
+		if !page.Done && (page.Cursor == "" || page.Cursor == cursor) {
+			return recipientDispatchResult{}, withPostCommitFailureDetail(ErrInvalidSubscriberCursor, PostCommitFailureDetail{
+				Phase: "subscriber_cursor", RecipientCount: len(page.Recipients),
+			})
+		}
+		recipients = append(recipients, page.Recipients...)
+		if page.Done {
+			break
+		}
+		cursor = page.Cursor
 	}
 	nextCache := subscriberCache{
 		ready:           true,
 		mutationVersion: target.SubscriberMutationVersion,
-		recipients:      append([]Recipient(nil), page.Recipients...),
+		recipients:      recipients,
 	}
-	_, err = dispatchRecipientSetResultForMode(ctx, mode, event, page.Recipients, ports)
+	_, err := dispatchRecipientSetResultForMode(ctx, mode, event, recipients, ports)
 	if err != nil {
 		return recipientDispatchResult{}, err
 	}
