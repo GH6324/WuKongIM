@@ -241,6 +241,7 @@ describe('documentation navigation contract', () => {
       ['flutter/getting-started', 'published'],
       ['javascript/getting-started', 'published'],
       ['csharp/getting-started', 'published'],
+      ['cpp/getting-started', 'published'],
     ]);
     for (const page of easy?.children ?? []) {
       if (page.slug === 'examples') {
@@ -248,12 +249,17 @@ describe('documentation navigation contract', () => {
         expect(page.description.en).toContain('four released packages');
         continue;
       }
+      if (page.slug === 'cpp/getting-started') {
+        expect(page.description.zh).toContain('C++17');
+        expect(page.description.en).toContain('CMake');
+        continue;
+      }
       const snapshot = snapshots.get(page.slug);
       expect(snapshot).toBeDefined();
       expect(page.description.zh).toContain(snapshot!);
       expect(page.description.en).toContain(snapshot!);
     }
-    expect(easy?.description.zh).toContain('已验证的正式发布包');
+    expect(easy?.description.zh).toContain('已验证的正式包或固定源码');
     expect(easy?.description.en).toContain('verified released packages');
     for (const url of [
       '/en/sdk/easy',
@@ -263,6 +269,7 @@ describe('documentation navigation contract', () => {
       '/en/sdk/easy/flutter/getting-started',
       '/en/sdk/easy/javascript/getting-started',
       '/en/sdk/easy/csharp/getting-started',
+      '/en/sdk/easy/cpp/getting-started',
     ]) {
       expect(published).toContain(url);
     }
@@ -542,6 +549,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/easy/flutter/getting-started`,
         `/${locale}/sdk/easy/javascript/getting-started`,
         `/${locale}/sdk/easy/csharp/getting-started`,
+        `/${locale}/sdk/easy/cpp/getting-started`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,

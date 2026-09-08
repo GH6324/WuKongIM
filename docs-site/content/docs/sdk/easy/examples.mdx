@@ -202,3 +202,22 @@ gh workflow run easysdk-release-acceptance.yml --ref main
 ## 下一步
 
 根据目标平台继续阅读 [iOS](/zh/sdk/easy/ios/getting-started)、[Android](/zh/sdk/easy/android/getting-started)、[Flutter](/zh/sdk/easy/flutter/getting-started) 或 [Web](/zh/sdk/easy/javascript/getting-started) 快速接入，再用[上线验收](/zh/guide/integration/acceptance)补齐 WSS、真机、离线、容量与回滚证据。
+
+## C++ 源码示例
+
+C++ 工程版本 `0.1.0` 通过源码和 CMake 使用，独立于上面的四端历史正式包验收。两个终端分别通过 `WKIM_TOKEN` 提供业务后端签发的本人 Token。
+
+```sh
+git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git
+cd WuKongEasySDK-CPP
+git checkout 8a3218cd5c9465f06df371f040a3641188bd4900
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
+./build/wukong_chat ws://127.0.0.1:5200 alice bob
+./build/wukong_chat ws://127.0.0.1:5200 bob alice
+```
+
+两端都连接后双向输入文本，分别观察 `SEND completed` 和对端 `Message`，输入 `/quit` 清理。默认设备类别为 Desktop `2`，后端 Token 必须对应相同类别；默认开发配置使用 `/` 路径。依赖、Windows 命令、私有 CA 和线程约束见 [C++ quickstart](/zh/sdk/easy/cpp/getting-started).
+
+2026-09-08 的源码验收使用 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`、Token 鉴权及 256 hash slots，完成 C++/C++、C++/JS 消息、重连、错误 Token 拒绝和在线清理。完整环境与 WS/WSS 证据见 [C++ validation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/8a3218cd5c9465f06df371f040a3641188bd4900/docs/VALIDATION.md).
