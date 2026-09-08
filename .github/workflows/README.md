@@ -205,7 +205,15 @@ GHCR is the canonical build target. The Workflow builds
 `linux/amd64,linux/arm64` security candidates and blocks publication when
 Trivy reports any Critical or High vulnerability. A recovery run applies the
 same per-platform scan to the existing canonical digest before it can fill a
-missing mirror. After the scan passes, the Workflow builds the canonical
+missing mirror. Each candidate must also pass the bounded
+`scripts/verify-docker-prometheus.sh` probe: offline non-root startup with
+managed Prometheus enabled, an actual scrape, historical queries after container
+recreation on the same volume, and graceful stop. The canonical digest passes
+that probe again before mirroring, including recovery runs. Extracted Prometheus
+executables pass a separate Trivy `rootfs` scan that requires exactly one
+`gobinary` result, preventing an empty scan from passing. Their components and
+dependency edges are included in the corresponding platform SBOM. After the
+scan passes, the Workflow builds the canonical
 multi-platform image, creates signed GitHub build provenance plus a CycloneDX
 SBOM attestation for each platform, and copies the exact runtime manifest
 digest to all three public repositories:

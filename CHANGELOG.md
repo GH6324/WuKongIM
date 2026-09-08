@@ -6,8 +6,6 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Update C# EasySDK documentation with published npm `easyjssdk 2.0.5` interoperability evidence for Node and Chromium/WSS.
-
 ### 🔧 Improvements / 改进
 
 - Document Rust EasySDK group messaging and released-package checks for member fanout, permissions, membership changes and reconnect. / 补充 Rust EasySDK 群聊用法及正式包成员投递、权限、成员变更与重连验收。
@@ -25,6 +23,8 @@ move those entries into a version section named for that exact tag.
 - Improve Manager node-log troubleshooting with explicit keyword search, a navigable details drawer and copy feedback, reliable retry, and live scrolling that preserves the reading position. / 优化管理台节点日志排查：关键字提交查询、可切换事件的详情抽屉与复制反馈、可靠重试，以及保护阅读位置的实时跟随。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Bundle Prometheus binaries built from pinned source with dependency security fixes in Linux amd64/arm64 Docker images so enabling the managed Prometheus process starts successfully and persists metrics on the existing data volume. / Docker 镜像为 Linux amd64/arm64 内嵌从固定源码构建并修复依赖漏洞的 Prometheus 二进制，修复开启内置进程后启动失败、容器反复重启的问题，指标随现有数据卷持久化。
 
 - Preserve queued WebSocket payloads across subsequent reads, preventing corrupted JSON-RPC messages and unexpected client disconnections. / 修复 WebSocket 入队数据被后续读取覆盖导致的 JSON-RPC 消息损坏与客户端异常断开。
 
@@ -46,6 +46,8 @@ move those entries into a version section named for that exact tag.
 - Add `message.cmd_channel_suffix` (`WK_MESSAGE_CMD_CHANNEL_SUFFIX`), defaulting to `____cmd`, consistently across command send, delivery, sync, plugins and Manager filtering. All nodes must agree; changing the suffix does not migrate existing command channels or bindings.
 
 ### 📚 Documentation / 文档
+
+- Update C# EasySDK documentation with published npm `easyjssdk 2.0.5` interoperability evidence for Node and Chromium/WSS.
 
 - Document C#/Chromium WSS acceptance with certificate rejection controls and separately pinned JavaScript native-WebSocket recovery source. / 补充 C#/Chromium WSS 验收、证书拒绝检查与独立固定版本的 JS 原生 WebSocket 恢复修复记录。
 
