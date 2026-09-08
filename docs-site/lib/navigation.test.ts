@@ -230,6 +230,7 @@ describe('documentation navigation contract', () => {
       ['android/getting-started', 'v1.0.5'],
       ['flutter/getting-started', 'v1.1.0'],
       ['javascript/getting-started', 'v2.0.4'],
+      ['csharp/getting-started', '1.0.0'],
     ]);
 
     expect(easy?.status).toBe('published');
@@ -239,12 +240,19 @@ describe('documentation navigation contract', () => {
       ['android/getting-started', 'published'],
       ['flutter/getting-started', 'published'],
       ['javascript/getting-started', 'published'],
+      ['rust/getting-started', 'published'],
+      ['csharp/getting-started', 'published'],
       ['cpp/getting-started', 'published'],
     ]);
     for (const page of easy?.children ?? []) {
       if (page.slug === 'examples') {
         expect(page.description.zh).toContain('四端正式包');
         expect(page.description.en).toContain('four released packages');
+        continue;
+      }
+      if (page.slug === 'rust/getting-started') {
+        expect(page.description.zh).toContain('源码');
+        expect(page.description.en).toContain('source');
         continue;
       }
       if (page.slug === 'cpp/getting-started') {
@@ -266,6 +274,8 @@ describe('documentation navigation contract', () => {
       '/en/sdk/easy/android/getting-started',
       '/en/sdk/easy/flutter/getting-started',
       '/en/sdk/easy/javascript/getting-started',
+      '/en/sdk/easy/rust/getting-started',
+      '/en/sdk/easy/csharp/getting-started',
       '/en/sdk/easy/cpp/getting-started',
     ]) {
       expect(published).toContain(url);
@@ -545,6 +555,8 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/easy/android/getting-started`,
         `/${locale}/sdk/easy/flutter/getting-started`,
         `/${locale}/sdk/easy/javascript/getting-started`,
+        `/${locale}/sdk/easy/rust/getting-started`,
+        `/${locale}/sdk/easy/csharp/getting-started`,
         `/${locale}/sdk/easy/cpp/getting-started`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,

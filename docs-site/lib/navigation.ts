@@ -392,8 +392,8 @@ function publishedEasySDKGroup(): NavigationGroup {
     'easy',
     'WuKongEasySDK',
     'WuKongEasySDK',
-    '选择 iOS、Android、Flutter、Web 或 C++ 快速接入，使用已验证的正式包或固定源码完成在线双向消息。',
-    'Choose an iOS, Android, Flutter, Web, or C++ quickstart with verified released packages or pinned source for online bidirectional messaging.',
+    '选择 iOS、Android、Flutter、Web、C#、C++ 或 Rust 快速接入，使用已验证的正式包或固定源码完成在线双向消息。',
+    'Choose an iOS, Android, Flutter, Web, C#, C++, or Rust quickstart with verified released packages or pinned source for online bidirectional messaging.',
     [
       publishedPage(
         'examples',
@@ -431,11 +431,25 @@ function publishedEasySDKGroup(): NavigationGroup {
         'Install exactly easyjssdk v2.0.4 for Alice/Bob online messaging in a real browser and released-package peer runs.',
       ),
       publishedPage(
+        'rust/getting-started',
+        'Rust 快速接入',
+        'Rust quickstart',
+        '固定 WuKongEasySDK-Rust 源码，使用 Tokio 完成在线消息、有限重连和清理。',
+        'Pin WuKongEasySDK-Rust source for Tokio online messaging, bounded reconnect, and cleanup.',
+      ),
+      publishedPage(
+        'csharp/getting-started',
+        'C# 快速接入',
+        'C# quickstart',
+        '使用 1.0.0 固定源码接入 .NET 8，完成异步连接、消息收发、重连和释放。',
+        'Use pinned 1.0.0 source with .NET 8 for async connections, messaging, reconnect, and cleanup.',
+      ),
+      publishedPage(
         'cpp/getting-started',
         'C++ 快速接入',
         'C++ quickstart',
-        '使用固定 C++17 源码与 CMake，完成 WS/WSS、在线收发和线程生命周期管理。',
-        'Use pinned C++17 source and CMake for WS/WSS, online messaging, and thread lifecycle management.',
+        '通过 vcpkg 安装 SDK 和依赖，以 C++17 和 CMake 完成在线收发与线程管理。',
+        'Install the SDK and dependencies with vcpkg, then use C++17 and CMake for messaging and thread management.',
       ),
     ],
   );

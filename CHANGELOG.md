@@ -14,6 +14,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve queued WebSocket payloads across subsequent reads, preventing corrupted JSON-RPC messages and unexpected client disconnections. / 修复 WebSocket 入队数据被后续读取覆盖导致的 JSON-RPC 消息损坏与客户端异常断开。
+
 - WebSocket handshake rejection logs now include peer addresses, HTTP status, and bounded requested/expected paths for path mismatches without URL query parameters. Manager parses console log fields and shows the error and listener without expanding details. / 完善 WebSocket 握手拒绝日志，补充来源地址、HTTP 状态和路径不匹配时的实际/期望路径，不记录 URL 查询参数；Manager 支持解析 console 日志字段并直接显示错误原因和监听器。
 
 - Fix JavaScript/Web quickstart reconnect history occasionally appearing empty while person membership is still being projected after SENDACK; the example backend now retries empty latest pages within its existing finite budget. / 修复 JavaScript/Web 示例重连时偶发空历史：后端在既有有限预算内等待最新空页的单聊成员投影。
@@ -33,6 +35,15 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Document the C++ EasySDK vcpkg Git registry with automatic dependency installation and a minimal CMake consumer. / 新增 C++ EasySDK vcpkg Git registry 接入文档，支持自动安装依赖和最小 CMake 消费端示例。
+
+- Add bilingual WuKongEasySDK-Rust quickstarts with pinned Git installation, Tokio lifecycle, bounded queues, and Rust/JavaScript interoperability examples. / 新增 WuKongEasySDK-Rust 中英文接入文档，覆盖固定 Git 版本安装、Tokio 生命周期、有界队列与 Rust/JavaScript 互通示例。
+
+- Document the public WuKongEasySDK C# NuGet 1.0.0 installation and its independent package verification in both languages. / 更新 C# WuKongEasySDK 中英文文档，提供 NuGet 1.0.0 正式包安装与独立发布验证记录。
+
+- Align the Manager and internal transport documentation inventories with the startup TOML route and RPC 88, restoring documentation publication checks. / 补齐启动 TOML 接口与 RPC 88 的文档清单，恢复文档发布检查。
+
+- Add bilingual C# WuKongEasySDK integration, console example, async lifecycle, and pinned-source installation guidance for the new `WuKongEasySDK-CSharp` repository. / 新增 C# WuKongEasySDK 中英文接入文档，覆盖固定源码安装、控制台示例、异步生命周期和验证边界。
 - Add bilingual WuKongEasySDK-CPP documentation for pinned C++17 source, CMake integration, WS/WSS, messaging, thread cleanup, and real C++/JS interoperability evidence. / 新增 WuKongEasySDK-CPP 中英文文档，覆盖固定 C++17 源码、CMake、WS/WSS、消息收发、线程清理与真实 C++/JS 互通凭据。
 
 - Add a directly runnable, standard-library Go before-send Webhook example with allow/replace/reject rules, bilingual setup instructions, and real-process send/history validation. / 新增可直接运行的 Go 发送前 Webhook 示例，支持放行、改写及拒绝，并附中英文接入说明和真实进程验证。

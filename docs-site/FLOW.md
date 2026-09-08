@@ -7,10 +7,8 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 
 ## Responsibility
 
-`docs-site` is the standalone Fumadocs application for public WuKongIM v3 docs
-under `/zh` and `/en`. It owns navigation, MDX, search, SEO, machine-readable
-output, SDK/API references, and runnable JavaScript/Web and Go Webhook examples.
-It documents runtime contracts but does not define them.
+`docs-site` owns the bilingual Fumadocs v3 site, navigation, references, runnable
+examples, search, SEO, and machine-readable output. Runtime contracts are defined elsewhere.
 
 ## Boundaries
 
@@ -39,9 +37,10 @@ It documents runtime contracts but does not define them.
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. EasySDK separates exact source/CMake pins (including C++) from the four
-   registry-package receipts. Its runbook starts a pinned server, maps browser,
-   emulator and device addresses, and reproduces the maintained examples.
+4. EasySDK distinguishes C# packages, C++ source/vcpkg Git-registry pins, and
+   Rust source from historical registry receipts. Its examples record server
+   revisions and reachable endpoints; Rust's Tokio/Rust-JS WSS recovery
+   evidence does not imply a crates.io release.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.
@@ -59,8 +58,7 @@ It documents runtime contracts but does not define them.
 
 ## Invariants and Failure Semantics
 
-- Chinese and English share one menu structure. A route is published only when
-  both locale variants are ready.
+- Chinese and English share one menu; publication requires both locale variants.
 - Product facts preserve cluster-only and 256-hash-slot semantics, durable
   commit versus downstream effects, and current security boundaries.
 - Full SDK examples pin exact released versions in Java, Objective-C,
@@ -69,8 +67,7 @@ It documents runtime contracts but does not define them.
   and media URLs. Untrusted clients never call Product HTTP management directly.
 - The JavaScript browser gate uses BFF-issued credentials with Token auth enabled;
   its pinned Playwright runner verifies online exchange and offline recovery.
-- The JavaScript example is a tested development aid, not a production backend
-  or a substitute for testing on actual devices, networks, and releases.
+- The JavaScript example is a development aid; actual devices, networks, and releases need testing.
 - EasySDK evidence names exact client and server revisions. When verified source
   is ahead of a package release, pages must not attribute that run to the older
   npm, Maven, CocoaPods, or Release artifact.
@@ -91,10 +88,8 @@ It documents runtime contracts but does not define them.
   literal evidence.
 
 ## Read First
-
 - [SDK specification](SDK_DOCUMENTATION_SPEC.md), [navigation](lib/navigation.ts), and [developer contracts](lib/developer-contracts.ts)
 - [Phase 18 API specification](PHASE_18_SPEC.md) and [OpenAPI generator](scripts/generate-openapi.ts)
 
 ## Update Triggers
-
 Update this file when publication ownership, SDK learning order, locale parity, generated outputs, authoritative sources, or the hosting boundary changes.

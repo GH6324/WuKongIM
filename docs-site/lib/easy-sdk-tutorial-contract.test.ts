@@ -422,3 +422,63 @@ describe('EasySDK tutorial content contract', () => {
     }
   });
 });
+
+
+describe('Rust EasySDK source distribution', () => {
+  test('pins bilingual source installs and makes resource/lifecycle boundaries explicit', async () => {
+    const revisions: string[] = [];
+    for (const suffix of ['', '.en']) {
+      const page = await content(`rust/getting-started${suffix}.mdx`);
+      const revision = page.match(/rev = "([a-f0-9]{40})"/u)?.[1];
+      expect(revision).toBeDefined();
+      revisions.push(revision!);
+      expect(page).toContain('https://github.com/WuKongIM/WuKongEasySDK-Rust');
+      expect(page).toContain('wukong-easy-sdk');
+      expect(page).toContain('wukong_easy_sdk');
+      expect(page).toContain('1.86+');
+      expect(page).toContain('crates.io');
+      expect(page).toContain('PC/Desktop `2`');
+      expect(page).toContain('RecvError::Lagged');
+      expect(page).toContain('Backpressure');
+      expect(page).toContain('client.destroy().await');
+      expect(page).toContain('listener.abort()');
+      expect(page).toContain('cargo run --locked --example roundtrip');
+      expect(page).toContain('132e46209d98fa0425cc0f88e7a97080cdad044d');
+      expect(page).not.toMatch(/wukong-easy-sdk\s*=\s*"[~^=0-9]/u);
+    }
+    expect(revisions[0]).toBe(revisions[1]);
+  });
+});
+
+// C# public installation and historical server receipts must remain separate.
+describe('C# EasySDK NuGet integration', () => {
+  test('pins public installation while preserving independent source evidence in both locales', async () => {
+    for (const [locale, suffix] of [['zh', ''], ['en', '.en']]) {
+      const page = await content(`csharp/getting-started${suffix}.mdx`);
+      const overview = await content(`index${suffix}.mdx`);
+      const examples = await content(`examples${suffix}.mdx`);
+      for (const text of [page, overview, examples]) {
+        expect(text).toContain('WuKongEasySDK-CSharp');
+        expect(text).toContain('nuget.org');
+      }
+      expect(overview).toContain(`/${locale}/sdk/easy/csharp/getting-started`);
+      expect(examples).toContain(`/${locale}/sdk/easy/csharp/getting-started`);
+      expect(page).not.toMatch(/尚未发布到 nuget\.org|has not been published to nuget\.org/u);
+      expect(page).toContain('https://www.nuget.org/packages/WuKongEasySDK/1.0.0');
+      expect(page).toContain('package WuKongEasySDK --version 1.0.0 --source https://api.nuget.org/v3/index.json');
+      expect(page).toContain('02ea7d60cd94feef1996f41bca35ffc3b8e18ea6');
+      expect(page).toContain('https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34188740990');
+      expect(page).toContain('d365a354f5e0f25fbd7f83bb59aa365ba43e899f');
+      expect(page).toContain('132e46209d98fa0425cc0f88e7a97080cdad044d');
+      expect(page).toContain('DeviceFlag.Desktop');
+      expect(page).toContain('ConnectAsync');
+      expect(page).toContain('SendAsync');
+      expect(page).toContain('DisposeAsync');
+      expect(page).toContain('await using');
+      expect(page).toContain('im.Message -= onMessage');
+      expect(page).toContain('--source ./artifacts');
+      expect(page).toContain('WKIMBackpressureException');
+      expect(page).not.toContain('CSHARP_SOURCE_REVISION');
+    }
+  });
+});
