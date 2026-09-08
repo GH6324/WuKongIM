@@ -236,11 +236,11 @@ Python 教程使用 Python 3.11+ 与 asyncio，固定 [PyPI `wukong-easy-sdk==0.
 python WuKongEasySDK-Python/examples/chat.py
 ```
 
-Python 默认设备类别为 PC/Desktop `2`。两人均显示 `Connected` 后双向发送，`/quit` 退出。源码验证连接的是 WuKongIM `0348c0539bbee420a859439695acdac911afa854`，不是本页历史四端正式包使用的服务端版本。开启 Token 鉴权的 256 Hash Slot 单节点集群上，Python/Python 和真实 JS `2.0.4` 双向消息、心跳、重新连接、错误 Token 拒绝与在线清理通过。复现独立的进程级验收：
+Python 默认设备类别为 PC/Desktop `2`。两人均显示 `Connected` 后双向发送，`/quit` 退出。PyPI 安装包验收连接的是 WuKongIM `0348c0539bbee420a859439695acdac911afa854`，不是本页历史四端正式包使用的服务端版本。开启 Token 鉴权的 256 Hash Slot 单节点集群上，Python/Python 和真实 JS `2.0.4` 双向消息、心跳、重新连接、错误 Token 拒绝与在线清理通过。复现独立的进程级验收：
 
 ```sh
 python WuKongEasySDK-Python/tests/product.py --server /absolute/path/to/wukongim \
   --js-entry /absolute/path/to/WuKongEasySDK-JS/dist/cjs/index.js
 ```
 
-该脚本仅启动临时本机集群，通过公开接口设置测试身份并检查在线清理，最后停止自己的进程。WSS、自动重连和队列边界使用独立协议测试；完整范围见 [Python 验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/c8cf8b0e66b2b684fc30eecd0f2aac8c0e25c04a/docs/VALIDATION.md)。
+该脚本仅启动临时本机集群，通过公开接口设置测试身份并检查在线清理，最后停止自己的进程。WSS、自动重连和队列边界使用独立协议测试；完整范围见 [Python 验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/90018a9ac53bdef4cb15dadb169ff835cbfcb2a6/docs/PYPI_VALIDATION.md)。
