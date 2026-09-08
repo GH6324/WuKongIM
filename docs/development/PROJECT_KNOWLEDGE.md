@@ -790,3 +790,5 @@ Channel migration probes may find a durable quorum replica absent from the react
 Cold Channel loading with a durable quorum log must use `ExactStateLoader`: ordinary cached LEO can lag a physically committed proposal until its publisher releases the append lock. An exact append/checkpoint-consistent load prevents that transient zero from becoming the loaded replica state.
 
 Quorum authority installation must recover and prove the new leader while a migration write fence remains set. Installation is not business admission: the reactor keeps `CommitReady` false and the quorum log rejects `Commit` with `ErrWriteFenced` until a newer authoritative route clears the fence. Otherwise migration verification cannot finish and clear its own fence.
+
+Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)` authority. Clearing a task fence advances `RouteGeneration` while retaining the leader term, so a strictly newer fence version must be admissible; equal and regressive authorities remain rejected before storage writes.

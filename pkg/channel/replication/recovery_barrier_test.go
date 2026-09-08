@@ -68,3 +68,17 @@ func (d *recordingBarrierDispatcher) submitReplica(_ context.Context, node ch.No
 	complete(durabilityCompletion{outcome: ch.AppendOutcomeDurable, follower: 0})
 	return nil
 }
+
+func TestAuthorityBarrierRejectsEqualOrRegressiveFence(t *testing.T) {
+	key := ch.ChannelKey("1:fence-order")
+	id := ch.ChannelID{ID: "fence-order", Type: 1}
+	mutation, tail := recoveryMutationAfter(t, key, id, 42, 0, ch.EntryIdentity{})
+	recovered := ReplicaState{LEO: 1, Committed: 1, Manifest: mutation.Manifest, TailIdentity: tail}
+	for _, version := range []uint64{tail.FenceVersion, tail.FenceVersion - 1} {
+		authority := Authority{Key: key, ChannelID: id, ID: AuthorityID{ChannelEpoch: tail.ChannelEpoch, LeaderTerm: tail.LeaderTerm, FenceVersion: version}, Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2}
+		dispatcher := &recordingBarrierDispatcher{}
+		if _, err := writeCurrentTermBarrier(context.Background(), authority, recovered, dispatcher); err == nil || len(dispatcher.proposals) != 0 {
+			t.Fatalf("version=%d err=%v writes=%d", version, err, len(dispatcher.proposals))
+		}
+	}
+}
