@@ -788,3 +788,5 @@
 Channel migration probes may find a durable quorum replica absent from the reactor map. The node must resolve current Slot-owned runtime metadata, require active local replica membership, apply that metadata, and re-probe the real loaded runtime; absence alone is not evidence that the replica has no durable data.
 
 Cold Channel loading with a durable quorum log must use `ExactStateLoader`: ordinary cached LEO can lag a physically committed proposal until its publisher releases the append lock. An exact append/checkpoint-consistent load prevents that transient zero from becoming the loaded replica state.
+
+Quorum authority installation must recover and prove the new leader while a migration write fence remains set. Installation is not business admission: the reactor keeps `CommitReady` false and the quorum log rejects `Commit` with `ErrWriteFenced` until a newer authoritative route clears the fence. Otherwise migration verification cannot finish and clear its own fence.
