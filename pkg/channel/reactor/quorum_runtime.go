@@ -59,17 +59,23 @@ func quorumAuthorityFromMeta(meta ch.Meta) (replication.Authority, error) {
 	if !leaderVoter {
 		return replication.Authority{}, ch.ErrInvalidConfig
 	}
+	var learners []ch.NodeID
+	for _, replica := range meta.Replicas {
+		if _, voter := seen[replica]; !voter {
+			learners = append(learners, replica)
+		}
+	}
 	return replication.Authority{
 		Key: meta.Key, ChannelID: meta.ID,
-		ID:     replication.AuthorityID{ChannelEpoch: meta.Epoch, LeaderTerm: meta.LeaderEpoch, FenceVersion: meta.RouteGeneration},
-		Leader: meta.Leader, Voters: append([]ch.NodeID(nil), meta.ISR...), WriteQuorum: meta.MinISR, WriteFence: meta.WriteFence,
+		ID:       replication.AuthorityID{ChannelEpoch: meta.Epoch, LeaderTerm: meta.LeaderEpoch, FenceVersion: meta.RouteGeneration},
+		Learners: learners, Leader: meta.Leader, Voters: append([]ch.NodeID(nil), meta.ISR...), WriteQuorum: meta.MinISR, WriteFence: meta.WriteFence,
 	}, nil
 }
 
 func sameQuorumAuthority(left, right replication.Authority) bool {
 	return left.Key == right.Key && left.ChannelID == right.ChannelID && left.ID == right.ID &&
 		left.Leader == right.Leader && left.WriteQuorum == right.WriteQuorum && left.WriteFence == right.WriteFence &&
-		slices.Equal(left.Voters, right.Voters)
+		slices.Equal(left.Voters, right.Voters) && slices.Equal(left.Learners, right.Learners)
 }
 
 func (r *Reactor) startQuorumInstall(rc *runtimeChannel, meta ch.Meta, futures []*Future) error {

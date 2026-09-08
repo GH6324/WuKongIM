@@ -87,7 +87,9 @@ func newQuorumLog(cfg quorumLogConfig) (*quorumLog, error) {
 }
 
 func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed, error) {
-	if l == nil || ctx == nil || !validAuthority(authority) || len(authority.Voters) > l.cfg.MaxVoters || authority.Leader != l.cfg.Local {
+	if l == nil || ctx == nil || !validAuthority(authority) || authority.Leader != l.cfg.Local ||
+		len(authority.Voters) > l.cfg.MaxVoters || len(authority.Voters)+len(authority.Learners) > l.cfg.MaxVoters+1 ||
+		(len(authority.Learners) > 0 && l.cfg.RepairAuthorities == nil) {
 		return Installed{}, ch.ErrInvalidConfig
 	}
 	if err := ctx.Err(); err != nil {
@@ -181,6 +183,18 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	state.frontier = installedFrontier
 	state.hw = installedFrontier.LEO
 	state.ready = true
+	// A learner is outside the voter quorum and cannot use reactor pull
+	// replication in durable-log mode. Seed its catch-up after the voter
+	// quorum proves this frontier, including the current authority barrier.
+	if l.cfg.RepairAuthorities != nil && installedFrontier.LEO > 0 {
+		for _, learner := range authority.Learners {
+			l.cfg.RepairAuthorities.RecordFollowerRepair(followerRepair{
+				channelKey: authority.Key, channelID: authority.ChannelID,
+				leader: authority.Leader, follower: learner, needFrom: 1,
+				manifest: installedFrontier.Manifest, committed: state.hw,
+			})
+		}
+	}
 	state.pending = nil
 	state.retained = make(map[ch.CommandID]retainedProposal, l.cfg.MaxRetainedCommands)
 	state.order = state.order[:0]
@@ -490,12 +504,13 @@ func cloneRecords(records []ch.Record) []ch.Record {
 
 func cloneAuthority(authority Authority) Authority {
 	authority.Voters = append([]ch.NodeID(nil), authority.Voters...)
+	authority.Learners = append([]ch.NodeID(nil), authority.Learners...)
 	return authority
 }
 
 func sameAuthority(left, right Authority) bool {
 	return left.Key == right.Key && left.ChannelID == right.ChannelID && left.ID == right.ID && left.Leader == right.Leader &&
-		left.WriteQuorum == right.WriteQuorum && left.WriteFence == right.WriteFence && reflect.DeepEqual(left.Voters, right.Voters)
+		left.WriteQuorum == right.WriteQuorum && left.WriteFence == right.WriteFence && reflect.DeepEqual(left.Voters, right.Voters) && reflect.DeepEqual(left.Learners, right.Learners)
 }
 
 func compareAuthorityID(left, right AuthorityID) int {

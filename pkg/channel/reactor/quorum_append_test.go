@@ -326,3 +326,19 @@ func (l *reactorCaptureQuorumLog) releasedAuthorities() []releasedQuorumAuthorit
 	defer l.mu.Unlock()
 	return append([]releasedQuorumAuthority(nil), l.released...)
 }
+
+func TestQuorumAuthorityKeepsLearnersOutsideVotingSet(t *testing.T) {
+	meta := testMeta("learner-authority", 1, 1)
+	meta.RouteGeneration = 1
+	meta.Replicas = []ch.NodeID{1, 2, 3, 4}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	meta.MinISR = 2
+	authority, err := quorumAuthorityFromMeta(meta)
+	require.NoError(t, err)
+	require.Equal(t, meta.ISR, authority.Voters)
+	require.Equal(t, []ch.NodeID{4}, authority.Learners)
+	require.Equal(t, 2, authority.WriteQuorum)
+	changed := authority
+	changed.Learners = []ch.NodeID{5}
+	require.False(t, sameQuorumAuthority(authority, changed))
+}

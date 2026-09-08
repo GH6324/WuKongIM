@@ -45,7 +45,7 @@ type durabilityCompletion struct {
 	needFrom uint64
 }
 
-// followerRepair is bounded exact evidence for one voter gap; it deliberately
+// followerRepair is bounded exact evidence for one replica gap; it deliberately
 // carries no record payload.
 type followerRepair struct {
 	channelKey ch.ChannelKey
@@ -54,6 +54,8 @@ type followerRepair struct {
 	manifest   ch.ProposalManifest
 	follower   ch.NodeID
 	needFrom   uint64
+	// committed is a quorum-proved frontier, capped by manifest.LastOffset.
+	committed uint64
 }
 
 func followerRepairFor(proposal durableProposal, follower ch.NodeID, needFrom uint64) followerRepair {

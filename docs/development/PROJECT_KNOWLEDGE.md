@@ -2,6 +2,8 @@
 
 ## Internal
 
+- Durable Channel replication excludes learners from quorum votes and recovery voting. Authority installation copies its quorum-proved committed frontier to non-ISR replicas through the fixed repair workers, one bounded page per turn; the repair ledger allows the configured voter count plus one replacement replica and fences cursors to exact work generations. Migration probes refresh loaded follower frontiers from consistent exact storage because quorum exchanges bypass follower reactor state. A replica-replacement target below `CutoverLEO` remains runnable; invalid runtime proofs still block promotion.
+
 - EasySDK reader documentation follows `docs-site/EASY_SDK_DOCUMENTATION_SPEC.md`: eight bilingual prepare/install/connect/exchange/cleanup/troubleshooting paths, one shared example guide, and historical provenance in `docs/superpowers/reports/2026-09-08-easysdk-validation-history.md`. New Web installs pin npm 2.0.5; earlier 2.0.4 four-platform acceptance remains historical and must not inherit the new version.
 
 - `wukongim init` and shipped single-node/three-node cluster configurations explicitly create 12 logical Slot Raft Groups over 256 physical hash slots. Omitting `cluster.initial_slot_count` or setting it to zero still derives one group. Existing clusters use the persisted Controller count; editing this initialization setting does not resize Slots and increasing it may block readiness. Cloud Simulation and workload fixtures retain their explicitly selected topology.

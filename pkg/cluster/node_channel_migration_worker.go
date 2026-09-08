@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -364,7 +365,7 @@ func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, c
 	}
 	for _, probe := range result.Channels {
 		if probe.ChannelID == id {
-			return probe, nil
+			return n.refreshMigrationFollowerProgress(ctx, probe)
 		}
 	}
 	// Durable quorum replicas may have data without a loaded reactor. Resolve
@@ -388,7 +389,7 @@ func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, c
 	}
 	for _, probe := range result.Channels {
 		if probe.ChannelID == id {
-			return probe, nil
+			return n.refreshMigrationFollowerProgress(ctx, probe)
 		}
 	}
 	return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
@@ -424,4 +425,45 @@ func (n *Node) drainLocalChannelRuntime(ctx context.Context, req ch.DrainChannel
 		return ch.DrainChannelResult{}, ErrNotStarted
 	}
 	return n.channels.DrainChannel(ctx, req)
+}
+
+// refreshMigrationFollowerProgress reads a consistent durable frontier because
+// quorum exchanges write outside the loaded follower reactor. Rechecking the
+// runtime fences prevents attaching that frontier to a superseded incarnation.
+func (n *Node) refreshMigrationFollowerProgress(ctx context.Context, probe ch.RuntimeProbeChannel) (ch.RuntimeProbeChannel, error) {
+	factory := n.localChannelStoreFactory()
+	if probe.Role != ch.RoleFollower || factory == nil {
+		return probe, nil
+	}
+	handle, err := factory.ChannelStore(ch.ChannelKeyForID(probe.ChannelID), probe.ChannelID)
+	if err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	loader, ok := handle.(channelstore.ExactStateLoader)
+	if !ok {
+		_ = handle.Close()
+		return ch.RuntimeProbeChannel{}, ch.ErrInvalidConfig
+	}
+	state, err := loader.LoadExactState(ctx)
+	err = errors.Join(err, handle.Close())
+	if err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	after, err := n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{probe.ChannelID}})
+	if err != nil {
+		return ch.RuntimeProbeChannel{}, err
+	}
+	if len(after.Channels) != 1 {
+		return ch.RuntimeProbeChannel{}, ch.ErrNotReady
+	}
+	current := after.Channels[0]
+	if current.ChannelID != probe.ChannelID || current.Role != probe.Role || current.Status != probe.Status ||
+		current.ChannelEpoch != probe.ChannelEpoch || current.LeaderEpoch != probe.LeaderEpoch || current.WriteFence != probe.WriteFence {
+		return ch.RuntimeProbeChannel{}, ch.ErrStaleMeta
+	}
+	if state.HW > state.LEO || state.CheckpointHW > state.LEO || state.Manifest.ChannelEpoch > probe.ChannelEpoch || state.Manifest.LeaderTerm > probe.LeaderEpoch {
+		return ch.RuntimeProbeChannel{}, ch.ErrStaleMeta
+	}
+	probe.LEO, probe.HW, probe.CheckpointHW = state.LEO, state.HW, state.CheckpointHW
+	return probe, nil
 }

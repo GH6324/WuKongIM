@@ -70,8 +70,19 @@ func validAuthority(authority Authority) bool {
 	if err != nil {
 		return false
 	}
-	_, leaderIsVoter := configured[authority.Leader]
-	return leaderIsVoter
+	if _, leaderIsVoter := configured[authority.Leader]; !leaderIsVoter {
+		return false
+	}
+	for _, learner := range authority.Learners {
+		if learner == 0 {
+			return false
+		}
+		if _, duplicate := configured[learner]; duplicate {
+			return false
+		}
+		configured[learner] = struct{}{}
+	}
+	return true
 }
 
 func recoveryBarrierContent(authority Authority) (ch.CommandID, ch.Record) {

@@ -12,8 +12,7 @@ readiness, public facade delegation, route publication, and bounded snapshots;
 focused subpackages own Controller adaptation, immutable routing, typed node
 RPC, Slot reconciliation/proposal, Channel hosting, and observation loops.
 
-Every deployment follows these semantics, including a single-node cluster; no standalone data or control path exists.
-It does not own Manager or product business policy.
+Every deployment is a cluster; this package does not own Manager or product business policy.
 
 ## Boundaries
 
@@ -43,6 +42,7 @@ It does not own Manager or product business policy.
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader; repair uses current health, fair per-Slot cursors, and authoritative cold-replica probes.
    Migration execution rotates active-index pages across owned hash slots; waiting tasks cannot starve others.
+   Replacement catch-up remains runnable; follower probes refresh exact durable progress outside the reactor.
 4. Conversation hydration batch-reads lifecycle and runtime routes by physical
    Slot, preserves alignment and item errors, and groups heads by exact Leader;
    a cold quorum Leader with durable HW below LEO recovers before read retry.

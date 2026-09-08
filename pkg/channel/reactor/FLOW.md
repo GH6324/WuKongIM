@@ -51,6 +51,7 @@ typed bounded workers and returns as `EventWorkerResult`.
   recovery plus the current-authority barrier succeeds. Each accepted append
   completes directly from its exact quorum-commit receipt, without hot-path
   PullHint or AckOffset signals.
+  Metadata projects ISR voters and non-voting learners separately for quorum installation.
 - One loaded runtime has one lifecycle controller. Hot follower replication
   remains separate but exposes pending-work evidence to lifecycle guards.
 - Cold activation is not loaded state and does not consume `MaxChannels` until

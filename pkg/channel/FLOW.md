@@ -45,6 +45,8 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
 2. Followers pull continuous records, apply and return ACK progress, and use a
    bounded checkpoint path; idle leaders and caught-up followers coordinate
    checkpointed stop before either runtime can be evicted.
+   In durable-log mode, authority installation seeds non-voting learner catch-up
+   from the quorum-proved frontier; fixed repair workers retain one-page progress.
 3. Committed reads expose only HW-covered records above the logical retention
    floor; optional physical trim runs later when all local and replica safety
    watermarks cover that boundary.

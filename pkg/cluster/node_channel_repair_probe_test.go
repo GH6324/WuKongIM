@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -56,5 +57,67 @@ func TestChannelRepairProbeDoesNotActivateNonReplica(t *testing.T) {
 	_, err := n.ProbeChannel(context.Background(), 1, id.ID, id.Type)
 	if !errors.Is(err, ch.ErrChannelNotFound) || len(runtime.applied) != 0 {
 		t.Fatalf("err=%v applied=%+v", err, runtime.applied)
+	}
+}
+
+// migrationProbeStore exposes a controlled exact read at the store boundary.
+type migrationProbeStore struct {
+	channelstore.ChannelStore
+	state   channelstore.ExactState
+	loadErr error
+	onLoad  func()
+	closed  bool
+}
+
+func (s *migrationProbeStore) LoadExactState(context.Context) (channelstore.ExactState, error) {
+	if s.onLoad != nil {
+		s.onLoad()
+	}
+	return s.state, s.loadErr
+}
+func (s *migrationProbeStore) Close() error { s.closed = true; return nil }
+
+type migrationProbeFactory struct{ store *migrationProbeStore }
+
+func (f migrationProbeFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (channelstore.ChannelStore, error) {
+	return f.store, nil
+}
+
+func TestMigrationFollowerProgressRejectsChangedAuthorityAndClosesHandle(t *testing.T) {
+	for _, mode := range []string{"fresh", "epoch_changed", "load_failed"} {
+		t.Run(mode, func(t *testing.T) {
+			n, _ := newLocalMetadataScanNode(t)
+			meta := ch.Meta{ID: ch.ChannelID{ID: "probe-fence", Type: 2}, Epoch: 4, LeaderEpoch: 5, Status: ch.StatusActive}
+			runtime := &coldRepairRuntime{}
+			runtime.applied = []ch.Meta{meta}
+			n.channels = runtime
+			handle := &migrationProbeStore{state: channelstore.ExactState{InitialState: channelstore.InitialState{LEO: 20, HW: 19, CheckpointHW: 19}}}
+			if mode == "epoch_changed" {
+				handle.onLoad = func() { runtime.applied[0].Epoch++ }
+			}
+			if mode == "load_failed" {
+				handle.loadErr = context.DeadlineExceeded
+			}
+			n.channelStoreFactory = migrationProbeFactory{store: handle}
+			probe := ch.RuntimeProbeChannel{ChannelID: meta.ID, ChannelEpoch: 4, LeaderEpoch: 5, Role: ch.RoleFollower, Status: ch.StatusActive}
+			got, err := n.refreshMigrationFollowerProgress(context.Background(), probe)
+			switch mode {
+			case "fresh":
+				if err != nil || got.LEO != 20 || got.HW != 19 {
+					t.Fatalf("fresh probe=%+v err=%v", got, err)
+				}
+			case "epoch_changed":
+				if !errors.Is(err, ch.ErrStaleMeta) {
+					t.Fatalf("changed epoch err=%v", err)
+				}
+			case "load_failed":
+				if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("load failure err=%v", err)
+				}
+			}
+			if !handle.closed {
+				t.Fatal("probe leaked its store handle")
+			}
+		})
 	}
 }

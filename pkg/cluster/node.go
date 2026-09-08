@@ -1056,6 +1056,9 @@ func (n *Node) localChannelStoreFactory() channelstore.Factory {
 	if n.channelStoreFactory != nil {
 		return n.channelStoreFactory
 	}
+	if n.defaultChannelStore == nil {
+		return nil
+	}
 	return n.defaultChannelStore
 }
 
