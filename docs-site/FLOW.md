@@ -37,9 +37,9 @@ examples, search, SEO, and machine-readable output. Runtime contracts are define
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. EasySDK separates exact C# source and C++ source/CMake pins from four
-   registry-package receipts. Its runbook maps reachable endpoints and reproduces
-   maintained examples, each with its recorded server revision.
+4. EasySDK keeps C# package/source and C++ source/vcpkg Git-registry pins distinct
+   from historical four-platform receipts. Its runbook maps reachable endpoints
+   and reproduces examples with their recorded server revisions.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.

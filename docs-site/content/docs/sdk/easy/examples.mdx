@@ -203,9 +203,9 @@ gh workflow run easysdk-release-acceptance.yml --ref main
 
 根据目标平台继续阅读 [iOS](/zh/sdk/easy/ios/getting-started)、[Android](/zh/sdk/easy/android/getting-started)、[Flutter](/zh/sdk/easy/flutter/getting-started) 或 [Web](/zh/sdk/easy/javascript/getting-started) 快速接入，再用[上线验收](/zh/guide/integration/acceptance)补齐 WSS、真机、离线、容量与回滚证据。
 
-## C++ 源码示例
+## C++ vcpkg 与源码示例
 
-C++ 工程版本 `0.1.0` 通过源码和 CMake 使用，独立于上面的四端历史正式包验收。两个终端分别通过 `WKIM_TOKEN` 提供业务后端签发的本人 Token。
+C++ 工程版本 `0.1.0` 推荐通过 [vcpkg 接入](/zh/sdk/easy/cpp/getting-started)，由包管理器自动安装 SDK 及依赖；下面保留源码交互示例，独立于上面的四端历史正式包验收。两个终端分别通过 `WKIM_TOKEN` 提供业务后端签发的本人 Token。
 
 ```sh
 git clone https://github.com/WuKongIM/WuKongEasySDK-CPP.git

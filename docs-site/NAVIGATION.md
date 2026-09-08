@@ -142,7 +142,7 @@ Route: `/{lang}/sdk`
   - **Flutter 快速接入 / Flutter quickstart** `/{lang}/sdk/easy/flutter/getting-started` — 精确安装并运行已验证的 v1.1.0 example，完成单聊收发、dispose 清理和 Alice/Bob 验收。 / Install and run the verified v1.1.0 example for person messaging, dispose cleanup, and Alice/Bob acceptance.
   - **Web 快速接入 / Web quickstart** `/{lang}/sdk/easy/javascript/getting-started` — 精确安装 easyjssdk v2.0.4，在真实浏览器与正式包对端中完成 Alice/Bob 在线消息。 / Install exactly easyjssdk v2.0.4 for Alice/Bob online messaging in a real browser and released-package peer runs.
   - **C# 快速接入 / C# quickstart** `/{lang}/sdk/easy/csharp/getting-started` — 使用 1.0.0 固定源码接入 .NET 8，完成异步连接、消息收发、重连和释放。 / Use pinned 1.0.0 source with .NET 8 for async connections, messaging, reconnect, and cleanup.
-  - **C++ 快速接入 / C++ quickstart** `/{lang}/sdk/easy/cpp/getting-started` — 使用固定 C++17 源码与 CMake，完成 WS/WSS、在线收发和线程生命周期管理。 / Use pinned C++17 source and CMake for WS/WSS, online messaging, and thread lifecycle management.
+  - **C++ 快速接入 / C++ quickstart** `/{lang}/sdk/easy/cpp/getting-started` — 通过 vcpkg 安装 SDK 和依赖，以 C++17 和 CMake 完成在线收发与线程管理。 / Install the SDK and dependencies with vcpkg, then use C++17 and CMake for messaging and thread management.
 
 ## API 与协议 / API & Protocols
 
