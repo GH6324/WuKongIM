@@ -212,7 +212,7 @@ let options = wukong_easy_sdk::Options {
 ```
 
 Sustained messaging requires a server containing the [WebSocket buffer fix](https://github.com/WuKongIM/WuKongIM/pull/901).
-Acceptance pins `27a39f15bf163b433f417b78ab6bfc6e589585e5`; the older server can corrupt queued frames and disconnect during repeated exchanges.
+Single-node cluster acceptance pins `27a39f15bf163b433f417b78ab6bfc6e589585e5`; the older server can corrupt queued frames and disconnect during repeated exchanges.
 
 ## Protocol and before production
 
@@ -220,6 +220,64 @@ Acceptance pins `27a39f15bf163b433f417b78ab6bfc6e589585e5`; the older server can
 - The SDK is default-silent. Auth Debug and SDK errors omit tokens, URLs, raw frames and raw server error text. Complete events contain application data and must not be logged wholesale.
 - Custom events expose `id`, `event_type`, `timestamp` and `data`. Parser support does not imply a deployment produces particular event types.
 - Before production, validate WSS certificates, proxy Upgrade, token revocation/rotation, target OS, packet loss, queue bounds and shutdown. One online run does not establish capacity or long-term stability.
+
+## Three-node cluster acceptance
+
+The dedicated [cluster harness](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/main/tests/acceptance/cluster.py)
+pins server `f041174a042b4a96179218571e06c04bb64cf1ca`, containing the
+[cross-node membership cache fix](https://github.com/WuKongIM/WuKongIM/pull/920),
+and runs three isolated server processes with 256 hash slots, 12 logical slots and
+three Slot replicas. Four Rust clients authenticate over verified private-CA WSS
+on ingress nodes `1, 2, 3, 2`. It checks all six directed person-message paths
+between the first three clients, group fanout, channel isolation, removed-member
+and denylist rejection, and those permissions after a node restart.
+
+The harness withholds the sender's return traffic: a SEND times out while its
+peer receives the message. It then kills ingress node 1 and restarts the same
+address and durable directory. The existing client must automatically reconnect
+to node 1. Because Slot authority changes clear volatile presence, the harness
+then requires all four users to remain online through every API ingress for two
+25-second heartbeat intervals (a 50-second observation window, bounded by a
+100-second gate) before checking resumed cross-node delivery. Connection recovery
+and completion of this route stability gate are recorded separately. An independent WebSocket wire counter
+must match every application SEND, including rejected and uncertain sends, so
+server deduplication cannot conceal an automatic replay. The application never
+retries the uncertain send. Exploratory runs sent immediately after CONNECT
+recovery and observed an accepted SEND without delivery while the recipient was
+absent from the online route view. CONNECT and SENDACK therefore must not be
+interpreted as proof of end-to-end recovery or recipient delivery.
+
+This proves recovery to the original endpoint in this bounded scenario. It does
+not implement alternate-address selection, demonstrate uninterrupted delivery
+while a node is down, or verify a selected Channel leader transfer, network
+partition, offline catch-up or large-group capacity. Each delivery phase observes
+excluded clients for at least 500 ms. Test settings use a 3-second SEND deadline,
+2-second connection and 10-second PONG deadlines, 100 reconnect attempts, and 100–500 ms retry
+backoff; these differ from SDK defaults.
+
+```bash
+# Run from WuKongEasySDK-Rust; use the exact clean server checkout cited below.
+RUSTUP_TOOLCHAIN=1.86.0 python3 tests/acceptance/cluster.py \
+  --server-source ../test-server --distribution registry --seconds 600
+```
+
+CI runs a separate 60-second workload for source and registry distributions;
+manual runs can select 600 seconds. Each run also executes the initial permission
+and crash suite, with a second ingress crash during the timed workload. Successful
+completion requires all clients destroyed, an empty online-status response for all four users, and
+all owned server processes, proxy streams and tasks stopped. Package, harness and
+server identities remain separate in the receipt.
+
+The [600-second registry cluster receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-cluster-0.1.0-macos-600s.json)
+binds clean harness `6b533a25ff0c61548a3f90dd36fa2562118f8f21` to the exact
+0.1.0 public package and the merged server revision above. `workload_seconds`
+includes the midpoint fault and route observation; `fault_to_reconnected_ms`
+measures socket recovery, while `fault_to_stable_routes_ms` also includes the
+50-second route observation. `application_sends` must equal `wire_sends`;
+`deliveries` counts all expected recipients, so group fanout makes it a different
+total. A passing result requires at least 600 uninterrupted workload seconds,
+both crash phases and complete cleanup. Interrupted candidate runs are not added
+to this duration. The existing 0.1.0 crate is unchanged.
 
 ## Verification record
 
