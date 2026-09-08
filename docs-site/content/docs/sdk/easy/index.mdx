@@ -1,6 +1,6 @@
 ---
 title: WuKongEasySDK
-description: 选择 iOS、Android、Flutter 或 Web 快速接入，使用固定版本完成 Alice 与 Bob 的在线双向消息闭环。
+description: 选择 iOS、Android、Flutter、Web 或 C++ 快速接入，使用固定版本或源码完成 Alice 与 Bob 的在线双向消息闭环。
 ---
 
 WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消息 API。它适合已经拥有业务后端、希望自己维护界面和产品状态的应用。
@@ -13,6 +13,7 @@ WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消�
   <Card title="Android 快速接入" description="精确安装 1.0.5，按进程单例与 Activity 生命周期完成闭环。" href="/zh/sdk/easy/android/getting-started" />
   <Card title="Flutter 快速接入" description="精确安装 1.1.0，保存监听器引用并在 dispose 中释放。" href="/zh/sdk/easy/flutter/getting-started" />
   <Card title="Web 快速接入" description="精确安装 easyjssdk 2.0.4，通过业务 BFF 获取连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
+  <Card title="C++ 快速接入" description="固定源码 + CMake，以 C++17 完成连接、在线消息和线程清理。" href="/zh/sdk/easy/cpp/getting-started" />
 </Cards>
 
 完成对应教程后，你会让 Alice 与 Bob 分别连接，在个人 Channel 中双向发送一个文本 JSON Payload，并在退出时正确移除监听器和连接。
@@ -50,7 +51,7 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 
 ## Alice 与 Bob 验收闭环
 
-四个平台遵循同一条最小路径：
+各平台遵循同一条最小路径：
 
 1. 为 Alice 和 Bob 分别取得自己的 `uid`、短期 `token` 与 `websocketUrl`；
 2. 在两个独立设备、进程或浏览器上下文中按平台教程创建客户端；
@@ -73,6 +74,8 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 | 退出账号 | 移除 token 并 `disconnect` | 移除监听并断开；账号切换需处理单例限制 | 移除监听、`disconnect`、`dispose` | `off` 后 `destroy` |
 
 页面可以订阅连接状态，但不应因为页面重建而创建第二条连接。平台教程中的完整最小代码分别展示了正确的 owner 和清理位置。
+
+C++ 使用独立 `WKIM` 实例和 I/O 线程，保存 `ListenerId`，退出时移除监听并等待 `disconnect()` / `destroy()` 完成。回调中不能等待 SDK future，UI 和耗时工作应交给应用执行器。详见 [C++ 快速接入](/zh/sdk/easy/cpp/getting-started)。
 
 ## 上线前还要完成
 
@@ -129,6 +132,10 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 | Web | [PR #6](https://github.com/WuKongIM/WuKongEasySDK-JS/pull/6) · `3ebf505734c5b6764b30eac011f0b7a5024c89e8` |
 
 当前教程的任务顺序校准自旧版 [EasySDK 概览](https://wukong.mintlify.app/zh/sdk/easy/overview)、[iOS](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)、[Android](https://wukong.mintlify.app/zh/sdk/easy/android/getting-started)、[Flutter](https://wukong.mintlify.app/zh/sdk/easy/flutter/getting-started)和 [Web](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started) 页面；API、版本与安全边界以上表的正式源码和分发产物为准。
+
+### C++ 固定源码
+
+[C++ 仓库](https://github.com/WuKongIM/WuKongEasySDK-CPP) 工程版本 `0.1.0`，本文固定源码 `8a3218cd5c9465f06df371f040a3641188bd4900`，通过 CMake 编译安装，尚无预编译包或 Registry 发布。它参考 JS `v2.0.4`，已在 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 上完成 C++/C++ 和 C++/JS 在线双向消息、重连、错误 Token 拒绝和在线清理，并通过独立的 WS/WSS 协议测试。环境与完整验证范围见 [C++ 验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/8a3218cd5c9465f06df371f040a3641188bd4900/docs/VALIDATION.md)。该源码证据独立于上面四端的历史正式包验收。
 
 ## 下一步
 
