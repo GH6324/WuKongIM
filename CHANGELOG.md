@@ -9,7 +9,7 @@ move those entries into a version section named for that exact tag.
 ### Fixed / 修复
 
 - Reconstruct online routes from current gateway owners after Slot authority changes, preventing an empty rebuilding directory from skipping acknowledged messages. / Slot 权威切换后按连接所属节点重建在线路由，避免空目录将已确认消息的在线接收者误判为离线。
-- Preserve uncertain durable Channel suffixes and report retryable recovery readiness until matching quorum evidence returns. / 保留尚缺 quorum 证明的持久化日志尾部，并返回可重试的恢复未就绪状态。
+- Recover consecutive Channel failures by proving compatible durable tails, copying missing immutable entries, and rechecking quorum without truncating acknowledged messages; rotate migration tasks so one waiting recovery cannot starve others. / 连续节点故障时验证日志前缀、补齐缺失记录并重新确认 quorum，保留已确认消息；轮转迁移任务，避免单个恢复任务阻塞其他频道。
 - Synchronize benchmark RECVACK counter assertions with completed accounting under race instrumentation. / 修复 race 模式下 RECVACK 计数测试过早断言的问题。
 
 

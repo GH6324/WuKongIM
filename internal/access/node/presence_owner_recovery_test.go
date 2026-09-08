@@ -3,8 +3,9 @@ package node
 import (
 	"bytes"
 	"context"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"testing"
+
+	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 )
 
 type ownerRoutesReaderFunc func(context.Context, presence.RouteTarget, []string) (presence.OwnerRouteSnapshot, error)

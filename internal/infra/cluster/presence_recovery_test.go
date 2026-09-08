@@ -3,13 +3,14 @@ package cluster
 import (
 	"context"
 	"errors"
+	"testing"
+
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	"testing"
 )
 
 type recoveryCluster struct {

@@ -222,7 +222,7 @@ func (d *batchingRecoveryProbeDispatcher) loadLocalRecoveryFetch(request FetchRe
 // recoverQuorumPrefix proves the greatest quorum-identical prefix using one
 // frontier round followed by bounded identity pages. Every voter retained in
 // the final proof must report one unchanged frontier across all pages.
-func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, dispatcher recoveryProbeDispatcher) (recoverySelection, error) {
+func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, dispatcher recoveryProbeDispatcher) (selection recoverySelection, err error) {
 	if ctx == nil || dispatcher == nil || request.ChannelKey == "" || request.ChannelID.ID == "" || request.Leader == 0 || request.Timeout <= 0 {
 		return recoverySelection{}, ch.ErrInvalidConfig
 	}
@@ -246,6 +246,13 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 	if len(frontierReports) < request.Quorum {
 		return recoverySelection{}, errRecoveryQuorumUnavailable
 	}
+	defer func() {
+		if err == nil {
+			for _, report := range frontierReports {
+				selection.NeedsConvergence = selection.NeedsConvergence || report.Result.State.LEO > selection.Index
+			}
+		}
+	}()
 	committed := make([]uint64, 0, len(frontierReports))
 	leos := make([]uint64, 0, len(frontierReports))
 	for _, report := range frontierReports {

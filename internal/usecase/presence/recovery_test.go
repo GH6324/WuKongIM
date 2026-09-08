@@ -3,8 +3,9 @@ package presence
 import (
 	"context"
 	"errors"
-	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"testing"
+
+	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 )
 
 type recoveryOwnersFunc func(context.Context, RouteTarget, []string) ([]Route, error)

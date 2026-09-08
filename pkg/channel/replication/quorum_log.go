@@ -141,6 +141,21 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	if err != nil {
 		return Installed{}, err
 	}
+	if selection.NeedsConvergence {
+		if err := l.convergeRecoverySuffix(ctx, authority, selection); err != nil {
+			return Installed{}, err
+		}
+		selection, err = recoverQuorumPrefix(ctx, recoveryProbeRequest{
+			ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
+			Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout,
+		}, l.cfg.Recovery)
+		if err != nil {
+			return Installed{}, err
+		}
+		if selection.NeedsConvergence {
+			return Installed{}, ch.ErrNotReady
+		}
+	}
 	recovered, err := repairQuorumPrefix(ctx, recoveryRepairRequest{
 		ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader, Local: l.cfg.Local,
 		Voters: authority.Voters, Quorum: authority.WriteQuorum, Selection: selection,

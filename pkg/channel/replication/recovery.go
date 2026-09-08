@@ -21,6 +21,8 @@ type recoveryProbeReport struct {
 // recoverySelection is the greatest identical prefix proven by a quorum in
 // one complete probe round.
 type recoverySelection struct {
+	// NeedsConvergence retains a longer observed tail until append-only repair proves it.
+	NeedsConvergence   bool
 	Index              uint64
 	Identity           ch.EntryIdentity
 	CertifiedCommitted uint64

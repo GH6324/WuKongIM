@@ -3,14 +3,15 @@ package cluster
 import (
 	"context"
 	"errors"
+	"slices"
+	"sort"
+	"time"
+
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
-	"slices"
-	"sort"
-	"time"
 )
 
 // PresenceRecoveryNode supplies exact routing and current membership evidence.

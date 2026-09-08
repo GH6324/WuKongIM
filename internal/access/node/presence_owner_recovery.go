@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 )

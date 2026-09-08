@@ -43,6 +43,8 @@ It does not own Manager or product business policy.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader; repair uses current health, fair per-Slot cursors, and authoritative cold-replica probes.
+   Migration execution rotates active-index pages across owned hash slots and
+   advances each task independently so a waiting recovery cannot starve others.
 4. Conversation hydration batch-reads lifecycle and runtime routes by physical
    Slot, preserves alignment and item errors, and groups heads by exact Leader;
    a cold quorum Leader with durable HW below LEO recovers before read retry.

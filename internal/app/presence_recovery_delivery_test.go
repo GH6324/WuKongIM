@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	authoritycontract "github.com/WuKongIM/WuKongIM/internal/contracts/authority"
 	channelappendcontract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
@@ -13,8 +16,6 @@ import (
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"testing"
-	"time"
 )
 
 type recoveryDeliveryOwners struct {

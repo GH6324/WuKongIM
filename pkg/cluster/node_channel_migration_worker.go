@@ -32,22 +32,14 @@ func (n *Node) ListRunnableMigrationTasks(ctx context.Context, localNode uint64,
 	if err != nil {
 		return nil, err
 	}
-	out := make([]metadb.ChannelMigrationTask, 0, limit)
+	hashSlots := make([]uint16, 0, int(snapshot.HashSlots.Count))
 	for _, slotID := range slotIDs {
-		hashSlots := hashSlotsOfPhysicalSlot(snapshot.HashSlots, slotID)
-		for _, hashSlot := range hashSlots {
-			remaining := limit - len(out)
-			if remaining <= 0 {
-				return out, nil
-			}
-			tasks, err := n.defaultSlotMetaDB.ForHashSlot(hashSlot).ListActiveChannelMigrationTasks(ctx, remaining)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, tasks...)
-		}
+		hashSlots = append(hashSlots, hashSlotsOfPhysicalSlot(snapshot.HashSlots, slotID)...)
 	}
-	return out, nil
+	slices.Sort(hashSlots)
+	return n.channelMigrationScan.page(ctx, hashSlots, limit, func(ctx context.Context, hashSlot uint16, after metadb.ChannelMigrationTaskCursor, limit int) ([]metadb.ChannelMigrationTask, metadb.ChannelMigrationTaskCursor, bool, error) {
+		return n.defaultSlotMetaDB.ForHashSlot(hashSlot).ListActiveChannelMigrationTaskPage(ctx, after, limit)
+	})
 }
 
 // LocalLeaderSlotIDs returns physical Slot IDs currently led by this node.
