@@ -673,9 +673,6 @@ func preRouteChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (C
 	if cmd.ChannelID == "" || cmd.ChannelType == 0 || len(cmd.Payload) == 0 {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
-	if cmd.NoPersist {
-		return preRouteNoPersistChannel(cmd, channels)
-	}
 	channelID, isCommand := channels.FromCommandChannel(cmd.ChannelID)
 	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
 		normalizedChannelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, channelID)
@@ -688,22 +685,6 @@ func preRouteChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (C
 		channelID = channels.ToCommandChannel(channelID)
 	}
 	return ChannelID{ID: channelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
-}
-
-func preRouteNoPersistChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (ChannelID, SendBatchItemResult, bool) {
-	sourceChannelID, alreadyCommandChannel := channels.FromCommandChannel(cmd.ChannelID)
-	cmd.ChannelID = sourceChannelID
-	if !cmd.SyncOnce && !alreadyCommandChannel {
-		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}}, true
-	}
-	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
-		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
-		if err != nil {
-			return ChannelID{}, SendBatchItemResult{Err: err}, true
-		}
-		cmd.ChannelID = channelID
-	}
-	return ChannelID{ID: channels.ToCommandChannel(cmd.ChannelID), Type: cmd.ChannelType}, SendBatchItemResult{}, false
 }
 
 func preRouteRequestScopedChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (ChannelID, SendBatchItemResult, bool) {

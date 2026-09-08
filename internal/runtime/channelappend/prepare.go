@@ -201,14 +201,10 @@ func prepareCanonicalSend(ctx context.Context, cmd SendCommand, ports preparePor
 func prepareNoPersistSend(ctx context.Context, cmd SendCommand, ports preparePorts, normalizePerson bool) (prepareSendResult, bool) {
 	sourceChannelID, alreadyCommandChannel := ports.commandChannels.FromCommandChannel(cmd.ChannelID)
 	cmd.ChannelID = sourceChannelID
-	if !cmd.SyncOnce && !alreadyCommandChannel {
-		nextCmd, result, done := prepareValidatedCommand(ctx, cmd, ports, normalizePerson)
-		if done {
-			return result, true
-		}
-		return prepareSendResult{result: SendResult{Reason: ReasonSuccess}, command: nextCmd, canonicalResult: true}, true
+	// Ordinary transient sends retain their source Channel authority and recipients.
+	if cmd.SyncOnce || alreadyCommandChannel {
+		cmd.ChannelID = ports.commandChannels.ToCommandChannel(cmd.ChannelID)
 	}
-	cmd.ChannelID = ports.commandChannels.ToCommandChannel(cmd.ChannelID)
 	return prepareNoPersistRealtimeSend(ctx, cmd, ports, normalizePerson)
 }
 
@@ -218,9 +214,6 @@ func prepareNoPersistRealtimeSend(ctx context.Context, cmd SendCommand, ports pr
 		return result, true
 	}
 	cmd = nextCmd
-	if !ports.commandChannels.IsCommandChannel(cmd.ChannelID) {
-		cmd.ChannelID = ports.commandChannels.ToCommandChannel(cmd.ChannelID)
-	}
 	return prepareAllocatedSend(cmd, ports, true)
 }
 
