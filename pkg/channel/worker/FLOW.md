@@ -39,7 +39,7 @@ It does not own reactor state machines, business retries, or dependency policy.
 
 - Queue depth includes accepted work not yet in the executor; workers are the
   hard executor concurrency. Optional pools reject submission when absent.
-- Cold resolve/load and loaded metadata resolution never batch. Retention stays
+- Cold quorum loads use consistent exact frontiers; metadata resolution never batches. Retention stays
   single-Channel and trims only after a safe logical boundary.
 - Compatible groups run serially inside one handler; rotating first-group
   priority avoids permanent target or task-kind tailing under skew.
