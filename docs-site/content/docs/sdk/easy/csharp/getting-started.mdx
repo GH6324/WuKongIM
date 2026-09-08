@@ -181,7 +181,7 @@ NuGet `1.0.0` 的[独立发布验证](https://github.com/WuKongIM/WuKongEasySDK-
 
 ### C# / JavaScript 真实互通
 
-独立的 [C#/JS 互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34191886039) 分别测试公共 NuGet `WuKongEasySDK 1.0.0`（空包缓存安装）与当前 C# 源码。固定对端为 npm `easyjssdk 2.0.4`、Node 24 + `ws 8.21.3`，服务端为 `v3.0.0-beta.9` / `734166e0ec30fc0f6f10fef6f6d1889d079ab636`。测试工具源码为 `1db387c4f794a45bdb6f4e419d68dbe2bfef740f`，与 NuGet 包源码分别记录。
+早期独立的 [C#/JS 互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34191886039) 分别测试公共 NuGet `WuKongEasySDK 1.0.0`（空包缓存安装）与当前 C# 源码。固定对端为 npm `easyjssdk 2.0.4`、Node 24 + `ws 8.21.3`，服务端为 `v3.0.0-beta.9` / `734166e0ec30fc0f6f10fef6f6d1889d079ab636`。测试工具源码为 `1db387c4f794a45bdb6f4e419d68dbe2bfef740f`，与 NuGet 包源码分别记录。
 
 五组场景覆盖双向中文/emoji 与嵌套自定义 Payload、超出 JavaScript 安全整数范围的消息 ID 及 SENDACK/RECV 一致性、错误 Token 拒绝、断网后自动重连、真实服务端崩溃重启，以及主动断开后拒绝离线 SEND 并允许显式重连。该服务端的 SENDACK 不返回 `clientMsgNo`，测试会校验 RECV 保留原始关联号。
 
@@ -189,11 +189,13 @@ NuGet `1.0.0` 的[独立发布验证](https://github.com/WuKongIM/WuKongEasySDK-
 
 ### Chromium/WSS 与原生 Node 恢复
 
-[扩展互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34195913516)分别使用正式 NuGet `1.0.0` 和 C# 候选源码，验证 Node `24.3.0` 原生 WebSocket，以及 Playwright `1.62.1` 驱动的真实 Chromium。服务端仍固定为 `734166e0ec30fc0f6f10fef6f6d1889d079ab636`，JS 固定为修复源码 `5e5dfb727fb0ea08294939962ae799e998b7ca5c`。该修复结束只发出 `error`、没有后续 `close` 的握手失败，让有限次数重连继续执行；npm `easyjssdk 2.0.4` **不包含此修复**。
+[早期扩展互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34195913516)分别使用正式 NuGet `1.0.0` 和 C# 候选源码，验证 Node `24.3.0` 原生 WebSocket，以及 Playwright `1.62.1` 驱动的真实 Chromium。服务端仍固定为 `734166e0ec30fc0f6f10fef6f6d1889d079ab636`，JS 固定为修复源码 `5e5dfb727fb0ea08294939962ae799e998b7ca5c`。该修复结束只发出 `error`、没有后续 `close` 的握手失败，让有限次数重连继续执行；npm `easyjssdk 2.0.4` **不包含此修复**。
 
 浏览器从真实 HTTPS 页面建立 WSS 连接，C# 使用原有 `ClientWebSocket`。测试通过临时 CA 和隔离的浏览器 NSS 信任库保留正常证书校验，要求双方拒绝不受信任的 CA 和主机名不匹配的证书，且没有解密后的应用请求进入服务端协议。证书控制通过后，再执行双向消息、错误 Token、断网恢复、服务端重启和主动断开五组场景。
 
-每次 PR 和 `main` 更新运行四条 Linux 任务，产生 npm/`ws`、修复源码/原生 Node、修复源码/Chromium WSS 共六份正式包或候选源码报告。报告记录精确依赖、实际测试提交、Chromium 版本和证书控制结果；[复现与信任范围](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/0a6d3254ec8dd4e9da9ee36114af96ee2f657dac/docs/interoperability.md)说明运行方法。这里验证的是临时 CA、回环 TLS 代理和 Chromium，不代表所有公网 CA、反向代理、Firefox/WebKit、多节点容量或长期稳定性。
+JS 修复已随 [npm `easyjssdk 2.0.5`](https://www.npmjs.com/package/easyjssdk/v/2.0.5) 正式发布，对应源码 `b6d0bbe822b9c5b6f95a10d55b593d30184414f6`。[公共包互通 CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34198683155) 从空缓存安装该固定 npm 包，六组正式 NuGet / C# 候选源码与 `ws`、原生 Node、Chromium WSS 的组合均通过，包含上述证书拒绝控制。
+
+每次 PR 和 `main` 更新运行四条 Linux 任务，产生六份报告，记录 npm 下载地址及 SHA-512、实际测试提交、Chromium 版本和证书控制结果；[复现与信任范围](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/c143be832d6439295a213176274faf2ffb4b9868/docs/interoperability.md)说明运行方法。这里验证的是临时 CA、回环 TLS 代理和 Chromium，不代表所有公网 CA、反向代理、Firefox/WebKit、多节点容量或长期稳定性。
 
 ## 下一步
 

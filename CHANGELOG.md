@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Update C# EasySDK documentation with published npm `easyjssdk 2.0.5` interoperability evidence for Node and Chromium/WSS.
+
 ### 🔧 Improvements / 改进
 
 - Clarify the pending C++ EasySDK submission to the default vcpkg catalog and retain the working custom-registry setup in both languages. / 补充 C++ EasySDK 申请进入 vcpkg 默认目录的待收录状态，中英文接入说明继续保留可用的自定义 registry 配置。
