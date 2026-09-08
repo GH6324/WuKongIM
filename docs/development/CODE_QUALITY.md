@@ -1,5 +1,8 @@
 # Code Quality Notes
 
+- 2026-09-08: C#/JS three-node migration, recovery-frontier and post-rejoin delivery findings are handed off in [server issue #927](https://github.com/WuKongIM/WuKongIM/issues/927), with exact released/experimental source identities and sanitized CI evidence. The SDK task does not change the server; full cluster acceptance remains blocked.
+
+
 - 2026-09-07: The `docs-integration` JavaScript/Web gate is stale: `test/e2e/message/javascript_web_quickstart/javascript_web_quickstart_test.go` invokes `npm run test:e2e`, but the current sample has no such script or Playwright dependency, and `docs-site/lib/javascript-quickstart-example.test.ts` explicitly requires their absence. The browser prerequisite also runs an unpinned `npm exec -- playwright install chromium`, while receipt validation expects a fixed browser toolchain. Align the gate with the current sample and its receipt contract in a dedicated follow-up; do not restore the deliberately removed sample harness or report manual browser verification as this named check passing.
 
 - 2026-09-02: The scheduled backup Slot export, message export, repository probe, and restore clients currently serialize `StoreConfig.CredentialCiphertext` into node RPC JSON, contrary to the node RPC secret-boundary invariant. Do not merely clear the field: remote OSS/COS/S3 handlers currently need it for `RepositoryProvider.Open`. Fix this in a dedicated security stage by sending only non-secret repository metadata plus `CredentialRevision`, resolving the exact encrypted credential from target-local Controller state, and adding wire-capture plus remote object-store regression contracts.

@@ -8,7 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
-- Make Manager JavaScript preload ordering reproducible while preserving stylesheet order, so rebuild verification is stable. / 固定 Manager JavaScript 预加载顺序并保留样式顺序，避免重建校验因依赖遍历顺序变化失败。
+- Document C# EasySDK application endpoint replacement and optional three-node reproduction, with server blockers tracked separately. / 补充 C# EasySDK 应用侧地址切换与三节点手动复现说明，单独记录服务端阻塞。
+
 - Document Python EasySDK group examples and installed-package membership/permission acceptance, including the required server cache fix. / 补充 Python EasySDK 群聊示例、正式包成员与权限验收，以及所需的服务端缓存修复说明。
 
 - Document Rust EasySDK released-package three-node messaging, permissions and same-endpoint ingress crash recovery acceptance. / 补充 Rust EasySDK 正式包三节点通信、权限与接入节点崩溃后原地址重连验收。
@@ -16,6 +17,8 @@ move those entries into a version section named for that exact tag.
 - Document Rust EasySDK weak-network and resource-boundary acceptance, including SEND ambiguity, backpressure, observer lag and repeated cleanup. / 补充 Rust EasySDK 弱网与资源边界验收，覆盖发送结果未知、背压、监听器落后和反复清理。
 
 - Document C++ EasySDK released-package three-node WSS recovery acceptance and clarify uncertain SEND outcomes and same-endpoint reconnect behavior. / 补充 C++ EasySDK 正式包三节点 WSS 恢复验收，明确 SEND 结果不确定性与原地址重连边界。
+
+- Make Manager JavaScript preload ordering reproducible while preserving stylesheet order, so rebuild verification is stable. / 固定 Manager JavaScript 预加载顺序并保留样式顺序，避免重建校验因依赖遍历顺序变化失败。
 
 - Document independent Python EasySDK three-node WSS fault recovery and bounded stability acceptance. / 补充 Python EasySDK 三节点 WSS 故障恢复与限时稳定性验收说明。
 
