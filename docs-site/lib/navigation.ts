@@ -434,8 +434,8 @@ function publishedEasySDKGroup(): NavigationGroup {
         'rust/getting-started',
         'Rust 快速接入',
         'Rust quickstart',
-        '固定 WuKongEasySDK-Rust 源码，使用 Tokio 完成在线消息、有限重连和清理。',
-        'Pin WuKongEasySDK-Rust source for Tokio online messaging, bounded reconnect, and cleanup.',
+        '安装 WuKongEasySDK-Rust 0.1.0 正式包，使用 Tokio 完成在线消息、有限重连和清理。',
+        'Install WuKongEasySDK-Rust 0.1.0 for Tokio online messaging, bounded reconnect, and cleanup.',
       ),
       publishedPage(
         'csharp/getting-started',

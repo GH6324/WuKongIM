@@ -251,8 +251,8 @@ describe('documentation navigation contract', () => {
         continue;
       }
       if (page.slug === 'rust/getting-started') {
-        expect(page.description.zh).toContain('源码');
-        expect(page.description.en).toContain('source');
+        expect(page.description.zh).toContain('0.1.0 正式包');
+        expect(page.description.en).toContain('0.1.0');
         continue;
       }
       if (page.slug === 'cpp/getting-started') {
