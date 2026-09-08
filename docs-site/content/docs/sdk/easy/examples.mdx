@@ -248,3 +248,5 @@ python WuKongEasySDK-Python/tests/product.py --server /absolute/path/to/wukongim
 该脚本仅启动临时本机集群，通过公开接口设置测试身份并检查在线清理，最后停止自己的进程。WSS、自动重连和队列边界使用独立协议测试；完整范围见 [Python 验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/90018a9ac53bdef4cb15dadb169ff835cbfcb2a6/docs/PYPI_VALIDATION.md)。
 
 后续同一 PyPI 包的三节点 WSS 30 分钟运行与故障恢复见[独立验收记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/a9be49e69f4b7155a9a6244ef63f9cb6baf00cb9/docs/CLUSTER_VALIDATION.md)；其中明确区分长时间运行、短 CI 和各自的固定版本。
+
+Python 还提供[群聊示例与验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/feaa52e7f788d67fd596be6149ed5f5b84ae1f7a/docs/GROUP_VALIDATION.md)：四个 Python/JS 客户端在三节点 WSS 上验证成员增删、群隔离、权限与重连。该场景要求记录中的服务端成员缓存修复源码，安装包仍为 PyPI `0.1.0`；具体后端准备与 CLI 命令见 [Python 群聊接入](/zh/sdk/easy/python/getting-started#7-在线群聊与成员权限)。

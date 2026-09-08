@@ -119,3 +119,41 @@ PyPI `0.1.0` 来自发布源码 `ec2c62c73eca29be99ac15ba76ff7466c13617d5`。公
 同一 PyPI `0.1.0` 随后在 WuKongIM `e7ef61ba702e045648b9fa535f051e5b2ee4a1db`、256 Hash Slot、12 个物理 Slot、每个 Slot 三副本的本机三节点集群上完成 **30 分钟 WSS 验收**，核对 **35,380 条 SENDACK/RECV**。6 次断网与 ACK 丢失、入口节点重启、三节点 Token 轮换均通过；未观察到重复回调，连接数和异步任务数保持稳定，退出后进程、连接与额外任务均清零。该验收使用明确配置的故障测试超时和重试参数；完整版本、资源采样和原始 JSON 见[三节点 WSS 验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/a9be49e69f4b7155a9a6244ef63f9cb6baf00cb9/docs/CLUSTER_VALIDATION.md)，不代表生产容量或恰好一次投递保证。
 
 不提供离线同步、会话、未读或推送；这些需求请使用完整版 SDK。继续验证实际部署的 WSS 代理、Token 轮换、重复投递和容量，或回到 [WuKongEasySDK 概览](/zh/sdk/easy)与[运行官方示例](/zh/sdk/easy/examples)。
+
+## 7. 在线群聊与成员权限
+
+PyPI 包继续使用 `wukong-easy-sdk==0.1.0`。群聊通过同一个连接、`WKIMChannelType.GROUP`（`2`）和 `WKIMEvent.MESSAGE` 收发，不需要客户端订阅接口：
+
+```python
+await im.send("team-chat", WKIMChannelType.GROUP, {"type": 1, "content": "群内消息"})
+```
+
+**先由可信后端创建群、添加成员并提供设备类别 `2` 的 Token。** 以下 Product HTTP 请求只在可信服务端执行；不要把管理地址或权限交给不可信客户端。示例将 Alice 和 Bob 加入群，并明确禁止非成员发送：
+
+```http
+POST /channel
+Content-Type: application/json
+
+{"channel_id":"team-chat","channel_type":2,"allow_stranger":0,"reset":1,"subscribers":["alice","bob"]}
+```
+
+`reset:1` 会替换已有群的成员，仅对新建示例群使用。日常通过 `/channel/subscriber_add`、`/channel/subscriber_remove` 修改成员；请求字段为 `channel_id`、`channel_type:2`、`subscribers`。黑名单使用 `/channel/blacklist_add`、`/channel/blacklist_remove`，成员字段为 `uids`。这些操作均由后端控制。
+
+下载新增群聊示例的固定源码；原 `v0.1.0` 标签不包含这个新增文件。示例源码和已安装的 PyPI 包版本分别固定：
+
+```sh
+git clone https://github.com/WuKongIM/WuKongEasySDK-Python.git WuKongEasySDK-Python-group
+git -C WuKongEasySDK-Python-group checkout --detach 527f37c876326e7ad3cc48c89828c4c3ffed09fc
+export WKIM_UID=alice
+export WKIM_GROUP=team-chat
+# 通过安全环境设置 WKIM_TOKEN、WKIM_URL；私有 CA 可设置 WKIM_CA_FILE。
+python WuKongEasySDK-Python-group/examples/group_chat.py
+```
+
+另一终端使用 Bob 的 UID 和 Token、相同群 ID。双方在线后输入消息，`/quit` 退出。示例显示消息内容及数字错误码。上述策略下，非成员发送抛出 `WKIMError.code == 3`，黑名单发送返回错误码 `4`。策略由服务端决定；错误或超时后先核对成员关系及发送结果，再决定是否重试。SENDACK 不是用户已读确认；重连不会自动补拉离线历史。
+
+**服务端版本要求：**跨入口成员变更验收使用包含修复的服务端源码 [`2a295e0d9881ef5356728a85d56b052c4b0d9c86`](https://github.com/WuKongIM/WuKongIM/commit/2a295e0d9881ef5356728a85d56b052c4b0d9c86)。旧服务端可能在其他节点变更成员后仍使用过期投递缓存；只升级 Python 包不能修复这一行为。该记录验证的是修复源码，不代表旧服务端安装包已包含修复。
+
+[群聊正式包验证记录](https://github.com/WuKongIM/WuKongEasySDK-Python/blob/feaa52e7f788d67fd596be6149ed5f5b84ae1f7a/docs/GROUP_VALIDATION.md)独立记录三节点 WSS、4 个 Python/JS 客户端、2 个群的 13 个阶段：成员投递、群隔离、加入/移除/重新加入、非成员与黑名单拒绝，以及四个客户端重连后的成员与权限保持。Python 3.11 和 3.14 的 PyPI 消费环境还实际运行群聊 CLI。每个阶段对不应收到消息的客户端观察 1 秒；这是功能验收，不是大群容量或恰好一次投递保证。独立 CI 的候选 wheel 记录与 PyPI 下载记录分开保留。
+
+一次早期 Linux CI 的 JS 成员漏收仍在[问题 #7](https://github.com/WuKongIM/WuKongEasySDK-Python/issues/7)中待定位。验证记录保留该失败；后续诊断运行通过不代表这一偶发现象已经修复。
