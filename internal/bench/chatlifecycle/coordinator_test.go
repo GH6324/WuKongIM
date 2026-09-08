@@ -1921,10 +1921,11 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 			cfg := LocalConfig()
 			cfg.RunID = "coordinator-failure-" + strconv.Itoa(len(testCase.name))
 			log := []string{}
+			grantCalled := make(chan uint64, coordinatorWorkerCount*2)
 			typedWorkers := make([]*recordingCoordinatorWorker, coordinatorWorkerCount)
 			workers := make([]CoordinatorWorker, coordinatorWorkerCount)
 			for workerID := range workers {
-				typedWorkers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+				typedWorkers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &log, grantCalled: grantCalled}
 				workers[workerID] = typedWorkers[workerID]
 			}
 			if testCase.workerChange != nil {
@@ -1942,6 +1943,17 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 				}),
 				Workers: workers,
 				Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+					// These cases inject a terminal observer result after the initial
+					// grant, rather than racing that result against grant admission.
+					if !testCase.observerWaitsForCancel {
+						for range workers {
+							select {
+							case <-grantCalled:
+							case <-ctx.Done():
+								return testCase.observer
+							}
+						}
+					}
 					appendCoordinatorTestLog(&log, "observe")
 					if testCase.observerWaitsForCancel {
 						<-ctx.Done()
@@ -4418,6 +4430,21 @@ func coordinatorTestLogSnapshot(log *[]string) []string {
 
 func canonicalCoordinatorLog(log *[]string) []string {
 	canonical := coordinatorTestLogSnapshot(log)
+	// Observer startup races with reconciliation status reads after a failed
+	// grant. Normalize only that scheduling difference; preserve every worker
+	// call and the assignment, start, grant, checkpoint, and stop phase barriers.
+	for i, operation := range canonical {
+		if operation != "observe" {
+			continue
+		}
+		start := i
+		for start > 0 && strings.HasPrefix(canonical[start-1], "status-") {
+			start--
+		}
+		copy(canonical[start+1:i+1], canonical[start:i])
+		canonical[start] = operation
+		break
+	}
 	for start := 0; start < len(canonical); {
 		prefix := coordinatorConcurrentLogPrefix(canonical[start])
 		if prefix == "" {
