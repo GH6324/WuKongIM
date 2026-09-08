@@ -1,13 +1,21 @@
 ---
 title: Rust quickstart
-description: Connect users with WuKongEasySDK-Rust and Tokio, exchange online messages, and manage bounded reconnect and cleanup.
+description: Prepare, install, connect, exchange the first messages, and clean up.
 ---
 
-WuKongEasySDK-Rust serves native Rust programs, desktop applications and communication clients with an existing application backend. It follows [WuKongEasySDK-JS 2.0.4](https://github.com/WuKongIM/WuKongEasySDK-JS/tree/9c03c98c725982fac224cd1d3b52456eae983975), authenticating through WebSocket JSON-RPC CONNECT before exchanging online messages.
+Use Rust 1.86+, Tokio, and crates.io **0.1.0** for online messaging in native applications. Browser/WASM targets are not supported.
 
-The current Product Gateway supports this online bidirectional messaging path. The SDK does not provide a local message store, conversations/unread state, offline recovery or push. Read [SDK selection](/en/sdk) when you need those capabilities.
+## 1. Prepare
 
-## 1. Install the released version
+Your backend returns the current user's `uid`, short-lived `token` and `websocketUrl`. Protect registration and rotation as described in [authentication and tokens](/en/guide/integration/authentication). Clients must not call Product HTTP management endpoints directly.
+
+`Auth::new` defaults to **PC/Desktop `2`**. Wire values are APP `0`, WEB `1`, PC `2`; register the token under the same device category. If your native host uses APP, set `auth.device_flag = DeviceFlag::App` and match the backend registration.
+
+`Auth::new` generates a `device_id` retained across that client's reconnects. Set your own persistent device ID when identity must survive process restarts. Create a `Client` per identity; `clone()` shares its connection across Tokio tasks.
+
+To see messages first, follow [the official example](/en/sdk/easy/examples#rust) with two clients. The steps below integrate the SDK into your application.
+
+## 2. Install the SDK
 
 Official repository: [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust). [Version `0.1.0` is available on crates.io](https://crates.io/crates/wukong-easy-sdk/0.1.0), requiring Rust **1.86+** and Tokio. Install the exact version below:
 
@@ -20,15 +28,7 @@ serde_json = "1"
 
 The package name is `wukong-easy-sdk`; the Rust import name is `wukong_easy_sdk`. Commit your application's `Cargo.lock` to retain resolved dependencies. This implementation supports native TCP/TLS; WSS uses rustls and WebPKI roots. Browser/WASM is not supported.
 
-## 2. Obtain connection credentials
-
-Your backend returns the current user's `uid`, short-lived `token` and `websocketUrl`. Protect registration and rotation as described in [authentication and tokens](/en/guide/integration/authentication). Clients must not call Product HTTP management endpoints directly.
-
-`Auth::new` defaults to **PC/Desktop `2`**. Wire values are APP `0`, WEB `1`, PC `2`; register the token under the same device category. If your native host uses APP, set `auth.device_flag = DeviceFlag::App` and match the backend registration.
-
-`Auth::new` generates a `device_id` retained across that client's reconnects. Set your own persistent device ID when identity must survive process restarts. Create a `Client` per identity; `clone()` shares its connection across Tokio tasks.
-
-## 3. Connect, send and clean up
+## 3. Connect and listen
 
 This complete program subscribes first, connects, sends one message to Bob and cleans up. Set the environment variables from your backend. Alice and Bob must have different UIDs, and Bob must already be online.
 
@@ -84,15 +84,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 A successful `send` returns `SendResult`, including string `message_id`, `u64` `message_seq` and `reason_code`. Business errors return `Error::Server { code }`, preserving the numeric code. SENDACK does not imply receipt, display or application completion; see [messaging](/en/guide/integration/messaging).
 
-## 4. Run Alice and Bob
+## 4. Exchange the first message
 
 For ongoing bidirectional communication, use the repository's terminal example:
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Rust.git
 cd WuKongEasySDK-Rust
-git checkout 5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b
-cargo test --locked
+git checkout v0.1.0
+cargo build --locked --example chat
 ```
 
 From a trusted development terminal, follow [Run Official Examples](/en/sdk/easy/examples) to prepare credentials, setting both Alice and Bob's `device_flag` to `2`. Run these commands in separate terminals:
@@ -109,17 +109,7 @@ WK_WS_URL=ws://127.0.0.1:5200 WK_UID=bob WK_TOKEN=bob-token \
 
 Wait for both connections before typing messages. The example reports server acceptance, receipt and connection state without logging message bodies. Your application can read `from_uid`, Channel and Payload from `Event::Message`. Enter `/quit` or use Ctrl-C to clean up.
 
-Use `roundtrip` for unattended bidirectional checks:
-
-```bash
-WK_WS_URL=ws://127.0.0.1:5200 WK_UID=alice WK_TOKEN=alice-token \
-  WK_PEER_UID=bob WK_PEER_TOKEN=bob-token \
-  cargo run --locked --example roundtrip
-```
-
-It creates two Rust clients, checks Unicode payloads and send results, spans multiple heartbeat periods, then reconnects and repeats the exchange. JS interoperability instructions are in the repository [README](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b/README.md#development-and-live-verification).
-
-## 5. Manage lifecycle and resources
+## 5. Clean up
 
 | Task | Rust API and behavior |
 | --- | --- |
@@ -139,7 +129,24 @@ Automatic RECVACK confirms network receipt, not observer processing. Messages ar
 
 Sends are never replayed automatically. Timeout, cancellation or transport loss may leave acceptance unknown; preserve `SendOptions.client_msg_no` if your application retries under the server's idempotency contract. `SendOptions` also supports Header, Setting and Topic. SEND `red_dot` defaults to true and respects explicit false. Use `ChannelType::Group` for group messages after the backend prepares membership and permissions.
 
-## Group messaging and membership
+## 6. Troubleshooting
+
+**Can I resend after a timeout or disconnect?** The server may already have accepted the message. Keep the outcome unknown and reconcile using `SendOptions.client_msg_no`.
+
+**Why does a listener receive `Lagged`?** Application consumption fell behind and events were lost. Bound the processing queue and reconcile through your backend; reconnect does not fetch history.
+
+For private PKI, put DER root bytes in `Options.additional_root_certificates`.
+This accepts at most 16 certificates of 64 KiB each, never private keys. Public
+WebPKI roots remain trusted; hostname and expiry verification stay enabled.
+
+```rust
+let options = wukong_easy_sdk::Options {
+    additional_root_certificates: vec![std::fs::read("company-root.der")?],
+    ..Default::default()
+};
+```
+
+## Optional: group messaging
 
 The trusted backend creates the group and manages members through Product HTTP.
 After the backend confirms membership, use the group ID with `ChannelType::Group`:
@@ -159,160 +166,6 @@ a nonmember or removed member receives `Error::Server { code: 3 }`; a denylisted
 member receives code `4`. Report these permission failures to the application.
 Membership management credentials belong on the trusted backend.
 
-## Weak networks, queues and shutdown
+## Next
 
-Handle `Backpressure` as admission rejection: bound producer concurrency instead
-of accumulating unbounded retry tasks. A SEND timeout can occur after another
-client has already received the message; preserve the unknown outcome and let
-the application decide whether to retry under its idempotency contract.
-`RecvError::Lagged` means the observer missed events and needs application-level
-reconciliation. Automatic RECVACK does not provide a durable application inbox.
-
-The repository acceptance harness repeats two-client WSS lifecycles with
-20/40/60 ms per-chunk delay, blocked return traffic, bidirectional blackholes and
-transport aborts. It tests admission at two pending SENDs and a deliberately
-slow observer with 16 retained events. These are test settings: SEND timeout
-800 ms and pong timeout 3 s, distinct from SDK defaults.
-
-A bounded proxy-side WebSocket audit requires exactly 58 outbound SENDs per
-cycle, matching 58 verified deliveries. Server deduplication cannot hide an extra
-retransmission from this count; the audit retains counts only and fails on
-unsupported framing.
-
-After each cycle both clients are destroyed, and both proxies must have zero
-streams and tasks before sampling the Rust probe's RSS and file descriptors.
-After three warmup cycles, the fixed growth allowance is 64 MiB RSS and eight
-file descriptors. These bounded observations do not establish production
-capacity, multi-day stability or the absence of every resource leak.
-
-For an independently downloaded public package, use the pinned server checkout
-from the repository README and run:
-
-```sh
-python3 tests/acceptance/run.py --server-source test-server --distribution registry --seconds 120 --network-seconds 1800 --output .acceptance/network-1800s.json
-```
-
-The weak-network loop lasts at least 30 minutes, in addition to the existing
-person/group checks and build time. CI defaults to a 30-second loop with at
-least four cycles; the longer mode is an explicit manual run. The nested
-`network` receipt retains fault outcomes, recovery timings, resource samples
-and cleanup results. Supported measurement hosts are Linux and macOS.
-
-## Private CA for WSS
-
-For private PKI, put DER root bytes in `Options.additional_root_certificates`.
-This accepts at most 16 certificates of 64 KiB each, never private keys. Public
-WebPKI roots remain trusted; hostname and expiry verification stay enabled.
-
-```rust
-let options = wukong_easy_sdk::Options {
-    additional_root_certificates: vec![std::fs::read("company-root.der")?],
-    ..Default::default()
-};
-```
-
-Sustained messaging requires a server containing the [WebSocket buffer fix](https://github.com/WuKongIM/WuKongIM/pull/901).
-Single-node cluster acceptance pins `27a39f15bf163b433f417b78ab6bfc6e589585e5`; the older server can corrupt queued frames and disconnect during repeated exchanges.
-
-## Protocol and before production
-
-- Sends use string request IDs, camelCase metadata and Base64 UTF-8 JSON. Receive supports objects and Base64 JSON; results accept camelCase, snake_case and both spellings together.
-- The SDK is default-silent. Auth Debug and SDK errors omit tokens, URLs, raw frames and raw server error text. Complete events contain application data and must not be logged wholesale.
-- Custom events expose `id`, `event_type`, `timestamp` and `data`. Parser support does not imply a deployment produces particular event types.
-- Before production, validate WSS certificates, proxy Upgrade, token revocation/rotation, target OS, packet loss, queue bounds and shutdown. One online run does not establish capacity or long-term stability.
-
-## Three-node cluster acceptance
-
-The dedicated [cluster harness](https://github.com/WuKongIM/WuKongEasySDK-Rust/blob/main/tests/acceptance/cluster.py)
-pins server `f041174a042b4a96179218571e06c04bb64cf1ca`, containing the
-[cross-node membership cache fix](https://github.com/WuKongIM/WuKongIM/pull/920),
-and runs three isolated server processes with 256 hash slots, 12 logical slots and
-three Slot replicas. Four Rust clients authenticate over verified private-CA WSS
-on ingress nodes `1, 2, 3, 2`. It checks all six directed person-message paths
-between the first three clients, group fanout, channel isolation, removed-member
-and denylist rejection, and those permissions after a node restart.
-
-The harness withholds the sender's return traffic: a SEND times out while its
-peer receives the message. It then kills ingress node 1 and restarts the same
-address and durable directory. The existing client must automatically reconnect
-to node 1. Because Slot authority changes clear volatile presence, the harness
-then requires all four users to remain online through every API ingress for two
-25-second heartbeat intervals (a 50-second observation window, bounded by a
-100-second gate) before checking resumed cross-node delivery. Connection recovery
-and completion of this route stability gate are recorded separately. An independent WebSocket wire counter
-must match every application SEND, including rejected and uncertain sends, so
-server deduplication cannot conceal an automatic replay. The application never
-retries the uncertain send. Exploratory runs sent immediately after CONNECT
-recovery and observed an accepted SEND without delivery while the recipient was
-absent from the online route view. CONNECT and SENDACK therefore must not be
-interpreted as proof of end-to-end recovery or recipient delivery.
-
-This proves recovery to the original endpoint in this bounded scenario. It does
-not implement alternate-address selection, demonstrate uninterrupted delivery
-while a node is down, or verify a selected Channel leader transfer, network
-partition, offline catch-up or large-group capacity. Each delivery phase observes
-excluded clients for at least 500 ms. Test settings use a 3-second SEND deadline,
-2-second connection and 10-second PONG deadlines, 100 reconnect attempts, and 100–500 ms retry
-backoff; these differ from SDK defaults.
-
-```bash
-# Run from WuKongEasySDK-Rust; use the exact clean server checkout cited below.
-RUSTUP_TOOLCHAIN=1.86.0 python3 tests/acceptance/cluster.py \
-  --server-source ../test-server --distribution registry --seconds 600
-```
-
-CI runs a separate 60-second workload for source and registry distributions;
-manual runs can select 600 seconds. Each run also executes the initial permission
-and crash suite, with a second ingress crash during the timed workload. Successful
-completion requires all clients destroyed, an empty online-status response for all four users, and
-all owned server processes, proxy streams and tasks stopped. Package, harness and
-server identities remain separate in the receipt.
-
-The [600-second registry cluster receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-cluster-0.1.0-macos-600s.json)
-binds clean harness `6b533a25ff0c61548a3f90dd36fa2562118f8f21` to the exact
-0.1.0 public package and the merged server revision above. `workload_seconds`
-includes the midpoint fault and route observation; `fault_to_reconnected_ms`
-measures socket recovery, while `fault_to_stable_routes_ms` also includes the
-50-second route observation. `application_sends` must equal `wire_sends`;
-`deliveries` counts all expected recipients, so group fanout makes it a different
-total. A passing result requires at least 600 uninterrupted workload seconds,
-both crash phases and complete cleanup. Interrupted candidate runs are not added
-to this duration. The existing 0.1.0 crate is unchanged.
-
-## Verification record
-
-On 2026-09-08, crates.io `wukong-easy-sdk 0.1.0` was published from source `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`. An independent consumer with an empty Cargo cache downloaded the public registry package and compiled this tutorial's Chinese and English connection/messaging and private CA examples. The downloaded archive SHA-256 is `0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719`, matching the [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/tag/v0.1.0) attachment.
-
-A subsequent **public-package end-to-end run** used an empty Cargo cache and the exact crates.io archive on macOS Rust 1.86: Rust/Rust roundtrip, invalid-Token rejection, 1,747 confirmed Rust/JS WSS echoes in 120 seconds, three forced cuts/recoveries, no duplicates or event loss, and complete cleanup. One interrupted send retained unknown-outcome semantics. The [registry receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-e2e-0.1.0-macos-120s.json) records harness `cfa48a038c2cfd56948ace43afe3b2f5f91dace3` separately from the released package source; the server remains `27a39f15bf163b433f417b78ab6bfc6e589585e5`.
-
-The **group acceptance** extension also passed with the exact registry package:
-four Rust clients, two groups, ten phases and 15 expected deliveries. It verified
-fanout and channel isolation, nonmember rejection, member add/remove/re-add,
-denylist rejection/removal, and membership after all four clients automatically
-reconnected. Each delivery matched the SENDACK identity, sender, channel and
-payload, without duplicates or observer lag. Excluded clients were observed for
-at least 500 ms per phase. The [group receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-group-0.1.0-macos-120s.json)
-binds clean harness `0262de9454603ee528dd2d9d9f236dec89e8df2a` to the same package
-and server revisions on macOS Rust 1.86; its accompanying 120-second Rust/JS run
-confirmed 2,608 echoes and three recoveries, with one unknown-outcome interrupted
-send. All clients and owned processes were cleaned up. This is a four-client
-single-node cluster check, not large-group capacity, offline recovery or
-cross-node routing evidence. No SDK runtime change or new crate release was
-needed for this validation.
-
-The [30-minute weak-network and resource receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-network-0.1.0-macos-1800s.json)
-keeps harness `2bd61a986f4f69418b3ec95de6c272408fc6f3b5` separate from the unchanged
-0.1.0 package and pinned server above. Inspect `network.cycles` for outbound SEND
-counts, expected deliveries, explicit timeouts/backpressure/lag and recovery
-results, and `network.samples` for quiescent RSS/file-descriptor observations.
-A successful receipt requires the entire 1,800-second loop, its last complete
-cycle and process cleanup; separate short runs are never combined into that
-result. The finite resource bounds and test settings are described above.
-
-The same source passed [cross-platform CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886754): 27 protocol, lifecycle and TLS tests, Clippy, API documentation and package verification on Linux Rust 1.86/stable, macOS stable and Windows stable.
-
-[Real-server CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886664) used WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, a 256 Hash Slot single-node cluster with Token validation and explicit incorrect-Token rejection. After Rust/Rust checks, Rust exchanged 3,012 Unicode echoes with npm `easyjssdk@2.0.4` over WSS for 120 seconds, recovered from three transport interruptions and cleaned up. No duplicate echoes or event loss were observed. Five separate TLS tests cover trusted CA, unknown CA, wrong hostname, expiry and invalid configuration.
-
-A separate 600-second macOS receipt for source `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` records 13,758 echoes and three recoveries. That historical receipt remains separate from registry installation verification. Earlier server `132e46209d98fa0425cc0f88e7a97080cdad044d` passed only the initial short smoke and failed sustained messaging; it must not inherit the fixed server's acceptance results.
-
-Public registry end-to-end acceptance and historical source runs establish their respective scopes; neither proves physical-device behavior, offline recovery, capacity or multi-day stability. Return to [WuKongEasySDK](/en/sdk/easy) for other platforms.
+Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#rust) retain the exact environments and scope of past runs.

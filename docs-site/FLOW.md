@@ -37,15 +37,15 @@ examples, search, SEO, and machine-readable output. Runtime contracts are define
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. EasySDK distinguishes C#/Rust/Python public packages and C++ archives/source/vcpkg
-   pins from historical registry receipts. Rust records the exact crates.io
-   checksum and independent-consumer WSS recovery separately from historical
-   source runs, retaining exact package/harness/server identities. Python PyPI
-   validation records exact wheel/sdist hashes and installed-package product/JS
-   interoperability, with separate WSS fault/soak and group receipts, initial placement and server fixes.
-   C++ archive recovery receipts separately pin the public binary, harness and
-   product server for bounded three-node WSS verification. C# documents application endpoint replacement and optional three-node WS
-   reproduction, with server blockers separate from verified single-node receipts.
+4. EasySDK has one bilingual overview, one official-example guide, and eight
+   platform quickstarts. Each follows prepare, install, connect/listen, exchange,
+   cleanup, and troubleshooting. Alternative installs follow the first-message
+   path. `EASY_SDK_DOCUMENTATION_SPEC.md` defines the reader contract.
+   Historical package/source/server/harness identities, registry checksums,
+   fault/soak receipts and failed cluster observations live in the engineering
+   validation history linked from each tutorial; they never imply that a newer
+   tutorial version passed an older matrix. Public pages retain actionable
+   compatibility, lifecycle, and server limitations.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.

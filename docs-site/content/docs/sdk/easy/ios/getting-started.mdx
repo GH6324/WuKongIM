@@ -1,37 +1,11 @@
 ---
 title: iOS 快速接入
-description: 精确安装 WuKongEasySDK iOS 1.1.1，用可连续复制的 Swift 代码完成连接、在线收发与生命周期清理。
+description: 安装固定版本 1.1.1，通过业务后端提供的连接材料完成在线双向收发和退出清理。
 ---
 
-使用一个应用级客户端依次完成安装、连接、监听、单聊发送和清理。业务后端先提供连接材料，Alice 与 Bob 再用两个独立 App 进程验证双向在线消息。
+本教程使用 **1.1.1**，让 Alice 与 Bob 在两个独立客户端中在线收发。连接由 WebSocket JSON-RPC CONNECT 完成鉴权。
 
-<Callout type="info" title="当前 Product Gateway 支持这条连接路径">
-  当前 Product Gateway 支持固定 `v1.1.1` 的 JSON-RPC CONNECT 与在线双向收发，并兼容对象和 Base64 Payload；camelCase RECVACK 同时携带 `messageId` 与 `messageSeq`，设备线路值为 APP `0`、WEB `1`、PC `2`。教程安装 [CocoaPods 1.1.1](https://cocoapods.org/pods/WuKongEasySDK)；统一 iOS/macOS example 已在源码 `40014c16c0becd390c105098d359048901f4d87c` 上实测通过，该源码已进入 [v1.1.1 Release](https://github.com/WuKongIM/WuKongEasySDK-iOS/releases/tag/v1.1.1)。CocoaPods 正式包随后在 iOS Simulator 完成双向消息和断开。
-</Callout>
-
-## 完成后你会得到什么
-
-- 一个锁定到 `1.1.1` 的 iOS 依赖；
-- 一个应用级客户端对象，负责初始化、监听、连接和退出；
-- 一套 Alice 发送结果与 Bob 实时接收事件的双端验收骨架；
-- 明确的 Token、WSS、离线恢复和生产验收待办。
-
-## 先运行官方 example（推荐）
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-iOS.git
-cd WuKongEasySDK-iOS
-git checkout 40014c16c0becd390c105098d359048901f4d87c
-swift test
-swift build -c release
-cd Examples/WuKongIMExample-Unified
-./build.sh macos
-./build.sh ios
-```
-
-启动 iOS Simulator 后执行 `./build.sh ios --run`，或用 `./build.sh macos --run` 启动 macOS 版。完整的服务端准备与 Alice/Bob 验收见[运行官方示例](/zh/sdk/easy/examples)。源码 example 与 iOS `1.1.1` 正式包已经分别留下运行凭据，记录时仍要区分两者。
-
-## 开始前
+## 1. 准备接入
 
 准备以下条件：
 
@@ -42,7 +16,11 @@ cd Examples/WuKongIMExample-Unified
 
 先阅读[身份与 Token](/zh/guide/integration/authentication)。不要把固定 Token 写进 App、源码仓库、日志或截图。
 
-## 步骤 1：安装精确版本
+想先看到实际收发效果，可按[运行官方示例](/zh/sdk/easy/examples#ios)准备两端；下文说明如何接入自己的应用。
+
+默认设备类别为 **APP `0`**；业务后端保存 Token 时使用相同的 `device_flag`。APP 为 `0`，WEB 为 `1`，PC 为 `2`。
+
+## 2. 安装 SDK
 
 ### Swift Package Manager
 
@@ -63,17 +41,7 @@ dependencies: [
 ]
 ```
 
-### CocoaPods
-
-```ruby
-target 'YourApp' do
-  pod 'WuKongEasySDK', '1.1.1'
-end
-```
-
-然后运行 `pod install`，并从 `.xcworkspace` 打开项目。两种安装方式选择一种即可。
-
-## 步骤 2：接收业务后端的连接材料
+## 3. 连接与监听
 
 把业务后端响应映射到应用模型。真实实现应通过 HTTPS 获取，不要在客户端调用 Product HTTP 管理接口：
 
@@ -86,8 +54,6 @@ struct IMBootstrap: Decodable {
 ```
 
 `websocketUrl` 在本地开发可以是 `ws://`；生产环境应是由业务后端选择并返回的 `wss://` 地址。
-
-## 步骤 3：封装客户端生命周期
 
 下面的对象先注册监听器，再连接；退出时使用创建监听器时返回的 `EventListener` 精确移除，避免页面重进后重复处理消息。
 
@@ -134,6 +100,9 @@ final class EasyChatClient: ObservableObject {
                 guard self?.messages.contains(where: { $0.messageId == message.messageId }) == false
                 else { return }
                 self?.messages.append(message)
+                if let self, self.messages.count > 100 {
+                    self.messages.removeFirst(self.messages.count - 100)
+                }
             }
         })
         listeners.append(sdk.onError { _ in
@@ -170,6 +139,7 @@ final class EasyChatClient: ObservableObject {
             sdk.disconnect()
         }
         listeners.removeAll()
+        messages.removeAll()
         sdk = nil
         isConnected = false
     }
@@ -182,7 +152,9 @@ final class EasyChatClient: ObservableObject {
 
 不要把 `onMessage` 的匿名闭包丢掉；`removeListener` 需要注册时返回的监听器对象。示例把连接与请求上限固定为 15 秒，失败后立即 `stop()`；自动重连最多 5 次，但 UI 仍要显示未就绪状态。SwiftUI 可以让一个上层 `@StateObject` 持有 `EasyChatClient`，在退出账号或应用根视图销毁时调用 `stop()`。
 
-## 步骤 4：发送第一条消息
+## 4. 收发第一条消息
+
+`productAPI.fetchIMBootstrap()` 是你的业务登录接口，`chatClient` 是上一步创建的 `EasyChatClient`。此处是接入片段；可直接运行的完整 App 见[官方示例](/zh/sdk/easy/examples#ios)。
 
 设备标志与 Payload 已在当前服务端兼容；在用户完成产品登录后取得 Alice 的 `IMBootstrap` 并启动：
 
@@ -199,8 +171,6 @@ print("SEND completed")
 
 返回 `SendResult` 说明 Alice 获得了服务端发送结果。Bob 还必须在自己的 `onMessage` 回调中独立看到相同业务 Payload；不要仅凭本地列表插入判断对方已收到。
 
-## 步骤 5：用 Alice 和 Bob 验收
-
 1. 在两台设备或两个独立 App 进程中分别登录 Alice 与 Bob；
 2. 两端都等到 `onConnect` 后再启用发送按钮；
 3. Alice 向个人 Channel `bob` 发送消息，保存 `messageId` 与 `messageSeq`；
@@ -208,9 +178,11 @@ print("SEND completed")
 5. Bob 向 Alice 回发，再验证反向链路；
 6. 退出页面或账号，调用 `stop()`，确认没有重复监听和后台连接。
 
-上述精确源码已在 iPhone 16 / iOS 18.3 Simulator 连接同一版 WuKongIM，完成双向消息，并确认正文与时间显示正确；CocoaPods `1.1.1` 正式包随后在本地与托管 iOS Simulator 完成双向消息和断开。你仍需保留服务端与 SDK revision、Podfile.lock、设备和网络环境；物理真机、断网恢复、离线同步和 UI Ready 状态要纳入[上线检查](/zh/guide/integration/acceptance)。
+## 5. 清理连接
 
-## 常见问题
+在退出账号或销毁连接所有者时调用 `chatClient.stop()`。它移除 `EventListener` 并 `disconnect()`；页面重新展示时不要重复创建应用级连接。示例只保留最近 100 条消息用于展示，不是持久消息库。
+
+## 6. 常见问题
 
 - **编译提示 API 仅 iOS 15 可用**：把部署目标提高到 iOS 15，不能只看 `Package.swift` 中较低的平台声明。
 - **连接或认证失败**：从设备网络访问后端返回的地址，检查 WSS、证书与代理 Upgrade，再刷新短期 Token；不要把容器内地址返回给手机。
@@ -219,13 +191,16 @@ print("SEND completed")
 - **消息重复出现**：确认监听器只注册一次，并按 `messageId` 合并实时和后续同步结果。
 - **发送成功但 Bob 没收到**：分别检查 Alice 的发送结果、Bob 的实时连接以及产品后续的离线同步，不要自动重发一个已经提交的消息。
 
-## 上线前检查
+## 其他安装方式：CocoaPods
 
-- 使用 `wss://`，在真实设备网络验证证书、代理 Upgrade、超时与断网恢复；
-- 验证无效、过期和撤销 Token 会被拒绝，不把 `/user/token` 成功当作 CONNECT 校验凭据；
-- `v1.1.1` 的诊断默认关闭；生产同时保持 `enableDebugLogging` 与 `enableJsonLogging` 为 `false`，用非生产 canary 确认设备日志和崩溃报告不含 Token、Payload 或完整 JSON-RPC 数据；
-- 保存 Release 构建、iOS 版本、设备、网络和服务端 revision 的实际结果，再按[上线验收](/zh/guide/integration/acceptance)补齐离线、推送、容量与回滚。
+```ruby
+target 'YourApp' do
+  pod 'WuKongEasySDK', '1.1.1'
+end
+```
+
+然后运行 `pod install`，并从 `.xcworkspace` 打开项目。两种安装方式选择一种即可。
 
 ## 下一步
 
-回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/guide/integration/messaging)、[自定义消息](/zh/sdk/wukongim/concepts)与[上线检查](/zh/guide/integration/acceptance)。
+继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#ios)保留各次验证的完整环境和范围。

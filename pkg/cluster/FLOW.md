@@ -38,13 +38,11 @@ It does not own Manager or product business policy.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    group Channel- or UID-owned work by physical Slot, execute locally or
    forward, and recheck leadership. Device credentials use the authoritative Slot proxy.
-   Person-directory prepare joins UID
-   membership/runtime metadata before publishing directory-ready.
+   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader; repair uses current health, fair per-Slot cursors, and authoritative cold-replica probes.
-   Migration execution rotates active-index pages across owned hash slots and
-   advances each task independently so a waiting recovery cannot starve others.
+   Migration execution rotates active-index pages across owned hash slots; waiting tasks cannot starve others.
 4. Conversation hydration batch-reads lifecycle and runtime routes by physical
    Slot, preserves alignment and item errors, and groups heads by exact Leader;
    a cold quorum Leader with durable HW below LEO recovers before read retry.

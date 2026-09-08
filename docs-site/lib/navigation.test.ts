@@ -229,7 +229,7 @@ describe('documentation navigation contract', () => {
       ['ios/getting-started', 'v1.1.1'],
       ['android/getting-started', 'v1.0.5'],
       ['flutter/getting-started', 'v1.1.0'],
-      ['javascript/getting-started', 'v2.0.4'],
+      ['javascript/getting-started', 'v2.0.5'],
       ['python/getting-started', '0.1.0'],
       ['csharp/getting-started', '1.0.0'],
     ]);
@@ -248,8 +248,8 @@ describe('documentation navigation contract', () => {
     ]);
     for (const page of easy?.children ?? []) {
       if (page.slug === 'examples') {
-        expect(page.description.zh).toContain('四端正式包');
-        expect(page.description.en).toContain('four released packages');
+        expect(page.description.zh).toContain('八个平台');
+        expect(page.description.en).toContain('eight platforms');
         continue;
       }
       if (page.slug === 'rust/getting-started') {
@@ -267,8 +267,8 @@ describe('documentation navigation contract', () => {
       expect(page.description.zh).toContain(snapshot!);
       expect(page.description.en).toContain(snapshot!);
     }
-    expect(easy?.description.zh).toContain('已验证的正式包或固定源码');
-    expect(easy?.description.en).toContain('verified released packages');
+    expect(easy?.description.zh).toContain('固定版本的 SDK');
+    expect(easy?.description.en).toContain('pinned SDK versions');
     for (const url of [
       '/en/sdk/easy',
       '/en/sdk/easy/examples',

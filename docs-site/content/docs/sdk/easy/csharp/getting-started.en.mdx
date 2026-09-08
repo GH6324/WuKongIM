@@ -1,15 +1,11 @@
 ---
 title: C# quickstart
-description: Integrate the WuKongEasySDK-CSharp NuGet release with .NET 8 for authentication, online messaging, automatic reconnect, and async cleanup.
+description: Prepare, install, connect, exchange the first messages, and clean up.
 ---
 
-[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) follows the JavaScript EasySDK WebSocket JSON-RPC protocol with idiomatic async C# APIs and typed events. It has no third-party runtime dependencies.
+Use .NET 8+ and NuGet **1.0.0** to exchange online messages between two independent console clients.
 
-<Callout type="info" title="NuGet release 1.0.0">
-  [WuKongEasySDK 1.0.0](https://www.nuget.org/packages/WuKongEasySDK/1.0.0) is published on nuget.org from source `02ea7d60cd94feef1996f41bca35ffc3b8e18ea6`. The default installation below uses public NuGet; project references and local packing remain available for source builds.
-</Callout>
-
-## Before you begin
+## 1. Prepare
 
 - Prepare .NET 8 or later on Windows, Linux, or macOS. The target framework is `net8.0`; Unity, .NET Framework, and browser WebAssembly are not currently supported.
 - Start a WuKongIM single-node cluster or multi-node cluster with a healthy `/readyz` and a reachable WebSocket Gateway. A single-node cluster still follows cluster semantics and defaults to 256 hash slots.
@@ -17,36 +13,6 @@ description: Integrate the WuKongEasySDK-CSharp NuGet release with .NET 8 for au
 - C# defaults to PC/Desktop `2`. The backend token's `device_flag` must match the client; APP is `0` and Web is `1`.
 
 Read [Identity & Token](/en/guide/integration/authentication) first. Production uses HTTPS/WSS with certificate validation. Tokens do not belong in URLs, logs, or source code.
-
-## 1. Install the NuGet release
-
-```bash
-dotnet new console -n MyChat --framework net8.0
-dotnet add MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source https://api.nuget.org/v3/index.json
-```
-
-### Optional: build from pinned source
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
-git -C WuKongEasySDK-CSharp checkout 02ea7d60cd94feef1996f41bca35ffc3b8e18ea6
-dotnet new console -n MyChat --framework net8.0
-dotnet add MyChat/MyChat.csproj reference WuKongEasySDK-CSharp/src/WuKongEasySDK/WuKongEasySDK.csproj
-```
-
-The two directories are siblings. Record the exact source revision in your build configuration or maintain the reference through a submodule pinned to that commit.
-
-For a local NuGet installation, build the package from that pinned checkout:
-
-```bash
-cd WuKongEasySDK-CSharp
-dotnet pack src/WuKongEasySDK -c Release -o artifacts
-dotnet add ../MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source ./artifacts
-```
-
-Choose one of the public package, project reference, or local package. Do not combine them. Here, `--source ./artifacts` is the local feed you just built.
-
-## 2. Obtain connection material from your backend
 
 After product login, retrieve this minimal response through a protected product route:
 
@@ -60,7 +26,16 @@ After product login, retrieve this minimal response through a protected product 
 
 The console example reads these values from `WUKONGIM_WS_URL`, `WUKONGIM_UID`, and `WUKONGIM_TOKEN`. A desktop application can consume the login response directly. These variables belong to the example; they are not the server's `WK_` configuration keys.
 
-## 3. Connect, subscribe, and send
+Use [the shared example setup](/en/sdk/easy/examples) for the server, test accounts, and reachable addresses, then continue with installation below.
+
+## 2. Install the SDK
+
+```bash
+dotnet new console -n MyChat --framework net8.0
+dotnet add MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source https://api.nuget.org/v3/index.json
+```
+
+## 3. Connect and listen
 
 Replace `MyChat/Program.cs` with the following. Set the three environment variables for the current identity and supply the other user's UID as a command-line argument.
 
@@ -125,7 +100,9 @@ In separate terminals using Alice and Bob's connection material, run `dotnet run
 
 SDK logging is disabled by default. Setting `WKIMOptions.DebugLogger` enables only fixed operational strings, excluding tokens, payloads, raw frames, and server error bodies.
 
-## 4. Groups, send results, and received data
+## 4. Exchange the first message
+
+Once both clients are connected, Alice sends to `bob` and Bob checks the sender and content in the message callback. Then Bob sends to `alice`. A send result means the server accepted the request; it is not recipient delivery or a read receipt.
 
 Use `ChannelType.Group` with a backend-managed group ID for group messages. Membership and permissions remain server decisions. `SendOptions` provides `ClientMsgNo`, `Header`, `Setting`, and `Topic`. The default header sets `RedDot = true`; an explicitly supplied header is respected.
 
@@ -135,7 +112,7 @@ Message IDs use `string`; numeric wire IDs never pass through floating-point con
 
 `RecvMessage.Payload` and `EventNotification.Data` are independently owned `JsonElement` values. Receive payloads accept JSON objects or Base64 JSON; undecodable strings remain unchanged. Custom event JSON strings become JSON values, while plain strings remain strings.
 
-## 5. Reconnect, cancellation, and cleanup
+## 5. Clean up
 
 | Behavior | C# SDK contract |
 | --- | --- |
@@ -155,60 +132,35 @@ RECVACK means admission to the SDK receive queue, not successful business proces
 
 The SDK does not queue offline messages or automatically resend SEND. A timeout, cancellation, or disconnect may leave the send outcome uncertain. Reconcile business state first; reuse `SendOptions.ClientMsgNo` when retrying the same logical message. Your application owns offline recovery, conversations, unread counts, push, and business receipts.
 
-## 6. Run the official example and acceptance
+## 6. Troubleshooting
 
-From the pinned checkout:
+**Does reconnect select another address?** Each instance retries its fixed URL. Let the backend choose a live ingress, await `DisposeAsync` on the old instance, and create a replacement. Complete three-node fault recovery still has [known server issues](https://github.com/WuKongIM/WuKongIM/issues/927); single-node messaging does not establish continuous availability during cluster faults.
 
-```bash
-dotnet build -c Release
-dotnet test -c Release
-dotnet run --project examples/ConsoleChat -- bob
-```
+**Can I retry a timed-out send?** Its result may be unknown. Reconcile first, then follow the `ClientMsgNo` idempotency contract.
 
-The console example uses the same environment variables. Type text to send, and use `/quit` or Ctrl+C to exit. It displays message text as chat UI without printing complete protocol objects.
+**Why does a UI update fail?** Events dispatch in the background; marshal WinForms/WPF updates to the UI thread.
 
-With a prebuilt server binary, run the automated real-process fixture:
+## Alternative installation: source and local packages
 
 ```bash
-WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py
+git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
+git -C WuKongEasySDK-CSharp checkout 02ea7d60cd94feef1996f41bca35ffc3b8e18ea6
+dotnet new console -n MyChat --framework net8.0
+dotnet add MyChat/MyChat.csproj reference WuKongEasySDK-CSharp/src/WuKongEasySDK/WuKongEasySDK.csproj
 ```
 
-The script starts and cleans up only its own loopback single-node cluster with 256 hash slots and Token authentication. It prepares two test identities and verifies matching SENDACK/RECV for bidirectional Unicode messages, reconnect, heartbeat, and invalid-token rejection.
+The two directories are siblings. Record the exact source revision in your build configuration or maintain the reference through a submodule pinned to that commit.
 
-The original implementation `d365a354f5e0f25fbd7f83bb59aa365ba43e899f` passed 35 tests, Release builds, and local NuGet packing on macOS arm64 with .NET SDK `8.0.424` / runtime `8.0.30`. It also passed the real-process fixture against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`. Loopback WebSocket tests cover custom events and reconnect failures. This receipt excludes public NuGet downloads, production WSS, offline recovery, multi-node capacity, and long-duration stability.
+For a local NuGet installation, build the package from that pinned checkout:
 
-The independent [NuGet `1.0.0` release verification](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34188740990) covers builds, 35 SDK tests, seven release guard tests, and clean local package installation on Windows, Linux, and macOS. After publication it downloads the exact version from nuget.org, compares every entry except NuGet’s signature with the tested artifact, and restores, compiles, loads, and disposes the client in an isolated project with an empty package cache and only the public feed. This public installation receipt is separate from the real-server messaging receipt above.
+```bash
+cd WuKongEasySDK-CSharp
+dotnet pack src/WuKongEasySDK -c Release -o artifacts
+dotnet add ../MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source ./artifacts
+```
 
-### C# / JavaScript interoperability
-
-The earlier independent [C#/JS interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34191886039) tests both public NuGet `WuKongEasySDK 1.0.0` restored into an empty package cache and candidate C# source. It pins npm `easyjssdk 2.0.4`, Node 24 with `ws 8.21.3`, and server `v3.0.0-beta.9` / `734166e0ec30fc0f6f10fef6f6d1889d079ab636`. Harness source `1db387c4f794a45bdb6f4e419d68dbe2bfef740f` is recorded separately from the NuGet package source.
-
-Five scenario groups cover bidirectional Chinese/emoji and nested custom payloads, exact message IDs above JavaScript's safe integer range and matching SENDACK/RECV, invalid Token rejection, automatic network recovery, real server crash/restart, and manual disconnect with rejected offline SEND followed by explicit reconnect. This server omits `clientMsgNo` in SENDACK; RECV must preserve the supplied correlation value.
-
-The [earlier reproduction record](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/1db387c4f794a45bdb6f4e419d68dbe2bfef740f/docs/interoperability.md) covers Node with `ws`. The native Node reconnect stall observed there is addressed by the separately identified source repair and acceptance below.
-
-### Chromium/WSS and native Node recovery
-
-The [earlier extended interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34195913516) tests both public NuGet `1.0.0` and candidate C# source with Node `24.3.0` native WebSocket and real Chromium driven by Playwright `1.62.1`. It retains server pin `734166e0ec30fc0f6f10fef6f6d1889d079ab636` and pins repaired JS source `5e5dfb727fb0ea08294939962ae799e998b7ca5c`. The repair settles handshake failures that emit `error` without a subsequent `close`, allowing bounded retries to continue. npm `easyjssdk 2.0.4` **does not contain this repair**.
-
-The browser opens a real HTTPS page and connects over WSS; C# uses its existing `ClientWebSocket`. A temporary CA and isolated browser NSS trust database preserve normal certificate validation. Both clients must reject untrusted CA and mismatched-host certificates without forwarding decrypted application requests to the server protocol. These controls precede the five bidirectional messaging, invalid Token, network recovery, server restart, and manual disconnect scenarios.
-
-The JS repair is now published in [npm `easyjssdk 2.0.5`](https://www.npmjs.com/package/easyjssdk/v/2.0.5), from source `b6d0bbe822b9c5b6f95a10d55b593d30184414f6`. The [public-package interoperability CI](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34198683155) installs that exact npm package into an empty cache. All six combinations of released NuGet / candidate C# with `ws`, native Node, and Chromium WSS passed, including the certificate rejection controls above.
-
-That single-node matrix runs four Linux jobs, producing six reports that retain the npm tarball URL and SHA-512 integrity, actual harness commit, Chromium version, and certificate controls. See [reproduction and trust scope](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/c143be832d6439295a213176274faf2ffb4b9868/docs/interoperability.md). This verifies the temporary CA, loopback TLS proxy, and Chromium; it does not establish every public CA, reverse proxy, Firefox/WebKit, multi-node capacity, or long-duration stability.
-
-### Three-node clusters and application address replacement
-
-Complete three-node fault recovery acceptance has not passed. Server migration, recovery log conflicts, and post-rejoin delivery findings are tracked in [issue 927](https://github.com/WuKongIM/WuKongIM/issues/927). This task covers SDK work, tests, and documentation; earlier unmerged server experiments are not released capability evidence. The passing single-node WS/WSS results above retain their own exact versions and run records.
-
-**The application owns address replacement.** Each SDK instance retries its fixed endpoint. A trusted backend selects a live ingress and obtains its `/route`. Await `DisposeAsync` on the previous instance, then create a replacement with the new URL and existing credentials, register handlers, and connect. An interrupted SEND may have an unknown outcome; do not automatically replay acknowledged or ambiguous messages.
-
-The [manual three-node reproduction](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/8a1525dce74ad23cf8f7f47d91adaa9fc5b459f1/docs/cluster-acceptance.md) pins public NuGet `WuKongEasySDK 1.0.0`, npm `easyjssdk 2.0.5`, Node `24.3.0`, and released server `v3.0.0-beta.9` source `734166e0ec30fc0f6f10fef6f6d1889d079ab636`. Three loopback processes use 256 hash slots, 10 logical Slots, and three replicas. The fixture checks cross-ingress person/group messages, disconnect and offline-send rejection, application instance replacement, and rejoin with strict ACK/RECV correlation and payload checks. Node readiness and full ISR metadata do not prove physical replica catch-up.
-
-Regular push/PR CI runs four single-node jobs and produces six WS/native Node/Chromium WSS reports. Manual dispatch with `include_cluster=true` adds two cluster reproduction jobs. Server blockers fail those jobs normally and do not count as passing SDK cluster acceptance. Run locally with `python3 scripts/interop.py --transport native --topology three-node`, adding `--candidate` for C# source and supplying the exact server binary as documented by the fixture.
-
-The reproduction records login delays under the default 90-second presence lease and its explicit migration scan budget. Bounded retry of the observed activation error `15` is a reproduction control, not advice to retry arbitrary system errors or SENDs. It does not establish complete three-node recovery, immediate address switching, multi-node WSS, offline synchronization, large-group capacity, or long-duration stability.
+Choose one of the public package, project reference, or local package. Do not combine them. Here, `--source ./artifacts` is the local feed you just built.
 
 ## Next
 
-See [Run the Official Examples](/en/sdk/easy/examples) and the [SDK validation record](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/d365a354f5e0f25fbd7f83bb59aa365ba43e899f/docs/validation.md), or return to [WuKongEasySDK](/en/sdk/easy) to compare platforms. Continue production integration with [Messaging](/en/guide/integration/messaging) and [Integration Acceptance](/en/guide/integration/acceptance).
+Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#csharp) retain the exact environments and scope of past runs.

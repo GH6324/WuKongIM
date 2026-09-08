@@ -1,21 +1,19 @@
 ---
 title: C++ quickstart
-description: Install WuKongEasySDK-CPP and its dependencies with vcpkg, then use CMake for C++17 messaging, reconnect, and thread ownership.
+description: Prepare, install, connect, exchange the first messages, and clean up.
 ---
 
-[WuKongEasySDK-CPP](https://github.com/WuKongIM/WuKongEasySDK-CPP) follows JS `v2.0.4` for WebSocket JSON-RPC CONNECT, online messaging, automatic RECVACK, heartbeat, reconnect, and custom events. It uses C++17, Boost.Beast, OpenSSL, and nlohmann/json.
+Use C++17, CMake, and WuKongEasySDK **0.1.0** for online messaging. The main path uses the WuKongIM-maintained vcpkg registry; alternative installation methods follow the tutorial.
 
-<Callout type="info" title="Prebuilt, vcpkg and pinned source integration">
-  This tutorial pins project `0.1.0` source `3e367a908f42385ab9306f9708b7456399cace7d`, available through the WuKongIM-maintained vcpkg Git registry or CMake source installation. Version v0.1.0 also provides prebuilt SDK archives; this registry is not Microsoft’s curated catalog. This source connected to WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` with Token authentication enabled in a 256-hash-slot single-node cluster and completed C++/C++ and C++/JS bidirectional messaging. See the repository [validation record](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md) for the exact scope.
-</Callout>
-
-## 1. Prepare Alice and Bob
+## 1. Prepare
 
 Follow [Authentication & Tokens](/en/guide/integration/authentication) to obtain each user's `uid`, `token`, and `websocketUrl` from your trusted application backend. Clients connect only to Gateway and never call Product HTTP management endpoints. Wire device flags are APP `0`, WEB `1`, PC/Desktop `2`; C++ defaults to Desktop, so the backend must store the Token under the same device category.
 
 The default development server example uses `ws://127.0.0.1:5200` with path `/`. Use `ws://127.0.0.1:5200/ws` only when your listener or proxy is configured for `/ws`. Across machines, use a client-reachable address; production uses `wss://`. Shared setup is in [Run Official Examples](/en/sdk/easy/examples).
 
-## 2. Recommended: vcpkg + CMake
+Use [the shared example setup](/en/sdk/easy/examples) for the server, test accounts, and reachable addresses, then continue with installation below.
+
+## 2. Install the SDK
 
 Install [vcpkg](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started)
 and set `VCPKG_ROOT` to its directory. Keep Git, CMake 3.20+ and a C++17 compiler
@@ -60,17 +58,9 @@ find_package(WuKongEasySDK 0.1 CONFIG REQUIRED)
 add_executable(my_app main.cpp)
 target_link_libraries(my_app PRIVATE WuKongEasySDK::WuKongEasySDK)
 ```
-```sh
-# Linux / macOS
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel 2
-```
 
-```powershell
-# Windows / Visual Studio 2022
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows
-cmake --build build --config Release --parallel 2
-```
+
+
 
 vcpkg installs the SDK, Boost, OpenSSL and JSON automatically. The first build
 may compile dependencies and take several minutes; this is not a prebuilt
@@ -84,11 +74,119 @@ the dependency manifest. SDK source is pinned to
 Commit both JSON files to reproduce dependency selection. Existing projects
 should merge these entries into their manifests instead of overwriting them.
 
-As of 2026-09-08, the curated-catalog submission is [microsoft/vcpkg#53837](https://github.com/microsoft/vcpkg/pull/53837) and has not been merged. The proposed port builds the official `v0.1.0` tag; the instructions above still use the WuKongIM custom registry and require `vcpkg-configuration.json`.
-
 [Independent consumer example](https://github.com/WuKongIM/WuKongEasySDK-CPP/tree/main/examples/vcpkg-consumer) · [Registry maintenance](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/main/docs/VCPKG.md)
 
-## Alternative: download and extract a prebuilt SDK
+## 3. Connect and listen
+
+Save the complete program below as `main.cpp`. Set your own `WKIM_URL`, `WKIM_UID`, and `WKIM_TOKEN`; the first argument is the peer UID.
+
+```cpp
+#include <wukong/wkim.hpp>
+#include <cstdlib>
+#include <iostream>
+
+int main(int argc, char** argv) {
+    const char* token = std::getenv("WKIM_TOKEN");
+    const char* url = std::getenv("WKIM_URL");
+    const char* uid = std::getenv("WKIM_UID");
+    if (!token || !url || !uid || argc != 2) return 2;
+    try {
+        wukong::Options options;
+        options.connectionTimeout = std::chrono::seconds(10);
+        options.requestTimeout = std::chrono::seconds(15);
+        wukong::WKIM im(url, {uid, token}, options);
+
+        auto messageListener = im.on(wukong::WKIMEvent::Message,
+            [](const wukong::Json& message) {
+                // Copy message.at("payload") into your application's UI/event queue.
+                // This callback runs on the SDK I/O thread.
+                (void)message;
+                std::cout << "Message received\n";
+            });
+        auto errorListener = im.on(wukong::WKIMEvent::Error,
+            [](const wukong::Json&) {
+                // Dispatch a sanitized failure state to the application.
+            });
+
+        im.connect().get();
+        std::cout << "Connected. Start the peer, then press Enter to send.\n";
+        std::cin.get();
+        wukong::SendOptions sendOptions;
+        // Supply a stable clientMsgNo when the application needs reconciliation.
+        auto ack = im.send(argv[1], wukong::WKIMChannelType::Person,
+                          {{"type", 1}, {"content", "Hello from C++!"}},
+                          sendOptions).get();
+        if (ack.reasonCode == 1) std::cout << "SEND completed\n";
+        std::cin.get();
+
+        im.off(messageListener);
+        im.off(errorListener);
+        im.disconnect().get();
+        im.destroy().get();
+    } catch (const wukong::Error&) {
+        std::cerr << "EasySDK operation failed\n";
+        return 1;
+    }
+}
+```
+
+`connect()` succeeds only after authentication. For group messages, use `WKIMChannelType::Group` after your backend creates the Channel and membership. Payload accepts a JSON object or array, encoded as Base64 UTF-8 JSON. Incoming objects, JSON text, and Base64 JSON are supported. Message IDs stay strings to preserve 64-bit precision.
+
+Send results contain `messageId`, `messageSeq`, and `reasonCode`. Receive events additionally contain `header`, second-based `timestamp`, `channelId`, `channelType`, `fromUid`, and `payload`. Automatic RECVACK includes `messageId` and `messageSeq`; this is a transport receipt, not a business read receipt. See [Messaging](/en/guide/integration/messaging) for the distinction between send completion, receipt, and application processing.
+
+## 4. Exchange the first message
+
+```sh
+# Linux / macOS
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel 2
+```
+
+```powershell
+# Windows / Visual Studio 2022
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows
+cmake --build build --config Release --parallel 2
+```
+
+After building, run in two terminals with their respective credentials:
+
+```sh
+# Alice
+./build/my_app bob
+# Bob
+./build/my_app alice
+```
+
+On Windows use `build/Release/my_app.exe`. When both show `Connected`, press Enter on each to send. Check `SEND completed` and the peer’s `Message received`; press Enter again after checking both directions to exit.
+
+Once both clients are connected, Alice sends to `bob` and Bob checks the sender and content in the message callback. Then Bob sends to `alice`. A send result means the server accepted the request; it is not recipient delivery or a read receipt.
+
+## 5. Clean up
+
+Each instance owns one identity and one I/O thread, with no global singleton. Public operations support concurrent application threads; events are dispatched serially on the I/O thread. A callback may enqueue an asynchronous operation, but **must never wait on an SDK future**. Dispatch UI updates and slow work to your application's executor.
+
+| Operation | Semantics |
+| --- | --- |
+| `on(...)` / `off(listenerId)` | Retain and remove listener IDs; callbacks already selected for dispatch may still finish |
+| `connect()` | Concurrent callers share one authentication attempt; connected calls return the current result |
+| `disconnect()` | Cancel pending requests, socket, heartbeat, and reconnect; reconnect is allowed afterwards |
+| `destroy()` | Terminal shutdown; later operations reject; repeated calls are safe |
+| Destructor | Initiates cleanup and joins the thread; callback-owned destruction exits the thread after callback completion |
+| Change identity, Token, or URL | Shut down the old instance and create a new one |
+
+Captured application state must outlive client shutdown. Capture the client through `weak_ptr` to avoid ownership cycles. Removing a listener alone does not permit freeing captured state until shutdown finishes. Socket cancellation bounds cleanup without waiting for the peer's close handshake.
+
+## 6. Troubleshooting
+
+Defaults are a 10-second total connection deadline, 15-second request deadline, 25-second ping interval, and 10-second pong timeout. A same-ID `result: null` acknowledges heartbeat. After a previously authenticated connection is lost, retry at most five times with exponential delay from 1 second to a 30-second cap and jitter. Initial connect failures return to the caller; authentication rejection, server-requested disconnect, malformed protocol, and manual exit stop automatic retries.
+
+Defaults allow 1,024 pending requests, separate 4 MiB command and WebSocket write queues, and 1 MiB per wire message. Capacity failures use `ErrorCode::QueueFull`; local errors are negative, while server reason codes are preserved by `Error::code()`. A timeout or lost connection can leave send delivery unknown; reconcile through `clientMsgNo`. The SDK does not queue offline or automatically resend.
+
+WSS verifies the certificate chain and hostname and requires TLS 1.2+. Use `Options::caFile` for a private PEM CA; the console also reads `WKIM_CA_FILE`. There is no certificate-verification bypass. The SDK is default-silent and never logs Tokens, payloads, URLs, raw frames, server response text, or underlying error objects.
+
+Receive `id`, `type`, millisecond-based `timestamp`, and `data` through `WKIMEvent::CustomEvent`; JSON-string data is parsed. Event reception depends on the server producing that notification.
+
+## Alternative installation: prebuilt archives
 
 To skip dependency compilation, download the matching ZIP and `SHA256SUMS` from [C++ SDK v0.1.0 Release](https://github.com/WuKongIM/WuKongEasySDK-CPP/releases/tag/v0.1.0), verify its SHA-256 and extract it. You only need CMake 3.20+ and a compatible C++ development environment; no separate vcpkg installation is required.
 
@@ -122,7 +220,7 @@ OpenSSL is static on Unix and uses bundled DLLs on Windows. Deploy Windows appli
 
 Fresh jobs download each platform's ZIP and compile Debug/Release consumers at a different path, running lifecycle checks and 26 WS/WSS scenarios per configuration. Linux/macOS also use the pinned WuKongIM server to verify bidirectional messaging, reconnect and presence cleanup. Windows evidence uses the protocol fixture, not a Windows server. See [prebuilt package documentation](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/v0.1.0/docs/PREBUILT.md) for compatibility and release acceptance.
 
-## Alternative: fetch and build pinned source
+## Alternative installation: build from source
 
 Requirements: CMake 3.20+, a C++17 compiler, Boost 1.74+, OpenSSL 1.1.1+, and nlohmann/json 3.11+. Products should use maintained dependency versions with current security fixes.
 
@@ -161,7 +259,7 @@ target_link_libraries(my_app PRIVATE WuKongEasySDK::WuKongEasySDK)
 
 Alternatively, run `cmake --install build --config Release --prefix /path/to/sdk-prefix`, use `find_package(WuKongEasySDK 0.1 CONFIG REQUIRED)` downstream, and point `CMAKE_PREFIX_PATH` at the installation. The static-library export preserves its dependencies; Windows distribution must include any required dynamic dependencies.
 
-## 3. Run the interactive example first
+## Run the archive or source chat example
 
 In two terminals, supply each user's backend-issued Token through `WKIM_TOKEN`, then run:
 
@@ -176,94 +274,6 @@ After both print `Connected`, enter text, observe `Message` on the other side, a
 
 The example intentionally displays business message content; the SDK itself emits no logs. Do not pipe the example terminal into production log collection.
 
-## 4. Connect, listen, and send in your application
+## Next
 
-This complete example reads Alice's Token from the environment, sends one message, and waits for Enter before exiting. Bob must already be online.
-
-```cpp
-#include <wukong/wkim.hpp>
-#include <cstdlib>
-#include <iostream>
-
-int main() {
-    const char* token = std::getenv("WKIM_TOKEN");
-    if (!token) return 2;
-    try {
-        wukong::Options options;
-        options.connectionTimeout = std::chrono::seconds(10);
-        options.requestTimeout = std::chrono::seconds(15);
-        wukong::WKIM im("ws://127.0.0.1:5200", {"alice", token}, options);
-
-        auto messageListener = im.on(wukong::WKIMEvent::Message,
-            [](const wukong::Json& message) {
-                // Copy message.at("payload") into your application's UI/event queue.
-                // This callback runs on the SDK I/O thread.
-                (void)message;
-            });
-        auto errorListener = im.on(wukong::WKIMEvent::Error,
-            [](const wukong::Json&) {
-                // Dispatch a sanitized failure state to the application.
-            });
-
-        im.connect().get();
-        wukong::SendOptions sendOptions;
-        // Supply a stable clientMsgNo when the application needs reconciliation.
-        auto ack = im.send("bob", wukong::WKIMChannelType::Person,
-                          {{"type", 1}, {"content", "Hello from C++!"}},
-                          sendOptions).get();
-        if (ack.reasonCode == 1) std::cout << "SEND completed\n";
-        std::cin.get();
-
-        im.off(messageListener);
-        im.off(errorListener);
-        im.disconnect().get();
-        im.destroy().get();
-    } catch (const wukong::Error&) {
-        std::cerr << "EasySDK operation failed\n";
-        return 1;
-    }
-}
-```
-
-`connect()` succeeds only after authentication. For group messages, use `WKIMChannelType::Group` after your backend creates the Channel and membership. Payload accepts a JSON object or array, encoded as Base64 UTF-8 JSON. Incoming objects, JSON text, and Base64 JSON are supported. Message IDs stay strings to preserve 64-bit precision.
-
-Send results contain `messageId`, `messageSeq`, and `reasonCode`. Receive events additionally contain `header`, second-based `timestamp`, `channelId`, `channelType`, `fromUid`, and `payload`. Automatic RECVACK includes `messageId` and `messageSeq`; this is a transport receipt, not a business read receipt. See [Messaging](/en/guide/integration/messaging) for the distinction between send completion, receipt, and application processing.
-
-## 5. Own threads and account lifecycle
-
-Each instance owns one identity and one I/O thread, with no global singleton. Public operations support concurrent application threads; events are dispatched serially on the I/O thread. A callback may enqueue an asynchronous operation, but **must never wait on an SDK future**. Dispatch UI updates and slow work to your application's executor.
-
-| Operation | Semantics |
-| --- | --- |
-| `on(...)` / `off(listenerId)` | Retain and remove listener IDs; callbacks already selected for dispatch may still finish |
-| `connect()` | Concurrent callers share one authentication attempt; connected calls return the current result |
-| `disconnect()` | Cancel pending requests, socket, heartbeat, and reconnect; reconnect is allowed afterwards |
-| `destroy()` | Terminal shutdown; later operations reject; repeated calls are safe |
-| Destructor | Initiates cleanup and joins the thread; callback-owned destruction exits the thread after callback completion |
-| Change identity, Token, or URL | Shut down the old instance and create a new one |
-
-Captured application state must outlive client shutdown. Capture the client through `weak_ptr` to avoid ownership cycles. Removing a listener alone does not permit freeing captured state until shutdown finishes. Socket cancellation bounds cleanup without waiting for the peer's close handshake.
-
-## 6. Heartbeat, reconnect, errors, and WSS
-
-Defaults are a 10-second total connection deadline, 15-second request deadline, 25-second ping interval, and 10-second pong timeout. A same-ID `result: null` acknowledges heartbeat. After a previously authenticated connection is lost, retry at most five times with exponential delay from 1 second to a 30-second cap and jitter. Initial connect failures return to the caller; authentication rejection, server-requested disconnect, malformed protocol, and manual exit stop automatic retries.
-
-Defaults allow 1,024 pending requests, separate 4 MiB command and WebSocket write queues, and 1 MiB per wire message. Capacity failures use `ErrorCode::QueueFull`; local errors are negative, while server reason codes are preserved by `Error::code()`. A timeout or lost connection can leave send delivery unknown; reconcile through `clientMsgNo`. The SDK does not queue offline or automatically resend.
-
-WSS verifies the certificate chain and hostname and requires TLS 1.2+. Use `Options::caFile` for a private PEM CA; the console also reads `WKIM_CA_FILE`. There is no certificate-verification bypass. The SDK is default-silent and never logs Tokens, payloads, URLs, raw frames, server response text, or underlying error objects.
-
-Receive `id`, `type`, millisecond-based `timestamp`, and `data` through `Event::CustomEvent`; JSON-string data is parsed. Event reception depends on the server producing that notification.
-
-## Released-package three-node verification
-
-The public `v0.1.0` Linux x64 and macOS arm64 archives have also passed an independent Debug/Release consumer test against WuKongIM `5f5003778ccee6786591ed9968a5185e9213ea55`: three nodes, 256 hash slots, 12 logical Slots, three Slot replicas and Token authentication enabled. C++ and the actual JS `2.0.4` SDK connect to different nodes through WSS with temporary trusted certificates. The harness checks bidirectional messaging and matching SENDACK/receive IDs, withheld-ACK timeouts, connection loss without automatic SEND replay, ingress-node crash/restart, continued traffic between surviving nodes, and online-route cleanup. See the [exact inputs, receipt and repeatable test](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/abba280187987195614e2e25c89089475dca1979/docs/CLUSTER_VALIDATION.md) and the successful [Linux/macOS workflow](https://github.com/WuKongIM/WuKongEasySDK-CPP/actions/runs/34202657379).
-
-A timeout or connection error does **not** prove that a message was not delivered. In the fault test, the receiver already has the message while the sender cannot receive its SENDACK. Reconcile uncertain outcomes using `clientMsgNo` and your backend's history policy. Reconnection returns to the configured Gateway URL; it does not automatically discover a replacement URL or synchronize offline history.
-
-This bounded test uses three processes on one host and a TLS termination proxy. It does not establish multi-host network-partition behavior, production CA configuration, Windows product-server behavior, capacity or long-duration stability.
-
-## Before production
-
-Earlier source validation separately covers protocol and WS/WSS tests, memory and undefined-behavior instrumentation, installed consumers, and real single-node-cluster messaging, reconnect, invalid-token rejection and presence cleanup. The released-package three-node evidence above names its own artifact and server revisions; source-only results must not be attributed to a different binary.
-
-Also validate the actual target system, real-network WSS, proxy path, Token rotation, duplicate delivery, capacity, monitoring, and rollback. This SDK does not provide offline recovery, conversations, unread counts, or push; choose a full SDK for those requirements. Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Release Checks](/en/guide/integration/acceptance).
+Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#cpp) retain the exact environments and scope of past runs.

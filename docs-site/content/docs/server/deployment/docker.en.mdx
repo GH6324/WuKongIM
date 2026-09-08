@@ -65,6 +65,15 @@ Do not leave the file as root-only `0600`; the container will repeatedly restart
 
 ## 2. Start and verify
 
+Official images are published to both GHCR and Alibaba Cloud Container Registry with identical image contents for the same version. Users in mainland China should use the Alibaba Cloud image:
+
+| Registry | Image address |
+| --- | --- |
+| GHCR | `ghcr.io/wukongim/wukongim:WK_CURRENT_IMAGE_TAG` |
+| Alibaba Cloud (recommended for mainland China) | `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:WK_CURRENT_IMAGE_TAG` |
+
+The examples below use GHCR. If the pull fails, replace the image address on the last line of `docker run` or the `image` value in `compose.yaml` with the Alibaba Cloud address above, keeping the same version tag.
+
 Choose either startup method.
 
 ### Use `docker run`
