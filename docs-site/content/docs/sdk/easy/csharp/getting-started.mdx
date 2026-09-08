@@ -199,19 +199,15 @@ JS 修复已随 [npm `easyjssdk 2.0.5`](https://www.npmjs.com/package/easyjssdk/
 
 ### 三节点集群与应用切换地址
 
-这项扩展验收仍在开发中，尚未通过完整 Linux CI。[验收运行](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34208420961)在重启与第二次故障阶段发现服务端恢复问题；以下为草稿配置和验证边界，不代表已发布版本具备完整三节点故障恢复保证。
+完整三节点故障恢复验收尚未通过，服务端迁移、恢复日志冲突和重启后漏收问题已记录在 [Issue #927](https://github.com/WuKongIM/WuKongIM/issues/927)。本轮只处理 SDK、测试和文档；此前未合并的服务端实验不能作为已发布能力依据。上文已通过的单节点 WS／WSS 验证仍保留各自的精确版本和运行记录。
 
-三节点验收固定使用公共 NuGet `WuKongEasySDK 1.0.0`、npm `easyjssdk 2.0.5` 和 Node `24.3.0` 原生 WebSocket，并分别测试正式 C# 包与候选源码。服务端固定为修复源码 `c3dc526de3bc3f91461f32618ebdee7997984058`，测试工具为 `19d07e1a38307aea4f5d22c43bd48e19b83c5be4`；这份源码验证不能归入已发布的 `v3.0.0-beta.9`。
+**地址切换由应用负责。** 一个 SDK 实例只有一个固定地址，自动重连仍访问该地址。业务后端选择存活入口并取得其 `/route`，客户端等待旧实例 `DisposeAsync` 完成，再使用新地址与原有凭据创建实例、注册事件并连接。中断中的 SEND 可能结果未知，不应自动重发已经确认或结果不明的消息。
 
-三个回环进程共用 256 Hash Slots、10 个逻辑 Slot、三份 Slot 投票副本和三份 Channel 副本，启用 Token 认证与消息投递。先验证三个入口之间的双向单聊和 C#/JS 群消息向另外两名成员投递，再依次强制关闭 C# 所连的节点 1、JS 所连的节点 2。测试要求客户端报告断线、拒绝离线 SEND；Slot 重新选主、Channel 迁移写入栅栏解除，并且全部存活入口连续一秒查到三名用户在线后（最多等待 45 秒），由应用切换入口，验证原节点仍停止时的收发，最后用原数据重启节点并再次验证。
+[三节点手动复现工具](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/8a1525dce74ad23cf8f7f47d91adaa9fc5b459f1/docs/cluster-acceptance.md)固定公共 NuGet `WuKongEasySDK 1.0.0`、npm `easyjssdk 2.0.5`、Node `24.3.0`，服务端使用已发布的 `v3.0.0-beta.9` 源码 `734166e0ec30fc0f6f10fef6f6d1889d079ab636`。三个回环进程使用 256 Hash Slots、10 个逻辑 Slot 和三副本；测试覆盖入口间单聊/群聊、断线与离线发送拒绝、应用替换实例、节点重新加入，并严格检查 ACK/RECV 的关联和消息内容。节点上线、ISR 元数据齐全不等于物理副本已经追平。
 
-**地址切换由应用负责。** 一个 SDK 实例只有一个固定地址，自动重连仍访问该地址。业务后端选择存活入口并取得其 `/route`，客户端等待旧实例 `DisposeAsync` 完成，再用新的地址与原有凭据创建实例；不要同时保留旧实例的重连任务。
+常规 push/PR CI 运行四条单节点任务，产生六份 WS／原生 Node／Chromium WSS 报告。手动触发时选择 `include_cluster=true` 才追加两条三节点复现任务；遇到服务端阻塞会正常失败，不计为 SDK 三节点验收通过。本地运行命令为 `python3 scripts/interop.py --transport native --topology three-node`，候选源码增加 `--candidate`，并按工具说明提供精确服务端二进制。
 
-该服务端默认保留 90 秒在线路由租期。原节点停止后，同账号登录可能暂时得到系统错误 `15`，因为冲突处理仍尝试通知旧节点。验收只对这一已复现的登录错误做最多 110 秒的应用重试，每次释放失败实例并记录耗时；错误凭据和其他失败直接终止。这是有上限的最终恢复，不是立即切换承诺，也不是对所有系统错误或 SEND 重试的建议。中断中的 SEND 仍可能结果未知。Slot 权威变化可能让仍连接着的接收方暂时不可见，直到心跳/touch 重建路由；此窗口内得到 ACK 不代表在线投递。验收在发送前等待公共在线状态恢复，并记录耗时。
-
-验收显式使用 100 ms 的 Channel 迁移扫描、每轮最多 10 页和四个任务，覆盖本场景全部 Slot。当前扫描器每轮从首个本节点主 Slot 开始，默认一页预算可能使后续 Slot 饥饿；这份测试不证明默认预算可以恢复所有频道。所有单聊频道都在故障前建立，测试不覆盖少一节点时新建三副本频道。
-
-[三节点复现方法与报告字段](https://github.com/WuKongIM/WuKongEasySDK-CSharp/blob/19d07e1a38307aea4f5d22c43bd48e19b83c5be4/docs/cluster-acceptance.md)说明如何构建精确服务端并运行 `python3 scripts/interop.py --transport native --topology three-node`，候选源码增加 `--candidate`。两个三节点任务与原有四个单节点任务一起产生八份报告，分别保留包完整性、源码身份、ACK/RECV、连接错误与进程清理记录。该范围是同主机三节点 WS，不包含多主机分区、多节点 WSS、大群容量、离线同步或长期稳定性。
+复现工具记录服务端默认 90 秒在线路由租期引起的登录延迟，以及显式的迁移扫描预算。对已观察到的登录错误 `15` 有限重试是复现控制，不是重试所有系统错误或 SEND 的建议。完整三节点恢复、立即切换、多节点 WSS、离线同步、大群容量与长期稳定性均未由该工具建立保证。
 
 ## 下一步
 

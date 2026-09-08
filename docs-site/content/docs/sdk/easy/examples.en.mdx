@@ -169,7 +169,7 @@ Set `WUKONGIM_WS_URL`, `WUKONGIM_UID`, and `WUKONGIM_TOKEN` first, using Alice a
 
 The C# source passed 35 tests and local NuGet packing on macOS arm64 / .NET `8.0.424`. Against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, a token-authenticated single-node cluster passed bidirectional messaging, reconnect, heartbeat, invalid-token rejection, and cleanup. Reproduce with `WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py`; the script owns only its loopback test processes. This is not public NuGet download or production WSS evidence.
 
-See [C# cluster recovery](/en/sdk/easy/csharp/getting-started#three-node-clusters-and-application-address-replacement) for three-node WS acceptance, application endpoint replacement, and the required server repair source.
+See [C# cluster recovery](/en/sdk/easy/csharp/getting-started#three-node-clusters-and-application-address-replacement) for application endpoint replacement, optional three-node reproduction, and tracked server blockers.
 
 ## 4. Rerun released-package automation
 
