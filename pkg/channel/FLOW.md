@@ -57,6 +57,9 @@ It does not own product permission, authority selection, fanout, or SENDACK poli
   Exact manifests and closed durable/already-durable/absent/conflict/unknown
   outcomes make ambiguous commits safely retryable after cancellation or
   restart; caller cancellation cannot revoke admitted durability.
+- A longer durable suffix remains intact. When a read quorum proves all observed
+  tails share one chain, recovery copies bounded immutable pages to lagging voters
+  without truncation, then re-probes quorum before admission; divergent tails stay closed.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
   Install selects a quorum-identical hash-chain prefix, repairs bounded pages,

@@ -30,7 +30,9 @@ It does not own product business policy or expose engine-specific APIs.
 3. Snapshot and restore cover registered row, index, and system spans; restore
    installs isolated portable metadata, replays ordered Slot FSM commands, and
    verifies canonical digests.
-4. Business Channel point reads use a fixed 8,192-entry LRU. Mutations and
+4. Active Channel migration scans use exclusive Channel cursors and bounded
+   index pages so incomplete tasks cannot pin executor discovery to the first row.
+5. Business Channel point reads use a fixed 8,192-entry LRU. Mutations and
    restore invalidate affected or complete cache state after durable commit.
 
 ## Invariants and Failure Semantics

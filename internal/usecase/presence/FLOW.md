@@ -28,7 +28,11 @@ It does not own gateway frames, concrete cluster routing, or session storage.
 2. Deactivate snapshots active state, removes local indexes first, observes
    offline only for the last active owner-local session, then queues the exact
    authority unregister tombstone.
-3. Lookup delegates one UID, a batch, or aligned exact-target groups to optional
+3. Authority recovery packs up to 512 UIDs across 256 targets per owner page,
+   locks cold admission lanes in a fixed order, and queries each current owner
+   once. Proven lookups bypass admission; complete results retain exact fences
+   and failed target groups do not discard successful siblings.
+4. Lookup delegates one UID, a batch, or aligned exact-target groups to optional
    authority batch ports; group errors do not abort successful siblings.
 
 ## Invariants and Failure Semantics

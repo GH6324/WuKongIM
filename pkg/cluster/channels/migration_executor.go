@@ -100,7 +100,8 @@ func NewMigrationExecutor(cfg MigrationExecutorConfig) *MigrationExecutor {
 	}
 }
 
-// RunOnce advances at most one runnable task by one durable phase.
+// RunOnce advances one phase per task in a bounded page. A waiting or failed
+// recovery never prevents independent tasks in that page from running.
 func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -113,47 +114,40 @@ func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 		return err
 	}
 	e.observeMigrationTaskCounts(tasks)
+	var firstErr error
+	for _, task := range tasks[:min(len(tasks), e.taskLimit)] {
+		if err := ctxErr(ctx); err != nil {
+			return err
+		}
+		if err := e.runTask(ctx, task); err != nil && !isMigrationVersionConflict(err) && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// runTask preserves the persisted owner lease and phase guards for each attempt.
+func (e *MigrationExecutor) runTask(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	if task.IsTerminal() || task.Status == metadb.ChannelMigrationStatusBlocked {
+		return nil
+	}
 	nowMS := e.clock().UnixMilli()
-	for _, task := range tasks {
-		if task.IsTerminal() {
-			continue
-		}
-		if task.Status == metadb.ChannelMigrationStatusBlocked {
-			continue
-		}
-		if task.OwnerNodeID != e.localNode {
-			if task.OwnerNodeID != 0 && task.OwnerLeaseUntilMS > nowMS {
-				continue
-			}
-			err := e.store.Claim(ctx, task, task.UpdatedAtMS)
-			if isMigrationVersionConflict(err) {
-				return nil
-			}
-			return err
-		}
-		if task.OwnerLeaseUntilMS <= nowMS {
-			err := e.store.Claim(ctx, task, task.UpdatedAtMS)
-			if isMigrationVersionConflict(err) {
-				return nil
-			}
-			return err
-		}
-		if shouldRenewMigrationFence(task, nowMS) {
-			err := e.store.SetWriteFence(ctx, task, migrationFenceReasonForTask(task))
-			if isMigrationVersionConflict(err) {
-				return nil
-			}
-			return err
-		}
-		start := e.clock()
-		err := e.runTaskPhase(ctx, task)
-		e.observeMigrationDuration(task.Kind, task.Phase, start)
-		if isMigrationVersionConflict(err) {
+	if task.OwnerNodeID != e.localNode {
+		if task.OwnerNodeID != 0 && task.OwnerLeaseUntilMS > nowMS {
 			return nil
 		}
-		return err
+		return e.store.Claim(ctx, task, task.UpdatedAtMS)
 	}
-	return nil
+	if task.OwnerLeaseUntilMS <= nowMS {
+		return e.store.Claim(ctx, task, task.UpdatedAtMS)
+	}
+	if shouldRenewMigrationFence(task, nowMS) {
+		return e.store.SetWriteFence(ctx, task, migrationFenceReasonForTask(task))
+	}
+	start := e.clock()
+	err := e.runTaskPhase(ctx, task)
+	e.observeMigrationDuration(task.Kind, task.Phase, start)
+	return err
 }
 
 func isMigrationVersionConflict(err error) bool {

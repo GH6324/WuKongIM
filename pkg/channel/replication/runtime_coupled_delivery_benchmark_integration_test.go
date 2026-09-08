@@ -108,7 +108,7 @@ func BenchmarkThreeNodeChannelAppendCoupledDelivery1000QPS(b *testing.B) {
 	b.Logf("channel stages: %s", cluster.channelObserver.summary())
 	cluster.transportObserver.report(b)
 	cluster.exchangeObserver.report(b)
-	reportDurableQuorumBenchmark(b, "coupled", latencies, cluster.commitObserver.snapshot())
+	reportDurableQuorumBenchmark(b, "coupled", latencies, cluster.commitObserver.snapshot(), threeNodeBenchmarkRate)
 }
 
 type coupledDeliveryBenchmark struct {

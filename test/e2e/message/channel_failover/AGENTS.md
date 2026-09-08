@@ -35,3 +35,5 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/channel_failover -count=1 -timeo
   snapshot, node 4 must remain data-only, fresh, alive, runtime-ready, and
   schedulable; promoting it does not preserve a majority after two original
   voters stop.
+
+- The Channel failover fixture uses 256 Hash Slots and explicitly disables Token authentication for its existing tokenless readiness client. SDK acceptance keeps Token authentication enabled.

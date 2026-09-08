@@ -42,6 +42,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Reconstruct online routes from current gateway owners after Slot authority changes, preventing an empty rebuilding directory from skipping acknowledged messages. / Slot 权威切换后按连接所属节点重建在线路由，避免空目录将已确认消息的在线接收者误判为离线。
+- Recover consecutive Channel failures by proving compatible durable tails, copying missing immutable entries, and rechecking quorum without truncating acknowledged messages; rotate migration tasks so one waiting recovery cannot starve others. / 连续节点故障时验证日志前缀、补齐缺失记录并重新确认 quorum，保留已确认消息；轮转迁移任务，避免单个恢复任务阻塞其他频道。
+- Synchronize benchmark RECVACK counter assertions with completed accounting under race instrumentation. / 修复 race 模式下 RECVACK 计数测试过早断言的问题。
+
 - Restore online delivery for ordinary `no_persist=1, sync_once=0` HTTP and WKProto sends, returning a transient message ID with sequence zero and preserving the receive flag without writing message history. / 修复普通频道 `no_persist=1, sync_once=0` 的 HTTP 与 WKProto 消息成功返回却不在线投递的问题；分配瞬时消息 ID、保持序号为零并保留接收标志，不写入消息历史。
 
 - Refresh group recipient versions from the current Slot leader before routed sends so membership changes through another ingress exclude removed users and include new members. / 群消息发送前从当前 Slot Leader 读取成员版本，修复跨入口变更成员后被移除用户仍收消息、新成员漏收的问题。

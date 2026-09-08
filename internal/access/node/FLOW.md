@@ -63,6 +63,11 @@ scheduled backup or restore
   caller errors without reordering active aligned items.
 - Manager latest-message RPC preserves bounded scan saturation as its stable
   backpressure status instead of collapsing it into general unavailability.
+- Presence owner reconstruction adds operation 9 with a bounded target/UID page
+  and a separate `WKVO` version-1 response carrying owner node, boot, and active
+  routes. Operation 10 adds `WKVO` version-2 aligned multi-target snapshots,
+  bounded to 256 targets, 512 total UIDs, and 4,096 routes per owner page.
+  Existing singleton presence byte layouts remain unchanged.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.
