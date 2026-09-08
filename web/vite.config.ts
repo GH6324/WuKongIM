@@ -26,6 +26,14 @@ export function createViteConfig(
     build: {
       outDir: path.resolve(__dirname, "../internal/access/manager/webui/dist"),
       emptyOutDir: true,
+      modulePreload: {
+        // Normalize JS discovery order while preserving stylesheet cascade order.
+        resolveDependencies: (_filename, dependencies) => {
+          const scripts = dependencies.filter((dependency) => dependency.endsWith(".js")).sort()
+          let index = 0
+          return dependencies.map((dependency) => dependency.endsWith(".js") ? scripts[index++] : dependency)
+        },
+      },
       rolldownOptions: {
         output: {
           codeSplitting: {
