@@ -47,80 +47,153 @@ func ValidatePresenceTarget(node PresenceNode, target presence.RouteTarget) erro
 	return nil
 }
 
-// RecoverRoutes requires complete current-owner evidence before publishing a UID page.
+// RecoverRoutes uses the same membership proof as multi-target recovery.
 func (r *PresenceRecoveryOwners) RecoverRoutes(ctx context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
-	if r == nil || r.node == nil || r.local == nil || len(uids) > authority.RecoveryBatchSize {
-		return nil, authority.ErrRouteNotReady
+	result := r.RecoverRoutesByTargets(ctx, []presence.EndpointLookupGroup{{Target: target, UIDs: uids}})[0]
+	return result.Routes, result.Err
+}
+
+// RecoverRoutesByTargets queries each current owner once for a complete bounded
+// page. Stale target errors remain aligned; missing owner evidence never becomes
+// a successful empty result. One unavailable member costs one timeout per page.
+func (r *PresenceRecoveryOwners) RecoverRoutesByTargets(ctx context.Context, groups []presence.EndpointLookupGroup) []presence.EndpointLookupResult {
+	results := make([]presence.EndpointLookupResult, len(groups))
+	fail := func(err error) []presence.EndpointLookupResult {
+		for i := range results {
+			results[i] = presence.EndpointLookupResult{Err: err}
+		}
+		return results
+	}
+	if r == nil || r.node == nil || r.local == nil || !presence.ValidOwnerRecoveryPage(groups) {
+		return fail(authority.ErrRouteNotReady)
 	}
 	select {
 	case r.admission <- struct{}{}:
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return fail(ctx.Err())
 	}
 	defer func() { <-r.admission }()
-	if err := ValidatePresenceTarget(r.node, target); err != nil {
-		return nil, err
+	active := make([]presence.EndpointLookupGroup, 0, len(groups))
+	indexes := make([]int, 0, len(groups))
+	allowed := make([]map[string]struct{}, 0, len(groups))
+	for i, group := range groups {
+		if err := ValidatePresenceTarget(r.node, group.Target); err != nil {
+			results[i].Err = err
+			continue
+		}
+		active = append(active, group)
+		indexes = append(indexes, i)
+		uids := make(map[string]struct{}, len(group.UIDs))
+		for _, uid := range group.UIDs {
+			uids[uid] = struct{}{}
+		}
+		allowed = append(allowed, uids)
+	}
+	if len(active) == 0 {
+		return results
 	}
 	before, err := r.node.LocalControllerSnapshot(ctx)
 	if err != nil {
-		return nil, authority.ErrRouteNotReady
+		return fail(authority.ErrRouteNotReady)
 	}
 	nodes := recoveryOwnerNodes(before)
 	if len(nodes) == 0 || len(nodes) > 256 {
-		return nil, authority.ErrRouteNotReady
+		return fail(authority.ErrRouteNotReady)
 	}
-	allowed := make(map[string]struct{}, len(uids))
-	for _, uid := range uids {
-		allowed[uid] = struct{}{}
-	}
-	var routes []presence.Route
+	total := 0
 	for _, node := range nodes {
 		readCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
-		var snapshot presence.OwnerRouteSnapshot
-		var readErr error
-		if node.NodeID == r.node.NodeID() {
-			snapshot, readErr = r.local.ReadOwnerRoutes(readCtx, target, uids)
-		} else {
-			snapshot, readErr = r.remote.ReadOwnerRoutes(readCtx, node.NodeID, target, uids)
-		}
+		snapshots, readErr := r.readOwnerPage(readCtx, node.NodeID, active)
 		cancel()
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return fail(err)
 		}
 		if readErr != nil {
 			// Query stale members too: a reachable ingress may still own sessions.
 			// Only unavailable members with expired/down Controller health may be omitted.
-			if (node.Health.Freshness == control.NodeHealthStale || node.Health.Status == control.NodeDown) && (errors.Is(readErr, context.DeadlineExceeded) || errors.Is(readErr, transport.ErrTimeout) || errors.Is(readErr, transport.ErrDialFailed) || errors.Is(readErr, transport.ErrNodeNotFound)) {
+			if (node.Health.Freshness == control.NodeHealthStale || node.Health.Status == control.NodeDown) &&
+				(errors.Is(readErr, context.DeadlineExceeded) || errors.Is(readErr, transport.ErrTimeout) || errors.Is(readErr, transport.ErrDialFailed) || errors.Is(readErr, transport.ErrNodeNotFound)) {
 				continue
 			}
-			return nil, authority.ErrRouteNotReady
+			return fail(authority.ErrRouteNotReady)
 		}
-		if snapshot.OwnerNodeID != node.NodeID || snapshot.OwnerBootID == 0 {
-			return nil, authority.ErrStaleRoute
+		if len(snapshots) != len(active) {
+			return fail(authority.ErrRouteNotReady)
 		}
-		for _, route := range snapshot.Routes {
-			if _, ok := allowed[route.UID]; !ok || route.OwnerNodeID != node.NodeID || route.OwnerBootID != snapshot.OwnerBootID || route.SessionID == 0 {
-				return nil, authority.ErrStaleRoute
+		for j, read := range snapshots {
+			i := indexes[j]
+			if results[i].Err != nil {
+				continue
 			}
+			if read.Err != nil {
+				// The parent plan is still live (checked above). A child owner
+				// timeout must keep the group's normal presence retry path.
+				if errors.Is(read.Err, context.DeadlineExceeded) || errors.Is(read.Err, context.Canceled) || errors.Is(read.Err, transport.ErrTimeout) || errors.Is(read.Err, transport.ErrDialFailed) || errors.Is(read.Err, transport.ErrNodeNotFound) {
+					read.Err = authority.ErrRouteNotReady
+				}
+				results[i] = presence.EndpointLookupResult{Err: read.Err}
+				continue
+			}
+			snapshot := read.Snapshot
+			if snapshot.OwnerNodeID != node.NodeID || snapshot.OwnerBootID == 0 {
+				results[i] = presence.EndpointLookupResult{Err: authority.ErrStaleRoute}
+				continue
+			}
+			valid := true
+			for _, route := range snapshot.Routes {
+				if _, ok := allowed[j][route.UID]; !ok || route.OwnerNodeID != node.NodeID || route.OwnerBootID != snapshot.OwnerBootID || route.SessionID == 0 {
+					valid = false
+					break
+				}
+			}
+			if !valid {
+				results[i] = presence.EndpointLookupResult{Err: authority.ErrStaleRoute}
+				continue
+			}
+			total += len(snapshot.Routes)
+			if total > 4096 {
+				results[i] = presence.EndpointLookupResult{Err: authority.ErrRouteNotReady}
+				continue
+			}
+			results[i].Routes = append(results[i].Routes, snapshot.Routes...)
 		}
-		if len(routes)+len(snapshot.Routes) > 4096 {
-			return nil, authority.ErrRouteNotReady
-		}
-		routes = append(routes, snapshot.Routes...)
 	}
 	after, err := r.node.LocalControllerSnapshot(ctx)
-	if err != nil {
-		return nil, authority.ErrRouteNotReady
+	if err != nil || !sameRecoveryOwners(nodes, recoveryOwnerNodes(after)) {
+		return fail(authority.ErrRouteNotReady)
 	}
-	// A membership change requires another complete owner round, even if the
-	// queried hash slot retained its leader term.
-	if !sameRecoveryOwners(nodes, recoveryOwnerNodes(after)) {
-		return nil, authority.ErrRouteNotReady
+	for _, i := range indexes {
+		if err := ValidatePresenceTarget(r.node, groups[i].Target); err != nil {
+			results[i] = presence.EndpointLookupResult{Err: err}
+		}
 	}
-	if err := ValidatePresenceTarget(r.node, target); err != nil {
-		return nil, err
+	return results
+}
+
+// readOwnerPage keeps operation 9 for singleton readers and uses operation 10
+// for coalesced reads. Unsupported batch peers stay explicitly unavailable.
+func (r *PresenceRecoveryOwners) readOwnerPage(ctx context.Context, node uint64, groups []presence.EndpointLookupGroup) ([]presence.OwnerRouteResult, error) {
+	if len(groups) == 1 {
+		var snapshot presence.OwnerRouteSnapshot
+		var err error
+		if node == r.node.NodeID() {
+			snapshot, err = r.local.ReadOwnerRoutes(ctx, groups[0].Target, groups[0].UIDs)
+		} else {
+			snapshot, err = r.remote.ReadOwnerRoutes(ctx, node, groups[0].Target, groups[0].UIDs)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return []presence.OwnerRouteResult{{Snapshot: snapshot}}, nil
 	}
-	return routes, nil
+	if node == r.node.NodeID() {
+		batch, ok := r.local.(presence.OwnerRouteBatchReader)
+		if !ok {
+			return nil, authority.ErrRouteNotReady
+		}
+		return batch.ReadOwnerRoutesByTargets(ctx, groups), nil
+	}
+	return r.remote.ReadOwnerRoutesByTargets(ctx, node, groups)
 }
 
 // recoveryOwnerNodes includes every active member: gateway session ownership

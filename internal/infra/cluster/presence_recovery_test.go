@@ -83,3 +83,50 @@ func TestRecoveryOwnerMembershipDoesNotAssumeDataReplicaRole(t *testing.T) {
 		t.Fatalf("owner membership=%+v, want both active ingress-capable members", nodes)
 	}
 }
+
+type recoveryBatchReaderFunc func(context.Context, []presence.EndpointLookupGroup) []presence.OwnerRouteResult
+
+func (f recoveryBatchReaderFunc) ReadOwnerRoutesByTargets(ctx context.Context, g []presence.EndpointLookupGroup) []presence.OwnerRouteResult {
+	return f(ctx, g)
+}
+func (f recoveryBatchReaderFunc) ReadOwnerRoutes(ctx context.Context, target presence.RouteTarget, uids []string) (presence.OwnerRouteSnapshot, error) {
+	r := f(ctx, []presence.EndpointLookupGroup{{Target: target, UIDs: uids}})[0]
+	return r.Snapshot, r.Err
+}
+
+func TestRecoveryChildDeadlineRemainsRetryableAndPreservesParentCancellation(t *testing.T) {
+	target := presence.RouteTarget{HashSlot: 101, SlotID: 5, LeaderNodeID: 1, LeaderTerm: 4, ConfigEpoch: 1}
+	node := &recoveryCluster{fakePresenceCluster: &fakePresenceCluster{nodeID: 1, route: cluster.Route{HashSlot: 101, SlotID: 5, Leader: 1, LeaderTerm: 4, ConfigEpoch: 1}}}
+	node.snapshot.Nodes = []control.Node{{NodeID: 1, JoinState: control.NodeJoinStateActive}}
+	groups := []presence.EndpointLookupGroup{{Target: target, UIDs: []string{"a"}}, {Target: target, UIDs: []string{"b"}}}
+	calls := 0
+	reader := recoveryBatchReaderFunc(func(context.Context, []presence.EndpointLookupGroup) []presence.OwnerRouteResult {
+		calls++
+		snapshot := presence.OwnerRouteSnapshot{OwnerNodeID: 1, OwnerBootID: 11}
+		results := []presence.OwnerRouteResult{{Snapshot: snapshot}, {Snapshot: snapshot}}
+		if calls == 1 {
+			results[1] = presence.OwnerRouteResult{Err: context.DeadlineExceeded}
+		}
+		return results
+	})
+	source := NewPresenceRecoveryOwners(node, reader)
+	results := source.RecoverRoutesByTargets(context.Background(), groups)
+	if results[0].Err != nil || !errors.Is(results[1].Err, authority.ErrRouteNotReady) {
+		t.Fatalf("child timeout escaped retry contract: %+v", results)
+	}
+	results = source.RecoverRoutesByTargets(context.Background(), groups)
+	if results[0].Err != nil || results[1].Err != nil {
+		t.Fatalf("retry failed: %+v", results)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	source = NewPresenceRecoveryOwners(node, recoveryBatchReaderFunc(func(context.Context, []presence.EndpointLookupGroup) []presence.OwnerRouteResult {
+		cancel()
+		return []presence.OwnerRouteResult{{Err: context.DeadlineExceeded}, {Err: authority.ErrNotLeader}}
+	}))
+	for _, result := range source.RecoverRoutesByTargets(ctx, groups) {
+		if !errors.Is(result.Err, context.Canceled) {
+			t.Fatalf("parent cancellation mapped to %v", result.Err)
+		}
+	}
+}

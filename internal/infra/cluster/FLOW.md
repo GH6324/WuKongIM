@@ -40,7 +40,8 @@ and bounded operations observations.
    reread from the Slot leader per routed batch; only person metadata is cached.
    First person SENDs prepare coalesced UID membership/runtime metadata and
    publish directory-ready only after every prepare proposal joins.
-2. Presence reconstruction queries bounded active-owner pages, validates each
+2. Presence reconstruction coalesces target groups into one bounded read per
+   active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
    owner boot identity, and rechecks current membership and Slot authority before
    publishing a complete result. Unknown or unavailable proof remains explicit.
 3. Presence and recipient adapters resolve exact fenced targets, group work by

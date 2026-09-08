@@ -114,15 +114,10 @@ func (a *PresenceDirectoryAuthority) EndpointsByTargets(ctx context.Context, gro
 	if a == nil || a.directory == nil {
 		return presenceDirectoryErrorResults(len(groups), authoritypresence.ErrRouteNotReady)
 	}
-	results := a.directory.EndpointsByTargets(groups)
 	if a.recovery != nil {
-		for i, group := range groups {
-			if results[i].Err == authoritypresence.ErrRouteNotReady {
-				results[i].Routes, results[i].Err = a.recovery.Endpoints(ctx, group.Target, group.UIDs)
-			}
-		}
+		return a.recovery.EndpointsByTargets(ctx, groups)
 	}
-	return results
+	return a.directory.EndpointsByTargets(groups)
 }
 
 // TouchRoutes refreshes owner-observed activity for exact routes.

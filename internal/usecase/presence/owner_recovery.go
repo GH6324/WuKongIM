@@ -67,3 +67,61 @@ func (r *OwnerRecovery) ReadOwnerRoutes(ctx context.Context, target RouteTarget,
 	}
 	return result, nil
 }
+
+// OwnerRouteResult preserves an exact target's snapshot or rejection independently
+// of its siblings in a bounded owner read.
+type OwnerRouteResult struct {
+	Snapshot OwnerRouteSnapshot
+	Err      error
+}
+
+// OwnerRouteBatchReader coalesces one page across Hash Slots without repeating
+// the network timeout for each target.
+type OwnerRouteBatchReader interface {
+	ReadOwnerRoutesByTargets(context.Context, []EndpointLookupGroup) []OwnerRouteResult
+}
+
+// ValidOwnerRecoveryPage bounds both request work and the default delivery page.
+func ValidOwnerRecoveryPage(groups []EndpointLookupGroup) bool {
+	if len(groups) == 0 || len(groups) > 256 {
+		return false
+	}
+	total := 0
+	for _, group := range groups {
+		total += len(group.UIDs)
+		if total > authority.RecoveryBatchSize {
+			return false
+		}
+	}
+	return true
+}
+
+// ReadOwnerRoutesByTargets preserves each target's fence and the owner boot
+// identity while limiting the entire response to 4,096 active route rows.
+func (r *OwnerRecovery) ReadOwnerRoutesByTargets(ctx context.Context, groups []EndpointLookupGroup) []OwnerRouteResult {
+	results := make([]OwnerRouteResult, len(groups))
+	if !ValidOwnerRecoveryPage(groups) || r == nil || r.validate == nil {
+		for i := range results {
+			results[i].Err = authority.ErrRouteNotReady
+		}
+		return results
+	}
+	total := 0
+	for i, group := range groups {
+		results[i].Snapshot, results[i].Err = r.ReadOwnerRoutes(ctx, group.Target, group.UIDs)
+		total += len(results[i].Snapshot.Routes)
+		if total > 4096 {
+			results[i] = OwnerRouteResult{Err: authority.ErrRouteNotReady}
+		}
+	}
+	// A later target read may overlap a Slot movement. Revalidate earlier groups
+	// too, retaining valid siblings instead of failing the whole page.
+	for i, group := range groups {
+		if results[i].Err == nil {
+			if err := r.validate(group.Target); err != nil {
+				results[i] = OwnerRouteResult{Err: err}
+			}
+		}
+	}
+	return results
+}

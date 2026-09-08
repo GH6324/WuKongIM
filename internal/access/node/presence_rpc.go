@@ -30,15 +30,16 @@ const (
 	rpcStatusBackpressured           = "backpressured"
 	rpcStatusRejected                = "rejected"
 
-	presenceOpRegisterRoute      = "register_route"
-	presenceOpCommitRoute        = "commit_route"
-	presenceOpAbortRoute         = "abort_route"
-	presenceOpUnregisterRoute    = "unregister_route"
-	presenceOpEndpointsByUID     = "endpoints_by_uid"
-	presenceOpEndpointsByTargets = "endpoints_by_targets"
-	presenceOpTouchRoutes        = "touch_routes"
-	presenceOpApplyRouteAction   = "apply_route_action"
-	presenceOpReadOwnerRoutes    = "read_owner_routes"
+	presenceOpRegisterRoute            = "register_route"
+	presenceOpCommitRoute              = "commit_route"
+	presenceOpAbortRoute               = "abort_route"
+	presenceOpUnregisterRoute          = "unregister_route"
+	presenceOpEndpointsByUID           = "endpoints_by_uid"
+	presenceOpEndpointsByTargets       = "endpoints_by_targets"
+	presenceOpTouchRoutes              = "touch_routes"
+	presenceOpApplyRouteAction         = "apply_route_action"
+	presenceOpReadOwnerRoutes          = "read_owner_routes"
+	presenceOpReadOwnerRoutesByTargets = "read_owner_routes_by_targets"
 )
 
 // PresenceAuthorityRPCServiceID is the cluster RPC service for UID route authority calls.
@@ -526,6 +527,9 @@ func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([
 			wklog.Error(err),
 		)
 		return nil, err
+	}
+	if req.Op == presenceOpReadOwnerRoutesByTargets {
+		return a.handleOwnerRoutesByTargets(ctx, req)
 	}
 	if req.Op == presenceOpReadOwnerRoutes {
 		return a.handleOwnerRoutes(ctx, req)

@@ -3,6 +3,8 @@ package presence
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"testing"
 
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
@@ -77,4 +79,96 @@ func TestAuthorityRecoveryCancellationDoesNotWaitForBusyLane(t *testing.T) {
 		t.Fatalf("busy lane cancel=%v", err)
 	}
 	<-recovery.lanes[1]
+}
+
+type recoveryBatchOwnersFunc func(context.Context, []EndpointLookupGroup) []EndpointLookupResult
+
+func (f recoveryBatchOwnersFunc) RecoverRoutesByTargets(ctx context.Context, g []EndpointLookupGroup) []EndpointLookupResult {
+	return f(ctx, g)
+}
+func (f recoveryBatchOwnersFunc) RecoverRoutes(ctx context.Context, t RouteTarget, u []string) ([]Route, error) {
+	r := f(ctx, []EndpointLookupGroup{{Target: t, UIDs: u}})[0]
+	return r.Routes, r.Err
+}
+
+func TestAuthorityRecoveryBatchesColdTargetsAndPreservesSiblingResults(t *testing.T) {
+	directory := authority.NewDirectory(authority.DirectoryOptions{LocalNodeID: 1, RequireRecovery: true})
+	groups := make([]EndpointLookupGroup, 256)
+	for i := range groups {
+		target := RouteTarget{HashSlot: uint16(i), SlotID: uint32(i % 12), LeaderNodeID: 1, LeaderTerm: 4}
+		directory.BecomeAuthority(target)
+		groups[i] = EndpointLookupGroup{Target: target, UIDs: []string{fmt.Sprintf("%d-a", i), fmt.Sprintf("%d-b", i)}}
+	}
+	calls := 0
+	owners := recoveryBatchOwnersFunc(func(_ context.Context, page []EndpointLookupGroup) []EndpointLookupResult {
+		calls++
+		if !ValidOwnerRecoveryPage(page) || len(page) != 256 {
+			t.Fatalf("page bounds=%d", len(page))
+		}
+		results := make([]EndpointLookupResult, len(page))
+		for i, group := range page {
+			if group.Target.HashSlot == 3 {
+				results[i].Err = authority.ErrNotLeader
+				continue
+			}
+			for j, uid := range group.UIDs {
+				results[i].Routes = append(results[i].Routes, Route{UID: uid, OwnerNodeID: 2, OwnerBootID: 22, OwnerSeq: 1, SessionID: uint64(i*2 + j + 1)})
+			}
+		}
+		return results
+	})
+	results := NewAuthorityRecovery(directory, owners).EndpointsByTargets(context.Background(), groups)
+	if calls != 1 {
+		t.Fatalf("owner rounds=%d", calls)
+	}
+	for i, result := range results {
+		if i == 3 {
+			if !errors.Is(result.Err, authority.ErrNotLeader) {
+				t.Fatalf("stale group=%+v", result)
+			}
+			if _, err := directory.EndpointsByUIDs(groups[i].Target, groups[i].UIDs); !errors.Is(err, authority.ErrRouteNotReady) {
+				t.Fatalf("failed group gained proof: %v", err)
+			}
+			continue
+		}
+		if result.Err != nil || len(result.Routes) != 2 {
+			t.Fatalf("group %d=%+v", i, result)
+		}
+		for j, route := range result.Routes {
+			if route.UID != groups[i].UIDs[j] {
+				t.Fatalf("alignment=%+v", result)
+			}
+		}
+	}
+}
+
+func TestAuthorityRecoveryPagesLargeTargetWithoutDiscardingEarlierResults(t *testing.T) {
+	directory := authority.NewDirectory(authority.DirectoryOptions{LocalNodeID: 1, RequireRecovery: true})
+	target := RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 4}
+	directory.BecomeAuthority(target)
+	uids := make([]string, 1025)
+	for i := range uids {
+		uids[i] = fmt.Sprintf("uid-%d", i)
+	}
+	sizes := []int{}
+	owners := recoveryBatchOwnersFunc(func(_ context.Context, groups []EndpointLookupGroup) []EndpointLookupResult {
+		if !ValidOwnerRecoveryPage(groups) || len(groups) != 1 {
+			t.Fatal("unbounded page")
+		}
+		sizes = append(sizes, len(groups[0].UIDs))
+		results := make([]EndpointLookupResult, 1)
+		for _, uid := range groups[0].UIDs {
+			results[0].Routes = append(results[0].Routes, Route{UID: uid, OwnerNodeID: 2, OwnerBootID: 22, OwnerSeq: 1, SessionID: 1})
+		}
+		return results
+	})
+	rows, err := NewAuthorityRecovery(directory, owners).Endpoints(context.Background(), target, uids)
+	if err != nil || len(rows) != len(uids) || !reflect.DeepEqual(sizes, []int{512, 512, 1}) {
+		t.Fatalf("rows=%d pages=%v err=%v", len(rows), sizes, err)
+	}
+	for i, row := range rows {
+		if row.UID != uids[i] {
+			t.Fatalf("result %d=%s", i, row.UID)
+		}
+	}
 }
