@@ -2455,3 +2455,23 @@ export type ManagerRestoreInput = {
   password: string
   confirmation: string
 }
+
+// The node encodes TOML so numeric precision, types and redaction survive transport.
+export type ManagerNodeConfigDocument = {
+  generated_at: string
+  node_id: number
+  source: string
+  requires_restart: boolean
+  toml: string
+  sections: { path: string; line: number }[]
+  fields: {
+    path: string
+    env_key: string
+    label: string
+    description: string
+    description_zh: string
+    source: "toml" | "env" | "default" | "derived"
+    line: number
+    redacted: boolean
+  }[]
+}

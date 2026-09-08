@@ -43,6 +43,7 @@ import {
   deleteNodePlugin,
   getNode,
   getNodeConfig,
+  getNodeConfigDocument,
   getNodeOnboardingStatus,
   getNodes,
   getNodePlugin,
@@ -1029,6 +1030,13 @@ describe("manager api client", () => {
       "/manager/nodes/2/config",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
+  })
+
+  it("fetches the independent TOML node config capability", async () => {
+    const response = { node_id: 2, toml: "[node]\nid = 2\n", sections: [], fields: [] }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+    await expect(getNodeConfigDocument(2)).resolves.toEqual(response)
+    expect(fetchMock).toHaveBeenCalledWith("/manager/nodes/2/config/toml", expect.objectContaining({ headers: expect.any(Headers) }))
   })
 
   it("fetches complete slot rows from the current manager list endpoint", async () => {

@@ -121,6 +121,8 @@ const (
 	RPCChannelQuorumExchange
 	// RPCSlotIdentityMetadata serves authoritative Slot-leader user and device reads.
 	RPCSlotIdentityMetadata
+	// RPCManagerNodeConfigDocument serves versioned redacted startup TOML documents.
+	RPCManagerNodeConfigDocument
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -193,6 +195,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager diagnostics"
 	case RPCManagerPlugins:
 		return "manager plugins"
+	case RPCManagerNodeConfigDocument:
+		return "manager node config document"
 	case RPCManagerNodeConfig:
 		return "manager node config"
 	case RPCManagerLatestMessages:

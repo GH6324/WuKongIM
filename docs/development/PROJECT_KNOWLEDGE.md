@@ -140,6 +140,13 @@
   operator-owned service actions run against PID 1. Debian 12 is the existing
   source-preview compatibility target and is independent of the public
   publisher's clean-client support matrix.
+- Manager node configuration uses a schema-projected, redacted startup TOML document at
+  `GET /manager/nodes/:node_id/config/toml`, guarded by `cluster.node:r`.
+  Default normalization comes from owning runtime helpers; `internal/config/schema_help.go`
+  owns bilingual field descriptions. Paths, object lists and secrets remain comments,
+  so the document is not a complete restore file. Independent RPC 88 uses `WKVC`/`WKVc`
+  version 2; legacy RPC 71 and the JSON config route keep their original layout.
+  Unsupported peers are explicit and never fall back to another node's configuration.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.toml`; `.toml.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, Channel runtime reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - Default Slot Raft timing is a 50-millisecond tick, two-tick heartbeat, and 40-tick election floor: heartbeats run every 100 milliseconds and elections start after at least two seconds. Chat-lifecycle cloud templates pin the same values. This keeps sub-second storage or transport tails from creating avoidable terms while proposal replication remains event-driven; override all three values together when a deployment proves a different failure-detection budget.

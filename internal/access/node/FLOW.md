@@ -54,6 +54,9 @@ scheduled backup or restore
   remain on version 3 for rolling-upgrade compatibility; a version-4
   runtime-summary read from an older peer remains explicitly unavailable until
   that peer is upgraded.
+- Manager TOML config reads use independent service 88 with bounded `WKVC`/`WKVc`
+  version-2 frames. Service 71 keeps the exact version-1 snapshot layout; missing
+  service 88 is explicitly unsupported, while transport failures remain unavailable.
 - Channel append RPC never resolves routes, creates proxy Channel state,
   appends outside local authority, or runs post-commit effects elsewhere.
 - Transport cancellation and unavailable-target failures map to stable typed
