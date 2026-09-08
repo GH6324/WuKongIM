@@ -80,6 +80,8 @@ SDK port 为静态库；Windows 使用 `x64-windows` 时，分发应用需要携
 `3e367a908f42385ab9306f9708b7456399cace7d`，与 registry baseline 分别固定。
 将两个 JSON 文件提交到应用仓库；已有 manifest 的项目应合并字段，不要覆盖原有依赖。
 
+截至 2026-09-08，微软默认目录的收录申请已提交到 [microsoft/vcpkg#53837](https://github.com/microsoft/vcpkg/pull/53837)，尚未合并。申请中的 port 从正式 `v0.1.0` 标签构建；上面的安装方式仍使用 WuKongIM 自定义 registry，当前不能省略 `vcpkg-configuration.json`。
+
 [独立消费端示例](https://github.com/WuKongIM/WuKongEasySDK-CPP/tree/main/examples/vcpkg-consumer) · [Registry 维护说明](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/main/docs/VCPKG.md)
 
 ## 备选：下载预编译包，解压接入
