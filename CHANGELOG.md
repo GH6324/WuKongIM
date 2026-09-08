@@ -31,6 +31,8 @@ move those entries into a version section named for that exact tag.
 
 ### 📚 Documentation / 文档
 
+- Align the Manager and internal transport documentation inventories with the startup TOML route and RPC 88, restoring documentation publication checks. / 补齐启动 TOML 接口与 RPC 88 的文档清单，恢复文档发布检查。
+
 - Add bilingual C# WuKongEasySDK integration, console example, async lifecycle, and pinned-source installation guidance for the new `WuKongEasySDK-CSharp` repository. / 新增 C# WuKongEasySDK 中英文接入文档，覆盖固定源码安装、控制台示例、异步生命周期和验证边界。
 
 - Add a directly runnable, standard-library Go before-send Webhook example with allow/replace/reject rules, bilingual setup instructions, and real-process send/history validation. / 新增可直接运行的 Go 发送前 Webhook 示例，支持放行、改写及拒绝，并附中英文接入说明和真实进程验证。
