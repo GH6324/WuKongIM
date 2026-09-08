@@ -17,6 +17,7 @@ type AppLogRowProps = {
 export function AppLogRow({ entry, keyword, selected, onSelect }: AppLogRowProps) {
   const intl = useIntl()
   const message = redactLogText(entry.message || entry.raw)
+  const error = typeof entry.fields?.error === "string" ? redactLogText(entry.fields.error) : ""
   // Bound summary text independently of the full event retained for details and copying.
   const summary = message.length > 500 ? message.slice(0, 500) + "…" : message
   const fields = importantLogFields(entry)
@@ -40,6 +41,11 @@ export function AppLogRow({ entry, keyword, selected, onSelect }: AppLogRowProps
             {entry.module ? <span className="mr-2 text-slate-400">{entry.module}</span> : null}
             <LogHighlight text={summary} keyword={keyword} />
           </span>
+          {error && error !== message ? (
+            <span className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-xs text-amber-200/90" data-system-log-entry="error">
+              <LogHighlight text={error.length > 500 ? error.slice(0, 500) + "…" : error} keyword={keyword} />
+            </span>
+          ) : null}
           {fields.length ? (
             <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 break-all text-[11px] text-slate-400" data-system-log-entry="metadata">
               {fields.map(([key, value]) => <span key={key}>{redactLogText(compactFieldLabel(key, value)).slice(0, 160)}</span>)}

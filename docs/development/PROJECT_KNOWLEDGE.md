@@ -188,6 +188,8 @@
 
 ## Gateway Runtime
 
+- WebSocket handshake rejection diagnostics carry the transport peer (the proxy when proxied), local address, connection ID, and HTTP status in the error text. Path mismatches include bounded escaped requested paths and expected paths, excluding URL queries; HTTP rejection responses remain unchanged. Manager parses console JSON suffixes into ordinary fields and displays error text without expanding raw logs.
+
 - `pkg/gateway/core` async CONNECT auth and SEND dispatch are owned by `RuntimeOptions` and ants-backed executors; do not reintroduce session-scoped async worker config compatibility.
 
 ## Channel Runtime

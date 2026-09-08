@@ -274,6 +274,26 @@ test("renders compact log rows and hides raw details until expanded", async () =
   expect(screen.getByRole("dialog")).toHaveTextContent('"request_id": "req-1"')
 })
 
+test("shows the error and listener without expanding raw log details", async () => {
+  const error = 'websocket handshake rejected: remote_addr="192.0.2.1:1234": requested_path="/ws" expected_path="/"'
+  getApplicationLogEntriesMock.mockResolvedValueOnce({
+    node_id: 1,
+    source: "app",
+    cursor: "cursor-1",
+    rotated: false,
+    items: [{
+      ...logEntry("gateway listener error"),
+      level: "ERROR",
+      fields: { listener: "ws-gateway", error },
+    }],
+  })
+  renderPanel()
+
+  expect(await screen.findByText(error)).toBeInTheDocument()
+  expect(screen.getByText("listener=ws-gateway")).toBeInTheDocument()
+  expect(document.querySelector("[data-system-log-entry='raw']")).toBeNull()
+})
+
 test("copies message and raw content from row actions", async () => {
   const user = userEvent.setup()
   const writeText = vi.fn().mockResolvedValue(undefined)
