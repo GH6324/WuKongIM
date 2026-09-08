@@ -449,3 +449,32 @@ describe('Rust EasySDK source distribution', () => {
     expect(revisions[0]).toBe(revisions[1]);
   });
 });
+
+// The new C# source path must never inherit the older platforms' registry receipts.
+describe('C# EasySDK source integration', () => {
+  test('keeps source installation, ownership, and evidence explicit in both locales', async () => {
+    for (const [locale, suffix] of [['zh', ''], ['en', '.en']]) {
+      const page = await content(`csharp/getting-started${suffix}.mdx`);
+      const overview = await content(`index${suffix}.mdx`);
+      const examples = await content(`examples${suffix}.mdx`);
+      for (const text of [page, overview, examples]) {
+        expect(text).toContain('WuKongEasySDK-CSharp');
+        expect(text).toContain('nuget.org');
+      }
+      expect(overview).toContain(`/${locale}/sdk/easy/csharp/getting-started`);
+      expect(examples).toContain(`/${locale}/sdk/easy/csharp/getting-started`);
+      expect(page).toMatch(/尚未发布到 nuget\.org|has not been published to nuget\.org/u);
+      expect(page).toContain('d365a354f5e0f25fbd7f83bb59aa365ba43e899f');
+      expect(page).toContain('132e46209d98fa0425cc0f88e7a97080cdad044d');
+      expect(page).toContain('DeviceFlag.Desktop');
+      expect(page).toContain('ConnectAsync');
+      expect(page).toContain('SendAsync');
+      expect(page).toContain('DisposeAsync');
+      expect(page).toContain('await using');
+      expect(page).toContain('im.Message -= onMessage');
+      expect(page).toContain('--source ./artifacts');
+      expect(page).toContain('WKIMBackpressureException');
+      expect(page).not.toContain('CSHARP_SOURCE_REVISION');
+    }
+  });
+});

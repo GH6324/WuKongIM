@@ -152,6 +152,23 @@ Run every target you intend to ship. An iOS Simulator result cannot stand in for
 
 The current Web, Android, and iOS release commits change only version, changelog, or release-documentation metadata above the verified sources; their example behavior source is unchanged. Flutter's release source is the previously verified revision. Use the “Official source examples” table above when reproducing the exact August 31 source receipts.
 
+### C# / .NET source example
+
+The new [WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) targets .NET 8 at source version `1.0.0` and has not been published to nuget.org. It is separate from the four historical released-package receipts above.
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
+cd WuKongEasySDK-CSharp
+git checkout d365a354f5e0f25fbd7f83bb59aa365ba43e899f
+dotnet build -c Release
+dotnet test -c Release
+dotnet run --project examples/ConsoleChat -- bob
+```
+
+Set `WUKONGIM_WS_URL`, `WUKONGIM_UID`, and `WUKONGIM_TOKEN` first, using Alice and Bob's own credentials in separate terminals. Prepare backend tokens with `device_flag` set to `2`, matching the C# default `DeviceFlag.Desktop`. See the complete [C# quickstart](/en/sdk/easy/csharp/getting-started).
+
+The C# source passed 35 tests and local NuGet packing on macOS arm64 / .NET `8.0.424`. Against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, a token-authenticated single-node cluster passed bidirectional messaging, reconnect, heartbeat, invalid-token rejection, and cleanup. Reproduce with `WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py`; the script owns only its loopback test processes. This is not public NuGet download or production WSS evidence.
+
 ## 4. Rerun released-package automation
 
 `Safety Automation - EasySDK Released Package Acceptance` resolves the exact four registry versions, builds the current WuKongIM, then uses the released npm package as Bob while Android API 34 and two iOS Simulator jobs complete bidirectional messaging. Trigger a rerun with:

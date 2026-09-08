@@ -44,6 +44,8 @@ type Config struct {
 	DataDir string
 	// StartupConfigSnapshot is a bounded, redacted view of effective startup configuration.
 	StartupConfigSnapshot managementusecase.NodeConfigSnapshot
+	// StartupConfigDocument is the independently versioned, redacted TOML startup view.
+	StartupConfigDocument managementusecase.NodeConfigDocument
 	// Cluster configures the cluster runtime.
 	Cluster cluster.Config
 	// API configures the benchmark HTTP API exposed by the standalone v2 entry.

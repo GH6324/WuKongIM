@@ -2,6 +2,8 @@
 
 ## Internal
 
+- `WuKongIM/WuKongEasySDK-CSharp` is the independent .NET 8+ EasySDK repository. Its initial source version is `1.0.0`, uses PC device category `2` by default, and is documented at `/sdk/easy/csharp/getting-started` in both locales. Until a public NuGet release exists, installation uses a pinned project reference or local `.nupkg`; source validation must not inherit the other platforms' registry receipts.
+
 - `docs-site/examples/go-webhook` is a separate standard-library business callback example. Its pure marker rules handle raw UTF-8 and SDK `type=1` text JSON without storing idempotency state. Explicit denial returns HTTP 200 with a business reason; HTTP errors remain transport failures governed by the sender policy. The documentation `verify` gate runs its fast Go tests.
 
 - The product composition deliberately leaves person-directory admission out of synchronous SEND. UID memberships are projected after durable append, so SENDACK does not imply immediate history visibility. The JavaScript quickstart BFF retries an empty latest page within its finite projection budget; normal cursor pages and unrelated errors keep their original behavior.
@@ -88,6 +90,7 @@
 - `internal/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - Browser-facing manager APIs encode 64-bit `message_id` values as decimal JSON strings; web filters, keys, and display code must keep them as strings end to end.
 - The Manager Web production bundle is generated into `internal/access/manager/webui/dist`, committed in full, and embedded in `cmd/wukongim`; production must not require a separate web process or a frontend build during ordinary Go compilation.
+- Manager node-log search covers a bounded recent window in one selected node file, not complete history. Keywords require explicit submission; expanding the window tracks the requested size independently of matching rows. Live reading defaults off, retains at most 1,000 events, and pauses before evicting records while the operator is reading or inspecting details.
 - The embedded Operations MCP is administered through Manager but authenticated independently with one opaque `wko_*` token. Every Manager listener serves `/mcp`; Controller state selects one execution owner, ingress nodes never forward the raw token, targets consume one-time owner-held leases before pprof, audit fanout is deadline-bounded, and a stop-time 30-second fence prevents profile overlap across owner generations.
 - Manager message payloads are raw bytes encoded as Base64 in JSON; web views decode valid printable UTF-8 (including non-ASCII text) and keep binary payloads in Base64 form.
 - `cmd/wukongim` is the promoted product entrypoint. Controller, the new
@@ -140,6 +143,13 @@
   operator-owned service actions run against PID 1. Debian 12 is the existing
   source-preview compatibility target and is independent of the public
   publisher's clean-client support matrix.
+- Manager node configuration uses a schema-projected, redacted startup TOML document at
+  `GET /manager/nodes/:node_id/config/toml`, guarded by `cluster.node:r`.
+  Default normalization comes from owning runtime helpers; `internal/config/schema_help.go`
+  owns bilingual field descriptions. Paths, object lists and secrets remain comments,
+  so the document is not a complete restore file. Independent RPC 88 uses `WKVC`/`WKVc`
+  version 2; legacy RPC 71 and the JSON config route keep their original layout.
+  Unsupported peers are explicit and never fall back to another node's configuration.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.toml`; `.toml.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, Channel runtime reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - Default Slot Raft timing is a 50-millisecond tick, two-tick heartbeat, and 40-tick election floor: heartbeats run every 100 milliseconds and elections start after at least two seconds. Chat-lifecycle cloud templates pin the same values. This keeps sub-second storage or transport tails from creating avoidable terms while proposal replication remains event-driven; override all three values together when a deployment proves a different failure-detection budget.

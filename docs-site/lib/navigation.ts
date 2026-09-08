@@ -392,8 +392,8 @@ function publishedEasySDKGroup(): NavigationGroup {
     'easy',
     'WuKongEasySDK',
     'WuKongEasySDK',
-    '选择 iOS、Android、Flutter、Web 或 Rust，通过固定发布包或源码完成在线双向消息。',
-    'Choose iOS, Android, Flutter, Web, or Rust and exchange online messages using pinned packages or source revisions.',
+    '选择 iOS、Android、Flutter、Web、C# 或 Rust，通过固定发布包或源码完成在线双向消息。',
+    'Choose iOS, Android, Flutter, Web, C#, or Rust and exchange online messages using pinned packages or source revisions.',
     [
       publishedPage(
         'examples',
@@ -436,6 +436,13 @@ function publishedEasySDKGroup(): NavigationGroup {
         'Rust quickstart',
         '固定 WuKongEasySDK-Rust 源码，使用 Tokio 完成在线消息、有限重连和清理。',
         'Pin WuKongEasySDK-Rust source for Tokio online messaging, bounded reconnect, and cleanup.',
+      ),
+      publishedPage(
+        'csharp/getting-started',
+        'C# 快速接入',
+        'C# quickstart',
+        '使用 1.0.0 固定源码接入 .NET 8，完成异步连接、消息收发、重连和释放。',
+        'Use pinned 1.0.0 source with .NET 8 for async connections, messaging, reconnect, and cleanup.',
       ),
     ],
   );

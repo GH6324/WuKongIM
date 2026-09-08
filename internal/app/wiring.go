@@ -507,6 +507,7 @@ func (a *App) wireManagerNodeConfigRPC() {
 	}
 	adapter := accessnode.New(accessnode.Options{ManagerNodeConfig: a, Logger: a.logger.Named("node")})
 	registrar.RegisterRPC(accessnode.ManagerNodeConfigRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerNodeConfigRPC))
+	registrar.RegisterRPC(accessnode.ManagerNodeConfigDocumentRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerNodeConfigDocumentRPC))
 }
 
 func (a *App) wireManagerChannelRPC() {

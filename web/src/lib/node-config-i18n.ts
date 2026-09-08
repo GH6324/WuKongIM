@@ -13,6 +13,7 @@ const groupMessageIds: Record<string, string> = {
   channel_append: "nodeConfig.group.channelAppend",
   delivery: "nodeConfig.group.delivery",
   webhook: "nodeConfig.group.webhook",
+  "webhook.before_send": "nodeConfig.group.webhookBeforeSend",
   plugin: "nodeConfig.group.plugin",
   log: "nodeConfig.group.log",
   observability: "nodeConfig.group.observability",
@@ -34,6 +35,14 @@ const sourceMessageIds: Record<string, string> = {
 
 const zhLabelOverrides: Record<string, string> = {
   WK_NODE_ID: "节点 ID",
+  WK_GATEWAY_TOKEN_AUTH_ON: "CONNECT 令牌认证",
+  WK_MESSAGE_CMD_CHANNEL_SUFFIX: "命令频道后缀",
+  WK_WEBHOOK_BEFORE_SEND_ENABLED: "发送前 Webhook 开关",
+  WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR: "发送前 Webhook 地址",
+  WK_WEBHOOK_BEFORE_SEND_TIMEOUT: "发送前 Webhook 超时",
+  WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT: "发送前 Webhook 超时策略",
+  WK_WEBHOOK_BEFORE_SEND_ON_ERROR: "发送前 Webhook 错误策略",
+  WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT: "发送前 Webhook 并发上限",
   WK_CLUSTER_HASH_SLOT_COUNT: "哈希槽位数量",
   WK_MANAGER_AUTH_ON: "管理端认证",
   WK_MANAGER_JWT_SECRET: "JWT 密钥",
@@ -43,6 +52,15 @@ const zhLabelOverrides: Record<string, string> = {
 }
 
 const zhConfigWords: Record<string, string> = {
+  authentication: "认证",
+  before: "前置",
+  calls: "调用",
+  command: "命令",
+  connect: "CONNECT",
+  flight: "处理中",
+  in: "当前",
+  policy: "策略",
+  suffix: "后缀",
   ack: "确认",
   activation: "激活",
   adaptive: "自适应",
