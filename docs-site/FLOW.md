@@ -39,9 +39,9 @@ examples, search, SEO, and machine-readable output. Runtime contracts are define
    per-platform upgrade pages.
 4. EasySDK distinguishes C#/Rust public packages, C++ source/vcpkg pins, and
    Python source from historical registry receipts. Rust records the exact
-   crates.io checksum and consumer compilation separately from source-based
-   WSS recovery and server revision evidence. Python asyncio source validation
-   does not imply a PyPI release.
+   crates.io checksum and independent-consumer WSS recovery separately from
+   historical source runs, retaining exact package/harness/server identities.
+   Python asyncio source validation does not imply a PyPI release.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.
