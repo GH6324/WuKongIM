@@ -68,6 +68,8 @@ Stop or startup rollback
 - The benchmark terminal controller is advertised only with a non-empty token,
   the real Gateway SEND drainer, Channel append group, and Online Delivery
   runtime. Partial compositions cannot mint a terminal capability.
+- Channel append reads subscribers at the Slot leader and owns versioned snapshot
+  reuse; the benchmark metadata cache never supplies product recipient plans.
 - Channel append producers start after their post-commit consumers and drain
   before those dependencies stop. A drain timeout returns promptly but keeps
   dependencies alive so a later `Stop` can continue the same drain.

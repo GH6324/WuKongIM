@@ -3917,7 +3917,7 @@ func TestDeliveryMetaStoreInvalidatesSubscriberCacheAfterMutation(t *testing.T) 
 	}
 }
 
-func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) {
+func TestNewWiresAuthoritativeSubscriberSourceWhenClusterProvidesRealMetadata(t *testing.T) {
 	cluster := &recordingDeliveryMetaNode{
 		fakeCluster: fakeCluster{calls: &[]string{}},
 		snapshot:    readyFakeClusterSnapshot(1, 16),
@@ -3936,8 +3936,8 @@ func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) 
 	if app.deliverySubscribers == nil {
 		t.Fatal("delivery subscriber source was not wired")
 	}
-	if _, ok := app.deliverySubscribers.(*deliveryMetaStore); !ok {
-		t.Fatalf("deliverySubscribers = %T, want *deliveryMetaStore", app.deliverySubscribers)
+	if _, ok := app.deliverySubscribers.(channelAppendSubscriberSource); !ok {
+		t.Fatalf("deliverySubscribers = %T, want channelAppendSubscriberSource", app.deliverySubscribers)
 	}
 }
 
