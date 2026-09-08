@@ -15,18 +15,16 @@ description: 查阅 WKProto 固定 Header 与 Setting 位，并理解持久化�
 
 <MessageFlagTable locale="zh" />
 
-## `NoPersist` 必须结合命令语义
+## `NoPersist` 在线投递但不保留历史
 
-<Callout type="error" title="普通 NoPersist 不会实时投递">
-  普通非命令 `NoPersist`（没有 `SyncOnce`，也不是命令 Channel）只在预路由检查后返回兼容成功，不解析 authority、不追加日志、也不在线投递。只有命令式 `NoPersist` 才进入瞬时在线投递；两者都不能离线恢复。
-</Callout>
+普通 `NoPersist=true, SyncOnce=false` 消息使用源频道，命令式消息使用命令频道。
+两者都经过权限检查、解析 authority、分配消息 ID，并以序号零进入瞬时在线投递；
+不写入持久历史，也不能离线恢复。
 
-因此：
-
-- 可靠聊天、通知、审计和可重放业务事件使用普通持久消息；
-- 在线瞬时命令需要命令语义，并接受目标离线时不可恢复；
-- 可恢复命令使用持久 `SyncOnce` 与独立 CMD bind/sync/ack；
-- 不要用 `NoPersist` 成功响应作为“设备已收到”的证据。
+- 可靠聊天、通知、审计及需要回放的业务事件使用持久消息。
+- 普通在线消息使用 `NoPersist`；在线命令额外使用命令语义。
+- 可恢复命令使用持久 `SyncOnce`，并接入独立 CMD bind/sync/ack。
+- 瞬时消息的成功 SENDACK 表示在线投递已接收，不能证明设备已收到。
 
 ## `RedDot` 与回执
 
@@ -54,6 +52,7 @@ description: 查阅 WKProto 固定 Header 与 Setting 位，并理解持久化�
 | 需求 | 选择 |
 | --- | --- |
 | 普通可恢复聊天消息 | `NoPersist=false`、`SyncOnce=false` |
+| 普通在线瞬时消息 | `NoPersist=true`、`SyncOnce=false`；不保留历史 |
 | 在线瞬时命令 | `NoPersist=true`、`SyncOnce=true`，接受无历史 |
 | 可恢复命令 | `NoPersist=false`、`SyncOnce=true`，另做 CMD 绑定与同步 |
 | 业务已读 | 独立持久回执，不依赖 `RedDot` / RECVACK |
@@ -61,7 +60,7 @@ description: 查阅 WKProto 固定 Header 与 Setting 位，并理解持久化�
 
 ## 失败诊断
 
-- **NoPersist 返回成功但对端没收到**：确认是否缺少命令式 `SyncOnce`；普通分支按设计不投递。
+- **NoPersist 成功但接收端没有消息：** 检查订阅成员、在线 presence、投递接收情况和 owner Session 写入；离线接收者无法恢复消息。
 - **消息无法离线恢复**：检查是否使用 NoPersist 或未建立 CMD 恢复流程。
 - **红点与未读数不一致**：分开检查 Message Flag 与 Conversation Badge floor。
 - **设置位后某 SDK 解码失败**：核对精确 SDK/协议版本，不盲目保留未知位。

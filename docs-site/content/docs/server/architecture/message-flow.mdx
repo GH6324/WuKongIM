@@ -83,7 +83,7 @@ owner 节点在写 `RECV` 前重新验证 UID、Boot ID、Session ID 和 owner f
 
 ## NoPersist 分支
 
-普通非命令频道的 `NoPersist`（没有 `SyncOnce`，频道 ID 也不是命令频道）只完成无副作用的预路由校验，然后直接返回终态成功；它不会解析 authority、写入 Channel，也不会触发实时投递。这个兼容分支不能当作在线消息发送能力。
+普通非命令频道的 `NoPersist`（没有 `SyncOnce`，频道 ID 也不是命令频道）通过校验和发送权限检查后，保留源频道并解析其 authority，分配瞬时消息 ID，按 writer 顺序进入在线投递；消息序号为零，不写持久日志、不修改成员目录，也不触发 PersistAfter。
 
 命令式 `NoPersist`（带 `SyncOnce` 或已经使用命令频道 ID）才会映射命令频道、解析 authority，并按 writer 顺序进入在线 recipient routing。它跳过 Channel durable log、membership state 和 PersistAfter，只有在线投递计划成功入队后才返回成功；没有在线投递能力时会失败，而不是伪造成功。
 

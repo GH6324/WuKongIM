@@ -174,7 +174,7 @@ curl -sS http://127.0.0.1:5001/message/sync \
 
 处理完本次返回后调用 `/message/syncack`。该调用推进服务端记录的最新 CMD sync generation；请求 `last_message_seq` 是兼容必填字段，不是设备执行成功证明。设备永久失去该源 Channel 的命令权限时，用相同请求结构调用 `/message/cmd/unbind`。
 
-请求级 `subscribers` 可以做有界的即时目标投递，但不会自动创建 CMD 发现绑定，不能直接承诺重连恢复。在线瞬时命令必须同时设置 `no_persist=1` 和 `sync_once=1`；它没有持久 sequence、离线同步、普通会话或 `msg.offline`。普通非命令 `NoPersist` 即使返回兼容成功，也不会进行实时投递。
+请求级 `subscribers` 可以做有界的即时目标投递，但不会自动创建 CMD 发现绑定，不能直接承诺重连恢复。在线瞬时命令必须同时设置 `no_persist=1` 和 `sync_once=1`；它没有持久 sequence、离线同步、普通会话或 `msg.offline`。普通在线消息可以使用 `no_persist=1, sync_once=0` 并保留源频道，同样不支持离线恢复。
 
 ## 用业务结果闭环
 
