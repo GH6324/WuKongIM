@@ -134,11 +134,11 @@ Application dependencies use only these exact versions—never `latest` or a bro
 
 The task sequence was calibrated from the legacy [EasySDK overview](https://wukong.mintlify.app/en/sdk/easy/overview), [iOS](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started), [Android](https://wukong.mintlify.app/en/sdk/easy/android/getting-started), [Flutter](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started), and [Web](https://wukong.mintlify.app/en/sdk/easy/javascript/getting-started) pages. The released source and distributions above remain authoritative for APIs, versions, and security boundaries.
 
-## C# source integration
+## C# / NuGet integration
 
-[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) provides an independent .NET 8+ client at source version `1.0.0`. Create it with `new WKIM` / `WKIM.Init`, authenticate with `ConnectAsync`, send with `SendAsync`, manage events with `+=` / `-=`, and await `DisposeAsync` or use `await using` on exit. Its default device category is PC `2`.
+[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) provides an independent .NET 8+ client through the `WuKongEasySDK` `1.0.0` NuGet package. Create it with `new WKIM` / `WKIM.Init`, authenticate with `ConnectAsync`, send with `SendAsync`, manage events with `+=` / `-=`, and await `DisposeAsync` or use `await using` on exit. Its default device category is PC `2`.
 
-C# has not been published to nuget.org. Follow the [C# quickstart](/en/sdk/easy/csharp/getting-started) for a pinned project reference or local NuGet package. Its real-process verification uses WuKongIM `132e46209` and remains separate from the four historical registry-package receipts above.
+C# is available on [nuget.org](https://www.nuget.org/packages/WuKongEasySDK/1.0.0). Follow the [C# quickstart](/en/sdk/easy/csharp/getting-started) to install exact version `1.0.0`, or build a pinned project reference or local NuGet package. Its real-process verification uses WuKongIM `132e46209` and remains separate from the four historical registry-package receipts above.
 
 ## C++ pinned source
 

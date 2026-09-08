@@ -134,11 +134,11 @@ C++ 使用独立 `WKIM` 实例和 I/O 线程，保存 `ListenerId`，退出时�
 
 当前教程的任务顺序校准自旧版 [EasySDK 概览](https://wukong.mintlify.app/zh/sdk/easy/overview)、[iOS](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)、[Android](https://wukong.mintlify.app/zh/sdk/easy/android/getting-started)、[Flutter](https://wukong.mintlify.app/zh/sdk/easy/flutter/getting-started)和 [Web](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started) 页面；API、版本与安全边界以上表的正式源码和分发产物为准。
 
-## C# 源码接入
+## C# / NuGet 接入
 
-[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) 提供 .NET 8+ 的独立客户端，源码版本为 `1.0.0`。使用 `new WKIM` / `WKIM.Init` 创建实例，`ConnectAsync` 认证后调用 `SendAsync`，通过 `+=` / `-=` 管理事件，退出时等待 `DisposeAsync` 或使用 `await using`。默认设备类别为 PC `2`。
+[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) 提供 .NET 8+ 的独立客户端，NuGet 包为 `WuKongEasySDK` `1.0.0`。使用 `new WKIM` / `WKIM.Init` 创建实例，`ConnectAsync` 认证后调用 `SendAsync`，通过 `+=` / `-=` 管理事件，退出时等待 `DisposeAsync` 或使用 `await using`。默认设备类别为 PC `2`。
 
-C# 尚未发布到 nuget.org，请按 [C# 快速接入](/zh/sdk/easy/csharp/getting-started) 使用固定 commit 的项目引用或本地 NuGet 包。它的真实进程验证使用 WuKongIM `132e46209`，与上面的四端历史正式包记录分别保留。
+C# 已发布到 [nuget.org](https://www.nuget.org/packages/WuKongEasySDK/1.0.0)，请按 [C# 快速接入](/zh/sdk/easy/csharp/getting-started) 安装精确版本 `1.0.0`；也可使用固定 commit 的项目引用或本地 NuGet 包。它的真实进程验证使用 WuKongIM `132e46209`，与上面的四端历史正式包记录分别保留。
 
 ## C++ 固定源码
 

@@ -1,12 +1,12 @@
 ---
 title: C# quickstart
-description: Integrate pinned WuKongEasySDK-CSharp source with .NET 8 for authentication, online messaging, automatic reconnect, and async cleanup.
+description: Integrate the WuKongEasySDK-CSharp NuGet release with .NET 8 for authentication, online messaging, automatic reconnect, and async cleanup.
 ---
 
 [WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) follows the JavaScript EasySDK WebSocket JSON-RPC protocol with idiomatic async C# APIs and typed events. It has no third-party runtime dependencies.
 
-<Callout type="info" title="Current installation: pinned source or a local NuGet package">
-  The initial source version is `1.0.0`, pinned here to `d365a354f5e0f25fbd7f83bb59aa365ba43e899f`. It has not been published to nuget.org. Use the project reference or locally packed feed below. Source tests and a local `.nupkg` do not prove a public NuGet release.
+<Callout type="info" title="NuGet release 1.0.0">
+  [WuKongEasySDK 1.0.0](https://www.nuget.org/packages/WuKongEasySDK/1.0.0) is published on nuget.org from source `02ea7d60cd94feef1996f41bca35ffc3b8e18ea6`. The default installation below uses public NuGet; project references and local packing remain available for source builds.
 </Callout>
 
 ## Before you begin
@@ -18,11 +18,18 @@ description: Integrate pinned WuKongEasySDK-CSharp source with .NET 8 for authen
 
 Read [Identity & Token](/en/guide/integration/authentication) first. Production uses HTTPS/WSS with certificate validation. Tokens do not belong in URLs, logs, or source code.
 
-## 1. Install pinned source
+## 1. Install the NuGet release
+
+```bash
+dotnet new console -n MyChat --framework net8.0
+dotnet add MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source https://api.nuget.org/v3/index.json
+```
+
+### Optional: build from pinned source
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
-git -C WuKongEasySDK-CSharp checkout d365a354f5e0f25fbd7f83bb59aa365ba43e899f
+git -C WuKongEasySDK-CSharp checkout 02ea7d60cd94feef1996f41bca35ffc3b8e18ea6
 dotnet new console -n MyChat --framework net8.0
 dotnet add MyChat/MyChat.csproj reference WuKongEasySDK-CSharp/src/WuKongEasySDK/WuKongEasySDK.csproj
 ```
@@ -37,7 +44,7 @@ dotnet pack src/WuKongEasySDK -c Release -o artifacts
 dotnet add ../MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source ./artifacts
 ```
 
-Choose either the project reference or the local package. Do not reference both. Here, `--source ./artifacts` is the local feed you just built.
+Choose one of the public package, project reference, or local package. Do not combine them. Here, `--source ./artifacts` is the local feed you just built.
 
 ## 2. Obtain connection material from your backend
 
@@ -168,7 +175,9 @@ WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py
 
 The script starts and cleans up only its own loopback single-node cluster with 256 hash slots and Token authentication. It prepares two test identities and verifies matching SENDACK/RECV for bidirectional Unicode messages, reconnect, heartbeat, and invalid-token rejection.
 
-This source passed 35 tests, Release builds, and local NuGet packing on macOS arm64 with .NET SDK `8.0.424` / runtime `8.0.30`. It also passed the real-process fixture against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`. Loopback WebSocket tests cover custom events and reconnect failures. This receipt excludes public NuGet downloads, production WSS, offline recovery, multi-node capacity, and long-duration stability.
+The original implementation `d365a354f5e0f25fbd7f83bb59aa365ba43e899f` passed 35 tests, Release builds, and local NuGet packing on macOS arm64 with .NET SDK `8.0.424` / runtime `8.0.30`. It also passed the real-process fixture against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`. Loopback WebSocket tests cover custom events and reconnect failures. This receipt excludes public NuGet downloads, production WSS, offline recovery, multi-node capacity, and long-duration stability.
+
+The independent [NuGet `1.0.0` release verification](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34188740990) covers builds, 35 SDK tests, seven release guard tests, and clean local package installation on Windows, Linux, and macOS. After publication it downloads the exact version from nuget.org, compares every entry except NuGet’s signature with the tested artifact, and restores, compiles, loads, and disposes the client in an isolated project with an empty package cache and only the public feed. This public installation receipt is separate from the real-server messaging receipt above.
 
 ## Next
 
