@@ -143,7 +143,7 @@ Route: `/{lang}/sdk`
   - **Web 快速接入 / Web quickstart** `/{lang}/sdk/easy/javascript/getting-started` — 精确安装 easyjssdk v2.0.4，在真实浏览器与正式包对端中完成 Alice/Bob 在线消息。 / Install exactly easyjssdk v2.0.4 for Alice/Bob online messaging in a real browser and released-package peer runs.
   - **Rust 快速接入 / Rust quickstart** `/{lang}/sdk/easy/rust/getting-started` — 安装 WuKongEasySDK-Rust 0.1.0 正式包，使用 Tokio 完成在线消息、有限重连和清理。 / Install WuKongEasySDK-Rust 0.1.0 for Tokio online messaging, bounded reconnect, and cleanup.
   - **C# 快速接入 / C# quickstart** `/{lang}/sdk/easy/csharp/getting-started` — 使用 1.0.0 固定源码接入 .NET 8，完成异步连接、消息收发、重连和释放。 / Use pinned 1.0.0 source with .NET 8 for async connections, messaging, reconnect, and cleanup.
-  - **C++ 快速接入 / C++ quickstart** `/{lang}/sdk/easy/cpp/getting-started` — 通过 vcpkg 安装 SDK 和依赖，以 C++17 和 CMake 完成在线收发与线程管理。 / Install the SDK and dependencies with vcpkg, then use C++17 and CMake for messaging and thread management.
+  - **C++ 快速接入 / C++ quickstart** `/{lang}/sdk/easy/cpp/getting-started` — 通过预编译包或 vcpkg 引入 SDK，以 C++17 和 CMake 完成在线收发与线程管理。 / Use prebuilt archives or vcpkg with C++17 and CMake for messaging and thread management.
   - **Python 快速接入 / Python quickstart** `/{lang}/sdk/easy/python/getting-started` — 安装 0.1.0 固定源码，用 asyncio 完成在线收发、重连和异步资源清理。 / Install pinned 0.1.0 source and use asyncio for online messaging, reconnect, and async cleanup.
 
 ## API 与协议 / API & Protocols
