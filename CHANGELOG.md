@@ -10,6 +10,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Document Rust EasySDK group messaging and released-package checks for member fanout, permissions, membership changes and reconnect. / 补充 Rust EasySDK 群聊用法及正式包成员投递、权限、成员变更与重连验收。
+
 - Clarify the pending C++ EasySDK submission to the default vcpkg catalog and retain the working custom-registry setup in both languages. / 补充 C++ EasySDK 申请进入 vcpkg 默认目录的待收录状态，中英文接入说明继续保留可用的自定义 registry 配置。
 
 - Document WuKongEasySDK-Python 0.1.0 PyPI installation, matching examples, and published-package verification. / 更新 WuKongEasySDK-Python 0.1.0 的 PyPI 安装、配套示例与正式包验证说明。

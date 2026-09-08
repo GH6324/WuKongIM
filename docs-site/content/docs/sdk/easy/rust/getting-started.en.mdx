@@ -139,6 +139,26 @@ Automatic RECVACK confirms network receipt, not observer processing. Messages ar
 
 Sends are never replayed automatically. Timeout, cancellation or transport loss may leave acceptance unknown; preserve `SendOptions.client_msg_no` if your application retries under the server's idempotency contract. `SendOptions` also supports Header, Setting and Topic. SEND `red_dot` defaults to true and respects explicit false. Use `ChannelType::Group` for group messages after the backend prepares membership and permissions.
 
+## Group messaging and membership
+
+The trusted backend creates the group and manages members through Product HTTP.
+After the backend confirms membership, use the group ID with `ChannelType::Group`:
+
+```rust
+let ack = client.send(
+    "project-team",
+    wukong_easy_sdk::ChannelType::Group,
+    serde_json::json!({"type": 1, "content": "Hello, team!"}),
+).await?;
+```
+
+The receiving side continues to use `Event::Message`; check `channel_type`,
+`channel_id`, `from_uid` and `payload`. SENDACK confirms server acceptance, not
+that every member has processed the message. For a group that rejects strangers,
+a nonmember or removed member receives `Error::Server { code: 3 }`; a denylisted
+member receives code `4`. Report these permission failures to the application.
+Membership management credentials belong on the trusted backend.
+
 ## Private CA for WSS
 
 For private PKI, put DER root bytes in `Options.additional_root_certificates`.
@@ -167,6 +187,21 @@ Acceptance pins `27a39f15bf163b433f417b78ab6bfc6e589585e5`; the older server can
 On 2026-09-08, crates.io `wukong-easy-sdk 0.1.0` was published from source `5b4a59cdbb66a9e0c3878e73ba4656f08ee05c6b`. An independent consumer with an empty Cargo cache downloaded the public registry package and compiled this tutorial's Chinese and English connection/messaging and private CA examples. The downloaded archive SHA-256 is `0029747f10b86f566e2d659535df0954114769a90962e562fb522a95e5508719`, matching the [GitHub Release](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/tag/v0.1.0) attachment.
 
 A subsequent **public-package end-to-end run** used an empty Cargo cache and the exact crates.io archive on macOS Rust 1.86: Rust/Rust roundtrip, invalid-Token rejection, 1,747 confirmed Rust/JS WSS echoes in 120 seconds, three forced cuts/recoveries, no duplicates or event loss, and complete cleanup. One interrupted send retained unknown-outcome semantics. The [registry receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-e2e-0.1.0-macos-120s.json) records harness `cfa48a038c2cfd56948ace43afe3b2f5f91dace3` separately from the released package source; the server remains `27a39f15bf163b433f417b78ab6bfc6e589585e5`.
+
+The **group acceptance** extension also passed with the exact registry package:
+four Rust clients, two groups, ten phases and 15 expected deliveries. It verified
+fanout and channel isolation, nonmember rejection, member add/remove/re-add,
+denylist rejection/removal, and membership after all four clients automatically
+reconnected. Each delivery matched the SENDACK identity, sender, channel and
+payload, without duplicates or observer lag. Excluded clients were observed for
+at least 500 ms per phase. The [group receipt](https://github.com/WuKongIM/WuKongEasySDK-Rust/releases/download/v0.1.0/registry-group-0.1.0-macos-120s.json)
+binds clean harness `0262de9454603ee528dd2d9d9f236dec89e8df2a` to the same package
+and server revisions on macOS Rust 1.86; its accompanying 120-second Rust/JS run
+confirmed 2,608 echoes and three recoveries, with one unknown-outcome interrupted
+send. All clients and owned processes were cleaned up. This is a four-client
+single-node cluster check, not large-group capacity, offline recovery or
+cross-node routing evidence. No SDK runtime change or new crate release was
+needed for this validation.
 
 The same source passed [cross-platform CI](https://github.com/WuKongIM/WuKongEasySDK-Rust/actions/runs/34190886754): 27 protocol, lifecycle and TLS tests, Clippy, API documentation and package verification on Linux Rust 1.86/stable, macOS stable and Windows stable.
 
