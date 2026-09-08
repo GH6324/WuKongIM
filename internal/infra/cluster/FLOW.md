@@ -36,7 +36,8 @@ and bounded operations observations.
    Committed-message scans preserve the usecase-resolved bounds, raw scan
    order, command flags, and owned payloads; `message.PageReader` selects pages.
    Channel append clones payload bytes once and explicitly transfers that
-   immutable ownership to the Channel runtime.
+   immutable ownership to the Channel runtime. Mutable recipient metadata is
+   reread from the Slot leader per routed batch; only person metadata is cached.
    First person SENDs prepare coalesced UID membership/runtime metadata and
    publish directory-ready only after every prepare proposal joins.
 2. Presence and recipient adapters resolve exact fenced targets, group work by
