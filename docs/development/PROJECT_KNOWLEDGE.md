@@ -2,6 +2,8 @@
 
 ## Internal
 
+- WebSocket decoding borrows reusable inbound/fragment buffers. The gnet event queue must copy admitted payloads before the next read; preserving the opcode and copying only after pending-byte admission keeps dispatch correct and memory bounded.
+
 - `WuKongIM/WuKongEasySDK-CSharp` is the independent .NET 8+ EasySDK repository. Its initial source version is `1.0.0`, uses PC device category `2` by default, and is documented at `/sdk/easy/csharp/getting-started` in both locales. NuGet package `WuKongEasySDK` `1.0.0` is pinned to source `02ea7d60cd94feef1996f41bca35ffc3b8e18ea6`; public installation is verified against the tested artifact with an empty consumer cache. Retain the original source messaging receipt separately, without inheriting the other platforms' registry receipts.
 
 - `docs-site/examples/go-webhook` is a separate standard-library business callback example. Its pure marker rules handle raw UTF-8 and SDK `type=1` text JSON without storing idempotency state. Explicit denial returns HTTP 200 with a business reason; HTTP errors remain transport failures governed by the sender policy. The documentation `verify` gate runs its fast Go tests.
@@ -772,3 +774,5 @@
 - `webhook.before_send` independently enables `msg.before_send` after permission and Send plugins, before submission for every send mode. Plugin disable/skip does not bypass it; authority forwarding does not repeat it.
 - Message usecase owns concurrency, deadline, validation and failure policy; `internal/infra/webhook` owns the bounded HTTP exchange. Parent cancellation and explicit denial cannot fail open. Business rejection codes 128–255 retain their values in Gateway and Product HTTP.
 - Callback identity is the canonical source channel, including derived subscriber-scoped sources; no committed message ID/sequence exists yet. Client retries may repeat callbacks, so business handlers use sender/source/client_msg_no idempotency and cannot assume approval guarantees commit.
+
+- WuKongEasySDK-Rust is a separate native Tokio SDK in `WuKongIM/WuKongEasySDK-Rust`, package `wukong-easy-sdk` / import `wukong_easy_sdk`. Its initial 0.1.0 uses pinned Git source (no crates.io release), defaults to PC device category 2, bounds pending SENDs and event retention, and never replays sends automatically. Bilingual tutorials live at `/sdk/easy/rust/getting-started`; source interoperability evidence remains separate from the existing four released-package receipts.

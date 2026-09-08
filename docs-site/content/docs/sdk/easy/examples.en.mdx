@@ -203,6 +203,12 @@ Send success, peer realtime receipt, peer display, and product handling are four
 
 Continue with the [iOS](/en/sdk/easy/ios/getting-started), [Android](/en/sdk/easy/android/getting-started), [Flutter](/en/sdk/easy/flutter/getting-started), or [Web](/en/sdk/easy/javascript/getting-started) quickstart, then use the [Release Checks](/en/guide/integration/acceptance) to close WSS, physical-device, offline, capacity, and rollback evidence.
 
+## Rust source example (2026-09-08)
+
+The Rust repository is [WuKongIM/WuKongEasySDK-Rust](https://github.com/WuKongIM/WuKongEasySDK-Rust), source package version `0.1.0`, not yet published to crates.io. Follow the [Rust quickstart](/en/sdk/easy/rust/getting-started), pin revision `6c04759cab58e6d808b921069ac8c0fd0ad21a77`, and run `cargo run --locked --example chat` or `cargo run --locked --example roundtrip`. Both Rust identities use PC `2` for `device_flag`.
+
+Verified source `f30f1b32d0628f1e909fc21da704e5e49bc9f63e` passed Linux CI against WuKongIM `27a39f15bf163b433f417b78ab6bfc6e589585e5`, which fixes WebSocket buffer ownership: Rust/Rust checks, 120 seconds of Rust/`easyjssdk@2.0.4` WSS Unicode echoes, three transport interruptions, invalid-Token rejection and cleanup. JS uses WEB `1`; the server is a 256 Hash Slot single-node cluster. The installation pin subsequently tightens crate inclusion and receipt revision binding; see the [Rust verification record](/en/sdk/easy/rust/getting-started#verification-record). These source results are separate from the four registry receipts above and do not establish capacity or multi-day stability.
+
 ## C++ vcpkg and source examples
 
 For C++ project `0.1.0`, [vcpkg integration](/en/sdk/easy/cpp/getting-started) installs the SDK and its dependencies automatically. The source-based interactive example below is retained, separately from the four-platform historical released-package acceptance above. Each terminal supplies its own backend-issued Token through `WKIM_TOKEN`.
