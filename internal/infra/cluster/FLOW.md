@@ -36,10 +36,15 @@ and bounded operations observations.
    Committed-message scans preserve the usecase-resolved bounds, raw scan
    order, command flags, and owned payloads; `message.PageReader` selects pages.
    Channel append clones payload bytes once and explicitly transfers that
-   immutable ownership to the Channel runtime.
+   immutable ownership to the Channel runtime. Mutable recipient metadata is
+   reread from the Slot leader per routed batch; only person metadata is cached.
    First person SENDs prepare coalesced UID membership/runtime metadata and
    publish directory-ready only after every prepare proposal joins.
-2. Presence and recipient adapters resolve exact fenced targets, group work by
+2. Presence reconstruction coalesces target groups into one bounded read per
+   active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
+   owner boot identity, and rechecks current membership and Slot authority before
+   publishing a complete result. Unknown or unavailable proof remains explicit.
+3. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
 3. Management and operations adapters receive policy-validated requests,
    select node-local or peer execution, and return bounded, redacted read

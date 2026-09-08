@@ -57,6 +57,8 @@ type RemoteForwarder interface {
 
 // RouterOptions configures channel authority routing.
 type RouterOptions struct {
+	// CommandChannelSuffix selects command IDs; empty retains the legacy default.
+	CommandChannelSuffix string
 	// LocalNodeID is this node's cluster identity.
 	LocalNodeID uint64
 	// Resolver resolves canonical channel append authority.
@@ -87,10 +89,12 @@ type RouterOptions struct {
 
 // Router sends commands to the current channel authority.
 type Router struct {
-	localNodeID uint64
-	resolver    AuthorityResolver
-	local       LocalSubmitter
-	remote      RemoteForwarder
+	// commandChannels applies the deployment suffix without process-global state.
+	commandChannels runtimechannelid.CommandCodec
+	localNodeID     uint64
+	resolver        AuthorityResolver
+	local           LocalSubmitter
+	remote          RemoteForwarder
 
 	forwardTimeout                time.Duration
 	retryBackoff                  time.Duration
@@ -135,6 +139,7 @@ func NewRouter(opts RouterOptions) *Router {
 		maxConcurrentResolvesPerBatch = defaultRouterMaxConcurrentResolvesPerBatch
 	}
 	router := &Router{
+		commandChannels:               runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		localNodeID:                   opts.LocalNodeID,
 		resolver:                      opts.Resolver,
 		local:                         opts.Local,
@@ -206,7 +211,7 @@ func (r *Router) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchIt
 	attempts := make([]int, len(items))
 	routeChannels := make([]ChannelID, len(items))
 	for i, item := range items {
-		prepared, routeChannel, result, done := prepareRouterItem(item, time.Now())
+		prepared, routeChannel, result, done := prepareRouterItem(item, time.Now(), r.commandChannels)
 		if done {
 			finalize(i, result)
 			continue
@@ -262,7 +267,7 @@ func (r *Router) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchIt
 }
 
 func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
-	prepared, routeChannel, result, done := prepareRouterItem(item, time.Now())
+	prepared, routeChannel, result, done := prepareRouterItem(item, time.Now(), r.commandChannels)
 	if done {
 		return result
 	}
@@ -694,61 +699,42 @@ func (r *Router) forwardBatch(ctx context.Context, target AuthorityTarget, items
 	return results
 }
 
-func prepareRouterItem(item SendBatchItem, now time.Time) (SendBatchItem, ChannelID, SendBatchItemResult, bool) {
+func prepareRouterItem(item SendBatchItem, now time.Time, channels runtimechannelid.CommandCodec) (SendBatchItem, ChannelID, SendBatchItemResult, bool) {
 	if item.Context == nil {
 		item.Context = context.Background()
 	}
 	if err := routerItemError(item, now); err != nil {
 		return item, ChannelID{}, SendBatchItemResult{Err: err}, true
 	}
-	routeChannel, result, done := preRouteChannel(item.Command)
+	routeChannel, result, done := preRouteChannel(item.Command, channels)
 	return item, routeChannel, result, done
 }
 
-func preRouteChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
+func preRouteChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (ChannelID, SendBatchItemResult, bool) {
 	if cmd.FromUID == "" {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonAuthFail}}, true
 	}
 	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
-		return preRouteRequestScopedChannel(cmd)
+		return preRouteRequestScopedChannel(cmd, channels)
 	}
 	if cmd.ChannelID == "" || cmd.ChannelType == 0 || len(cmd.Payload) == 0 {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
-	if cmd.NoPersist {
-		return preRouteNoPersistChannel(cmd)
-	}
-	channelID := cmd.ChannelID
+	channelID, isCommand := channels.FromCommandChannel(cmd.ChannelID)
 	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
-		normalizedChannelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
+		normalizedChannelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, channelID)
 		if err != nil {
 			return ChannelID{}, SendBatchItemResult{Err: err}, true
 		}
 		channelID = normalizedChannelID
 	}
-	if cmd.SyncOnce {
-		channelID = runtimechannelid.ToCommandChannel(channelID)
+	if cmd.SyncOnce || isCommand {
+		channelID = channels.ToCommandChannel(channelID)
 	}
 	return ChannelID{ID: channelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
 }
 
-func preRouteNoPersistChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
-	sourceChannelID, alreadyCommandChannel := runtimechannelid.FromCommandChannel(cmd.ChannelID)
-	cmd.ChannelID = sourceChannelID
-	if !cmd.SyncOnce && !alreadyCommandChannel {
-		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}}, true
-	}
-	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
-		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
-		if err != nil {
-			return ChannelID{}, SendBatchItemResult{Err: err}, true
-		}
-		cmd.ChannelID = channelID
-	}
-	return ChannelID{ID: runtimechannelid.ToCommandChannel(cmd.ChannelID), Type: cmd.ChannelType}, SendBatchItemResult{}, false
-}
-
-func preRouteRequestScopedChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
+func preRouteRequestScopedChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (ChannelID, SendBatchItemResult, bool) {
 	if len(cmd.Payload) == 0 {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
@@ -758,7 +744,7 @@ func preRouteRequestScopedChannel(cmd SendCommand) (ChannelID, SendBatchItemResu
 	if cmd.ChannelID != "" {
 		return ChannelID{}, SendBatchItemResult{Err: ErrRequestSubscribersConflictChannel}, true
 	}
-	scoped, err := runtimechannelid.RequestSubscriberChannelFor(cmd.MessageScopedUIDs)
+	scoped, err := channels.RequestSubscriberChannelFor(cmd.MessageScopedUIDs)
 	if err != nil {
 		if errors.Is(err, runtimechannelid.ErrRequestSubscribersRequired) {
 			return ChannelID{}, SendBatchItemResult{Err: ErrRequestSubscribersRequired}, true

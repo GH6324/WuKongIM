@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 const controllerRaftHealthUnknown = "unknown"
@@ -119,6 +120,8 @@ type OpsMCPAuditReader interface {
 
 // Options configures the manager management usecase.
 type Options struct {
+	// CommandChannelSuffix identifies internal command channels excluded from business operations.
+	CommandChannelSuffix string
 	// Cluster reads cluster control state.
 	Cluster ControlSnapshotReader
 	// NodeConfig reads selected-node redacted effective startup configuration.
@@ -333,6 +336,8 @@ type operationsManagementDeps struct {
 
 // App serves manager management usecases through grouped domain capabilities.
 type App struct {
+	// commandChannels keeps internal command IDs consistent with this node configuration.
+	commandChannels runtimechannelid.CommandCodec
 	// nodeManagementDeps provides node lifecycle and diagnostic capabilities.
 	nodeManagementDeps
 	// channelManagementDeps provides channel inventory and migration capabilities.
@@ -356,6 +361,7 @@ func New(opts Options) *App {
 		now = time.Now
 	}
 	return &App{
+		commandChannels: runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		nodeManagementDeps: nodeManagementDeps{
 			cluster: opts.Cluster, nodeConfig: opts.NodeConfig, runtimeSummary: opts.RuntimeSummary,
 			gatewayDrain: opts.GatewayDrain, nodeLifecycle: opts.NodeLifecycle,

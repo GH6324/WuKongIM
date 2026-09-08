@@ -53,6 +53,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_diagnostics":            RPCManagerDiagnostics,
 		"manager_plugins":                RPCManagerPlugins,
 		"manager_node_config":            RPCManagerNodeConfig,
+		"manager_node_config_document":   RPCManagerNodeConfigDocument,
 		"manager_latest_messages":        RPCManagerLatestMessages,
 		"manager_message_retention":      RPCManagerMessageRetention,
 		"node_lifecycle":                 RPCNodeLifecycle,
@@ -74,6 +75,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"slot_runtime_metadata":          RPCSlotRuntimeMetadata,
 		"slot_permission_metadata_batch": RPCSlotPermissionMetadataBatch,
 		"channel_quorum_exchange":        RPCChannelQuorumExchange,
+		"slot_identity_metadata":         RPCSlotIdentityMetadata,
 	}
 }
 
@@ -87,10 +89,16 @@ func TestRPCManagerTaskAuditServiceAlias(t *testing.T) {
 }
 
 func TestRPCManagerNodeConfigServiceAlias(t *testing.T) {
+	if RPCManagerNodeConfig != 71 || RPCManagerNodeConfigDocument != 88 {
+		t.Fatal("node config services must preserve the legacy and document protocol IDs")
+	}
 	if got := transportServiceAlias(RPCManagerNodeConfig); got != "manager node config" {
 		t.Fatalf("node config service alias = %q, want manager node config", got)
 	}
 	if got := transportServiceFailpointAlias(RPCManagerNodeConfig); got != "manager_node_config" {
 		t.Fatalf("node config failpoint alias = %q, want manager_node_config", got)
+	}
+	if got := transportServiceAlias(RPCManagerNodeConfigDocument); got != "manager node config document" {
+		t.Fatalf("node config document service alias = %q, want manager node config document", got)
 	}
 }

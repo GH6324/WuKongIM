@@ -29,6 +29,9 @@ It does not own plan admission, retries, ACK tracking, or offline classification
 
 ## Invariants and Failure Semantics
 
+- Packet projection removes the configured command suffix before deriving a
+  person peer UID and preserves command and non-persistence flags on the receive
+  packet. Sequence-zero envelopes are transient.
 - The writer performs the final owner fence immediately before the write.
 - Accepted writes return success; missing registry state is retryable, while
   stale identity, packet-build, closed-session, and overflow failures drop.

@@ -101,7 +101,7 @@ func TestBuildOnlineDeliveryRecvPacketUsesRecipientPersonView(t *testing.T) {
 		ChannelID: runtimechannelid.EncodePersonChannel("u1", "u2"), FromUID: "u1", RedDot: true, Payload: payload,
 	}
 
-	packet, err := buildOnlineDeliveryRecvPacket(event, "u2", 123)
+	packet, err := (&LocalSessionWriter{}).buildOnlineDeliveryRecvPacket(event, "u2", 123)
 	if err != nil {
 		t.Fatalf("buildOnlineDeliveryRecvPacket() error = %v", err)
 	}
@@ -153,5 +153,41 @@ func registerLocalSessionWriterTestSession(
 	return onlinedelivery.Route{
 		UID: uid, OwnerNodeID: ownerNodeID, OwnerBootID: route.OwnerBootID,
 		OwnerSeq: route.OwnerSeq, SessionID: sessionID,
+	}
+}
+
+func TestCommandRecvPacketUsesSourceChannelAndCommandFlag(t *testing.T) {
+	for _, suffix := range []string{"", "__commands"} {
+		codec := runtimechannelid.CommandCodec{Suffix: suffix}
+		writer := NewLocalSessionWriter(LocalSessionWriterOptions{CommandChannelSuffix: suffix})
+		for _, uid := range []string{"____system", "uu1"} {
+			peer := "uu1"
+			if uid == peer {
+				peer = "____system"
+			}
+			event := channelappendcontract.CommittedEnvelope{MessageID: 1, ChannelType: frame.ChannelTypePerson, ChannelID: codec.ToCommandChannel(runtimechannelid.EncodePersonChannel(uid, peer)), FromUID: "____system", SyncOnce: true}
+			packet, err := writer.buildOnlineDeliveryRecvPacket(event, uid, 123)
+			if err != nil || packet.ChannelID != peer || !packet.SyncOnce {
+				t.Fatalf("person packet=%+v err=%v want peer=%s", packet, err, peer)
+			}
+		}
+		event := channelappendcontract.CommittedEnvelope{MessageID: 1, ChannelType: 2, ChannelID: codec.ToCommandChannel("group"), SyncOnce: true}
+		packet, err := writer.buildOnlineDeliveryRecvPacket(event, "uu1", 123)
+		if err != nil || packet.ChannelID != "group" || !packet.SyncOnce {
+			t.Fatalf("group packet=%+v err=%v", packet, err)
+		}
+	}
+}
+
+func TestBuildOnlineDeliveryRecvPacketPreservesNoPersist(t *testing.T) {
+	for _, seq := range []uint64{0, 1} {
+		event := channelappendcontract.CommittedEnvelope{MessageID: 1, MessageSeq: seq, ChannelID: "room", ChannelType: frame.ChannelTypeGroup}
+		packet, err := (&LocalSessionWriter{}).buildOnlineDeliveryRecvPacket(event, "u2", 123)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if packet.NoPersist != (seq == 0) {
+			t.Fatalf("seq=%d NoPersist=%v, want %v", seq, packet.NoPersist, seq == 0)
+		}
 	}
 }

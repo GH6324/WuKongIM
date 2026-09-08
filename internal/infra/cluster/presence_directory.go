@@ -12,6 +12,7 @@ import (
 // directory to the entry-agnostic presence authority contract.
 type PresenceDirectoryAuthority struct {
 	directory *authoritypresence.Directory
+	recovery  *presenceusecase.AuthorityRecovery
 }
 
 var _ accessnode.PresenceAuthority = (*PresenceDirectoryAuthority)(nil)
@@ -23,6 +24,11 @@ func NewPresenceDirectoryAuthority(directory *authoritypresence.Directory) *Pres
 	return &PresenceDirectoryAuthority{directory: directory}
 }
 
+// SetRecovery installs bounded UID reconstruction before serving production traffic.
+func (a *PresenceDirectoryAuthority) SetRecovery(r *presenceusecase.AuthorityRecovery) {
+	a.recovery = r
+}
+
 // RegisterRoute reserves one exact route in the local authority directory.
 func (a *PresenceDirectoryAuthority) RegisterRoute(ctx context.Context, target presenceusecase.RouteTarget, route presenceusecase.Route) (presenceusecase.RegisterResult, error) {
 	if err := contextError(ctx); err != nil {
@@ -30,6 +36,11 @@ func (a *PresenceDirectoryAuthority) RegisterRoute(ctx context.Context, target p
 	}
 	if a == nil || a.directory == nil {
 		return presenceusecase.RegisterResult{}, authoritypresence.ErrRouteNotReady
+	}
+	if a.recovery != nil {
+		if _, err := a.recovery.Endpoints(ctx, target, []string{route.UID}); err != nil {
+			return presenceusecase.RegisterResult{}, err
+		}
 	}
 	return a.directory.RegisterRoute(target, route)
 }
@@ -75,6 +86,9 @@ func (a *PresenceDirectoryAuthority) EndpointsByUID(ctx context.Context, target 
 	if a == nil || a.directory == nil {
 		return nil, authoritypresence.ErrRouteNotReady
 	}
+	if a.recovery != nil {
+		return a.recovery.Endpoints(ctx, target, []string{uid})
+	}
 	return a.directory.EndpointsByUID(target, uid)
 }
 
@@ -86,6 +100,9 @@ func (a *PresenceDirectoryAuthority) EndpointsByUIDs(ctx context.Context, target
 	if a == nil || a.directory == nil {
 		return nil, authoritypresence.ErrRouteNotReady
 	}
+	if a.recovery != nil {
+		return a.recovery.Endpoints(ctx, target, uids)
+	}
 	return a.directory.EndpointsByUIDs(target, uids)
 }
 
@@ -96,6 +113,9 @@ func (a *PresenceDirectoryAuthority) EndpointsByTargets(ctx context.Context, gro
 	}
 	if a == nil || a.directory == nil {
 		return presenceDirectoryErrorResults(len(groups), authoritypresence.ErrRouteNotReady)
+	}
+	if a.recovery != nil {
+		return a.recovery.EndpointsByTargets(ctx, groups)
 	}
 	return a.directory.EndpointsByTargets(groups)
 }

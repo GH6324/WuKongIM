@@ -54,12 +54,20 @@ scheduled backup or restore
   remain on version 3 for rolling-upgrade compatibility; a version-4
   runtime-summary read from an older peer remains explicitly unavailable until
   that peer is upgraded.
+- Manager TOML config reads use independent service 88 with bounded `WKVC`/`WKVc`
+  version-2 frames. Service 71 keeps the exact version-1 snapshot layout; missing
+  service 88 is explicitly unsupported, while transport failures remain unavailable.
 - Channel append RPC never resolves routes, creates proxy Channel state,
   appends outside local authority, or runs post-commit effects elsewhere.
 - Transport cancellation and unavailable-target failures map to stable typed
   caller errors without reordering active aligned items.
 - Manager latest-message RPC preserves bounded scan saturation as its stable
   backpressure status instead of collapsing it into general unavailability.
+- Presence owner reconstruction adds operation 9 with a bounded target/UID page
+  and a separate `WKVO` version-1 response carrying owner node, boot, and active
+  routes. Operation 10 adds `WKVO` version-2 aligned multi-target snapshots,
+  bounded to 256 targets, 512 total UIDs, and 4,096 routes per owner page.
+  Existing singleton presence byte layouts remain unchanged.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.

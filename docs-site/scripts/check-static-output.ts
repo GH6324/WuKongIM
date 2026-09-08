@@ -497,10 +497,10 @@ export async function checkStaticOutput() {
     webhooksOpenAPI['x-wukongim-scope'] !== 'outbound-webhooks-beta' ||
     Object.keys(webhooksOpenAPI.paths ?? {}).length !== 0 ||
     Object.keys(webhooksOpenAPI.webhooks ?? {}).sort().join('\n') !==
-      ['msg.notify', 'msg.offline', 'user.onlinestatus'].join('\n') ||
+      ['msg.before_send', 'msg.notify', 'msg.offline', 'user.onlinestatus'].join('\n') ||
     Object.values(webhooksOpenAPI.webhooks ?? {}).some((item) => !item.post)
   ) {
-    throw new Error('Webhook OpenAPI must use exactly three top-level webhooks');
+    throw new Error('Webhook OpenAPI must use exactly four top-level webhooks');
   }
 
   const jsonRPCSchema = JSON.parse(
@@ -789,7 +789,7 @@ export async function checkStaticOutput() {
         '/contracts/json-rpc.experimental.schema.json',
         'Experimental',
       ],
-      'interface-inventory': ['108', '56', 'cluster_health', '/plugin/start'],
+      'interface-inventory': ['109', '58', 'slot_identity_metadata', 'manager_node_config_document', '/manager/nodes/:node_id/config/toml', 'cluster_health', '/plugin/start'],
     } as const;
     for (const [page, facts] of Object.entries(alignedSurfaceFacts)) {
       const markdown = await text(`llms.mdx/${locale}/api/${page}/content.md`);
@@ -982,7 +982,7 @@ export async function checkStaticOutput() {
       'webhooks/events': ['msg.notify', 'msg.offline', 'user.onlinestatus'],
       'webhooks/payloads': ['message_idstr', 'compress_to_uids'],
       'specifications/openapi': ['OpenAPI 3.1', '41', 'webhooks'],
-      'interface-inventory': ['108', '56', '/plugin/start'],
+      'interface-inventory': ['109', '58', 'slot_identity_metadata', 'manager_node_config_document', '/plugin/start'],
     })) {
       const pageId = `/${locale}/api/${page}`;
       for (const fact of facts) {

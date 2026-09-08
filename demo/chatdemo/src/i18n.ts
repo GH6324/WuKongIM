@@ -2,8 +2,9 @@ export type Locale = 'zh' | 'en'
 
 type BrowserLanguages = { languages?: readonly string[], language?: string }
 
-// Select the first supported browser preference; English is the fallback.
-export function detectLocale(browser?: BrowserLanguages): Locale {
+// A supported URL language overrides browser preferences; English is the fallback.
+export function detectLocale(browser?: BrowserLanguages, languageOverride?: string | null): Locale {
+  if (languageOverride === 'en' || languageOverride === 'zh') return languageOverride
   const languages = [...(browser?.languages ?? []), browser?.language ?? '']
   for (const language of languages) {
     const base = language.trim().toLowerCase().split(/[-_]/)[0]
@@ -12,7 +13,10 @@ export function detectLocale(browser?: BrowserLanguages): Locale {
   return 'en'
 }
 
-export const locale = detectLocale(typeof navigator === 'undefined' ? undefined : navigator)
+export const locale = detectLocale(
+  typeof navigator === 'undefined' ? undefined : navigator,
+  typeof window === 'undefined' ? undefined : new URLSearchParams(window.location.search).get('lang'),
+)
 
 const en = {
   appTitle: 'WuKongIM Demo',

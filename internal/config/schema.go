@@ -195,6 +195,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "gateway.send_timeout", EnvKey: "WK_GATEWAY_SEND_TIMEOUT", Kind: kindDuration, Group: "gateway", Label: "Gateway send timeout"},
 
 	{TOMLPath: "message.person_whitelist_enabled", EnvKey: "WK_MESSAGE_PERSON_WHITELIST_ENABLED", Kind: kindBool, Group: "message", Label: "Person whitelist enabled"},
+	{TOMLPath: "message.cmd_channel_suffix", EnvKey: "WK_MESSAGE_CMD_CHANNEL_SUFFIX", Kind: kindString, Group: "message", Label: "Command channel suffix", Description: "Reserved command-channel suffix; empty defaults to ____cmd. Use only ASCII letters, digits, _ or -. Must match on every cluster node. Changing it does not migrate existing command channels or bindings; requires restart."},
 	{TOMLPath: "message.system_uid", EnvKey: "WK_MESSAGE_SYSTEM_UID", Kind: kindString, Group: "message", Label: "System UID", Description: "Primary system account UID used when trusted message senders are omitted; defaults to ____system and must match on every cluster node."},
 	{TOMLPath: "message.system_device_id", EnvKey: "WK_MESSAGE_SYSTEM_DEVICE_ID", Kind: kindString, Group: "message", Label: "System device ID"},
 	{TOMLPath: "message.permission_cache_ttl", EnvKey: "WK_MESSAGE_PERMISSION_CACHE_TTL", Kind: kindDuration, Group: "message", Label: "Permission cache TTL"},
@@ -229,6 +230,13 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "webhook.offline_uid_batch_size", EnvKey: "WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE", Kind: kindInt, Group: "webhook", Label: "Webhook offline UID batch size"},
 	{TOMLPath: "webhook.request_timeout", EnvKey: "WK_WEBHOOK_REQUEST_TIMEOUT", Kind: kindDuration, Group: "webhook", Label: "Webhook request timeout"},
 	{TOMLPath: "webhook.retry_max_attempts", EnvKey: "WK_WEBHOOK_RETRY_MAX_ATTEMPTS", Kind: kindInt, Group: "webhook", Label: "Webhook retry max attempts"},
+
+	{TOMLPath: "webhook.before_send.enabled", EnvKey: "WK_WEBHOOK_BEFORE_SEND_ENABLED", Kind: kindBool, Group: "webhook", Label: "Before-send webhook Enabled"},
+	{TOMLPath: "webhook.before_send.http_addr", EnvKey: "WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR", Kind: kindString, Group: "webhook", Label: "Before-send webhook HTTP address", DiagnosticSensitive: true},
+	{TOMLPath: "webhook.before_send.timeout", EnvKey: "WK_WEBHOOK_BEFORE_SEND_TIMEOUT", Kind: kindDuration, Group: "webhook", Label: "Before-send webhook Timeout"},
+	{TOMLPath: "webhook.before_send.on_timeout", EnvKey: "WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT", Kind: kindString, Group: "webhook", Label: "Before-send webhook Timeout policy"},
+	{TOMLPath: "webhook.before_send.on_error", EnvKey: "WK_WEBHOOK_BEFORE_SEND_ON_ERROR", Kind: kindString, Group: "webhook", Label: "Before-send webhook Error policy"},
+	{TOMLPath: "webhook.before_send.max_in_flight", EnvKey: "WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT", Kind: kindInt, Group: "webhook", Label: "Before-send webhook Maximum in-flight calls"},
 
 	{TOMLPath: "plugin.enable", EnvKey: "WK_PLUGIN_ENABLE", Kind: kindBool, Group: "plugin", Label: "Plugin enabled"},
 	{TOMLPath: "plugin.dir", EnvKey: "WK_PLUGIN_DIR", Kind: kindString, Group: "plugin", Label: "Plugin directory"},
@@ -370,6 +378,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_GATEWAY_LISTENERS",
 		"WK_GATEWAY_SEND_TIMEOUT",
 		"WK_MESSAGE_PERSON_WHITELIST_ENABLED",
+		"WK_MESSAGE_CMD_CHANNEL_SUFFIX",
 		"WK_MESSAGE_SYSTEM_UID",
 		"WK_MESSAGE_SYSTEM_DEVICE_ID",
 		"WK_MESSAGE_PERMISSION_CACHE_TTL",
@@ -401,6 +410,13 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE",
 		"WK_WEBHOOK_REQUEST_TIMEOUT",
 		"WK_WEBHOOK_RETRY_MAX_ATTEMPTS",
+		"WK_WEBHOOK_BEFORE_SEND_ENABLED",
+		"WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR",
+		"WK_WEBHOOK_BEFORE_SEND_TIMEOUT",
+		"WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT",
+		"WK_WEBHOOK_BEFORE_SEND_ON_ERROR",
+		"WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT",
+
 		"WK_PLUGIN_ENABLE",
 		"WK_PLUGIN_DIR",
 		"WK_PLUGIN_SOCKET_PATH",

@@ -15,18 +15,17 @@ Fixed-header bits align with `pkg/protocol/codec/common.go`; Setting values alig
 
 <MessageFlagTable locale="en" />
 
-## `NoPersist` requires command semantics
+## `NoPersist` delivers online without history
 
-<Callout type="error" title="Plain NoPersist does not deliver in real time">
-  Plain non-command `NoPersist`, without `SyncOnce` and without a command Channel, returns compatibility success after pre-route checks but does not resolve authority, append, or deliver online. Only command-style `NoPersist` enters transient online delivery. Neither branch supports offline recovery.
-</Callout>
+Ordinary `NoPersist=true, SyncOnce=false` messages use the source Channel;
+command-style messages use the command Channel. Both pass permission checks,
+resolve authority, allocate a message ID, and enter transient online delivery
+with sequence zero. They do not write durable history or support offline recovery.
 
-Therefore:
-
-- reliable chat, notification, audit, and replayable product events use ordinary durable messages;
-- online-only commands use command semantics and accept that an offline target cannot recover them;
-- recoverable commands use durable `SyncOnce` with separate CMD bind/sync/ack;
-- never treat a successful `NoPersist` result as proof that a device received anything.
+- Reliable chat, notifications, audit, and replayable events use durable messages.
+- Online-only messages use `NoPersist`; commands additionally use command semantics.
+- Recoverable commands use durable `SyncOnce` with separate CMD bind/sync/ack.
+- A successful transient SENDACK confirms acceptance into online delivery, not receipt by a device.
 
 ## `RedDot` and receipts
 
@@ -54,6 +53,7 @@ Therefore:
 | Requirement | Selection |
 | --- | --- |
 | Ordinary recoverable chat | `NoPersist=false`, `SyncOnce=false` |
+| Ordinary online-only message | `NoPersist=true`, `SyncOnce=false`; accept no history |
 | Online-only command | `NoPersist=true`, `SyncOnce=true`; accept no history |
 | Recoverable command | `NoPersist=false`, `SyncOnce=true`; add CMD binding and sync |
 | Product read receipt | Separate durable receipt; do not rely on `RedDot` or RECVACK |
@@ -61,7 +61,7 @@ Therefore:
 
 ## Troubleshooting
 
-- **NoPersist succeeds but peer receives nothing:** check for missing command-style `SyncOnce`; the plain branch intentionally does not deliver.
+- **NoPersist succeeds but peer receives nothing:** check subscriber membership, online presence, delivery admission, and owner Session writes. Offline recipients cannot recover the message.
 - **Message cannot recover offline:** inspect NoPersist or a missing CMD recovery flow.
 - **Red dot and unread disagree:** inspect Message Flag separately from Conversation badge floor.
 - **One SDK fails after a Setting bit is enabled:** verify exact SDK and protocol version rather than retaining an unknown bit blindly.

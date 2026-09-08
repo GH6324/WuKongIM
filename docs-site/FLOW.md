@@ -7,18 +7,15 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 
 ## Responsibility
 
-`docs-site` is the standalone Fumadocs application for public WuKongIM v3 docs
-under `/zh` and `/en`. It owns navigation, MDX, search, SEO, machine-readable
-output, SDK and API references, and the runnable JavaScript/Web example. It
-documents runtime contracts but does not define them.
+`docs-site` owns the bilingual Fumadocs v3 site, navigation, references, runnable
+examples, search, SEO, and machine-readable output. Runtime contracts are defined elsewhere.
 
 ## Boundaries
 
 - Repository `docs/` is the engineering knowledge base. Legacy docs aid topic
   discovery only; current code and released SDKs decide API facts.
 - `lib/navigation.ts` is the shared bilingual publication registry.
-- `SDK_DOCUMENTATION_SPEC.md` owns maintained WuKongIMSDK versions, learning
-  order, and reader contract. WuKongEasySDK remains a separate path.
+- `SDK_DOCUMENTATION_SPEC.md` owns full-SDK versions and learning order; EasySDK stays separate.
 - `.github/workflows/docs-pages.yml` deploys the export, verifies the direct Pages
   data plane, and may refresh a CDN when `DOCS_CDN_ENABLED=true`. It also accepts
   a successful binary-release `workflow_run` after authenticating the immutable
@@ -40,10 +37,15 @@ documents runtime contracts but does not define them.
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. The separate EasySDK path keeps released package pins distinct from exact
-   repository-example receipts. Its shared runbook starts one server revision,
-   maps host addresses for browser, emulators, and devices, and reproduces the
-   four maintained examples before platform-specific integration.
+4. EasySDK has one bilingual overview, one official-example guide, and eight
+   platform quickstarts. Each follows prepare, install, connect/listen, exchange,
+   cleanup, and troubleshooting. Alternative installs follow the first-message
+   path. `EASY_SDK_DOCUMENTATION_SPEC.md` defines the reader contract.
+   Historical package/source/server/harness identities, registry checksums,
+   fault/soak receipts and failed cluster observations live in the engineering
+   validation history linked from each tutorial; they never imply that a newer
+   tutorial version passed an older matrix. Public pages retain actionable
+   compatibility, lifecycle, and server limitations.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.
@@ -61,16 +63,16 @@ documents runtime contracts but does not define them.
 
 ## Invariants and Failure Semantics
 
-- Chinese and English share one menu structure. A route is published only when
-  both locale variants are ready.
+- Chinese and English share one menu; publication requires both locale variants.
 - Product facts preserve cluster-only and 256-hash-slot semantics, durable
   commit versus downstream effects, and current security boundaries.
 - Full SDK examples pin exact released versions in Java, Objective-C,
   TypeScript, Dart, and ArkTS, explaining core terms before relying on them.
 - A trusted backend supplies identity, tokens, routing, history, Channel metadata,
   and media URLs. Untrusted clients never call Product HTTP management directly.
-- The JavaScript example is a tested development aid, not a production backend
-  or a substitute for testing on actual devices, networks, and releases.
+- The JavaScript browser gate uses BFF-issued credentials with Token auth enabled;
+  its pinned Playwright runner verifies online exchange and offline recovery.
+- The JavaScript example is a development aid; actual devices, networks, and releases need testing.
 - EasySDK evidence names exact client and server revisions. When verified source
   is ahead of a package release, pages must not attribute that run to the older
   npm, Maven, CocoaPods, or Release artifact.
@@ -91,10 +93,8 @@ documents runtime contracts but does not define them.
   literal evidence.
 
 ## Read First
-
 - [SDK specification](SDK_DOCUMENTATION_SPEC.md), [navigation](lib/navigation.ts), and [developer contracts](lib/developer-contracts.ts)
 - [Phase 18 API specification](PHASE_18_SPEC.md) and [OpenAPI generator](scripts/generate-openapi.ts)
 
 ## Update Triggers
-
 Update this file when publication ownership, SDK learning order, locale parity, generated outputs, authoritative sources, or the hosting boundary changes.

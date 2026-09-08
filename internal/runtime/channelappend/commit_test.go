@@ -522,7 +522,10 @@ func TestCommitEffectFailuresDropThenAdvance(t *testing.T) {
 
 func TestNonLargeGroupSubscriberSnapshotCachedInChannelState(t *testing.T) {
 	source := &recordingSubscriberSourceForRecipientTest{
-		pages: []SubscriberPage{{Recipients: []Recipient{{UID: "u2"}, {UID: "u3"}}, Done: true}},
+		pages: []SubscriberPage{
+			{Recipients: []Recipient{{UID: "u2"}}, Cursor: "u2"},
+			{Recipients: []Recipient{{UID: "u3"}}, Done: true},
+		},
 	}
 	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
 	group := newStartedTestGroup(t, Options{
@@ -549,14 +552,14 @@ func TestNonLargeGroupSubscriberSnapshotCachedInChannelState(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, future), 1, 1151, 2)
 
 	enqueuer.waitCalls(t, 2)
-	if source.calls != 1 {
-		t.Fatalf("subscriber source calls = %d, want one cached snapshot load", source.calls)
+	if source.calls != 2 {
+		t.Fatalf("subscriber source calls = %d, want two pages loaded once then cached", source.calls)
 	}
 	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3", "u2", "u3"}) {
 		t.Fatalf("recipient uids = %#v, want cached subscribers dispatched for both messages", got)
 	}
-	if !reflect.DeepEqual(source.limits, []int{subscriberSnapshotLoadLimit}) {
-		t.Fatalf("subscriber load limits = %#v, want one snapshot load", source.limits)
+	if !reflect.DeepEqual(source.limits, []int{1024, 1024}) {
+		t.Fatalf("subscriber load limits = %#v, want bounded snapshot pages", source.limits)
 	}
 }
 
@@ -901,7 +904,7 @@ func TestStopDeadlineRetainsCommitBacklogForNextDrain(t *testing.T) {
 	}
 }
 
-func TestNoPersistNonCommandReturnsSuccessWithoutAppendOrRealtime(t *testing.T) {
+func TestNoPersistNonCommandDispatchesRealtimeWithoutAppend(t *testing.T) {
 	ids := newSequenceIDsForPrepare(1400)
 	appender := newRecordingAppenderForAppendTest()
 	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
@@ -909,6 +912,7 @@ func TestNoPersistNonCommandReturnsSuccessWithoutAppendOrRealtime(t *testing.T) 
 		LocalNodeID:                1,
 		MessageID:                  ids,
 		Appender:                   appender,
+		Subscribers:                &recordingSubscriberSourceForRecipientTest{pages: []SubscriberPage{{Recipients: []Recipient{{UID: "u2"}}, Done: true}}},
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
 		OnlineDeliveryEnqueuer:     enqueuer,
 	})
@@ -923,17 +927,24 @@ func TestNoPersistNonCommandReturnsSuccessWithoutAppendOrRealtime(t *testing.T) 
 
 	results := waitFutureForTest(t, future)
 	requireResultReason(t, results, 0, ReasonSuccess)
-	if results[0].Result.MessageID != 0 || results[0].Result.MessageSeq != 0 {
-		t.Fatalf("no-persist non-command id/seq = %d/%d, want 0/0", results[0].Result.MessageID, results[0].Result.MessageSeq)
+	if results[0].Result.MessageID != 1400 || results[0].Result.MessageSeq != 0 {
+		t.Fatalf("no-persist non-command id/seq = %d/%d, want 1400/0", results[0].Result.MessageID, results[0].Result.MessageSeq)
 	}
-	if got := ids.allocatedCount(); got != 0 {
-		t.Fatalf("allocated ids = %d, want 0", got)
+	if got := ids.allocatedCount(); got != 1 {
+		t.Fatalf("allocated ids = %d, want 1", got)
 	}
 	if got := appender.Calls(); got != 0 {
 		t.Fatalf("append calls = %d, want 0", got)
 	}
-	if got := enqueuer.callCount(); got != 0 {
-		t.Fatalf("recipient delivery calls = %d, want 0", got)
+	if got := enqueuer.callCount(); got != 1 {
+		t.Fatalf("recipient delivery calls = %d, want 1", got)
+	}
+	plans := enqueuer.plansSnapshot()
+	if len(plans) != 1 || plans[0].Mode != onlinedelivery.ModeTransient || plans[0].Event.ChannelID != "room" || plans[0].Event.SyncOnce {
+		t.Fatalf("delivery plans = %#v, want ordinary transient delivery", plans)
+	}
+	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2"}) {
+		t.Fatalf("recipients = %v, want subscriber u2", got)
 	}
 }
 

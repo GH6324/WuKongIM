@@ -452,6 +452,7 @@ describe('protocol surface contracts', () => {
       { name: 'msg.notify', body: 'message-array' },
       { name: 'msg.offline', body: 'offline-message-object' },
       { name: 'user.onlinestatus', body: 'status-string-array' },
+      { name: 'msg.before_send', body: 'before-send-object' },
     ]);
     expect(webhookDeliveryDefaults).toEqual({
       queueSizePerEvent: 1024,
@@ -467,7 +468,7 @@ describe('protocol surface contracts', () => {
     });
 
     const [types, mapper, sender, runtime, config, offline, presence] = await Promise.all([
-      source('internal/runtime/webhook/types.go'),
+      Promise.all([source('internal/runtime/webhook/types.go'), source('internal/infra/webhook/before_send.go')]).then((parts) => parts.join('\n')),
       source('internal/runtime/webhook/mapper.go'),
       source('internal/runtime/webhook/sender.go'),
       source('internal/runtime/webhook/runtime.go'),
@@ -559,7 +560,7 @@ describe('protocol surface contracts', () => {
     for (const event of webhookEventContracts) expect(events).toContain(event.name);
     expect(payloads).toContain('message_idstr');
     expect(payloads).toContain('compress_to_uids');
-    expect(reliability).toContain('Only HTTP `200`');
+    expect(reliability).toContain('For asynchronous notifications, only HTTP `200`');
     expect(reliability).toContain('no signature');
     expect(guideZh).toContain('UID Owner 当前节点');
     expect(guideZh).toContain('从右侧取最后五个数字段');

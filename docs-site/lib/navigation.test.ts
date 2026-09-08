@@ -229,7 +229,9 @@ describe('documentation navigation contract', () => {
       ['ios/getting-started', 'v1.1.1'],
       ['android/getting-started', 'v1.0.5'],
       ['flutter/getting-started', 'v1.1.0'],
-      ['javascript/getting-started', 'v2.0.4'],
+      ['javascript/getting-started', 'v2.0.5'],
+      ['python/getting-started', '0.1.0'],
+      ['csharp/getting-started', '1.0.0'],
     ]);
 
     expect(easy?.status).toBe('published');
@@ -239,11 +241,25 @@ describe('documentation navigation contract', () => {
       ['android/getting-started', 'published'],
       ['flutter/getting-started', 'published'],
       ['javascript/getting-started', 'published'],
+      ['rust/getting-started', 'published'],
+      ['csharp/getting-started', 'published'],
+      ['cpp/getting-started', 'published'],
+      ['python/getting-started', 'published'],
     ]);
     for (const page of easy?.children ?? []) {
       if (page.slug === 'examples') {
-        expect(page.description.zh).toContain('四端正式包');
-        expect(page.description.en).toContain('four released packages');
+        expect(page.description.zh).toContain('八个平台');
+        expect(page.description.en).toContain('eight platforms');
+        continue;
+      }
+      if (page.slug === 'rust/getting-started') {
+        expect(page.description.zh).toContain('0.1.0 正式包');
+        expect(page.description.en).toContain('0.1.0');
+        continue;
+      }
+      if (page.slug === 'cpp/getting-started') {
+        expect(page.description.zh).toContain('C++17');
+        expect(page.description.en).toContain('CMake');
         continue;
       }
       const snapshot = snapshots.get(page.slug);
@@ -251,8 +267,8 @@ describe('documentation navigation contract', () => {
       expect(page.description.zh).toContain(snapshot!);
       expect(page.description.en).toContain(snapshot!);
     }
-    expect(easy?.description.zh).toContain('已验证的正式发布包');
-    expect(easy?.description.en).toContain('verified released packages');
+    expect(easy?.description.zh).toContain('固定版本的 SDK');
+    expect(easy?.description.en).toContain('pinned SDK versions');
     for (const url of [
       '/en/sdk/easy',
       '/en/sdk/easy/examples',
@@ -260,6 +276,10 @@ describe('documentation navigation contract', () => {
       '/en/sdk/easy/android/getting-started',
       '/en/sdk/easy/flutter/getting-started',
       '/en/sdk/easy/javascript/getting-started',
+      '/en/sdk/easy/rust/getting-started',
+      '/en/sdk/easy/csharp/getting-started',
+      '/en/sdk/easy/cpp/getting-started',
+      '/en/sdk/easy/python/getting-started',
     ]) {
       expect(published).toContain(url);
     }
@@ -538,6 +558,10 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/easy/android/getting-started`,
         `/${locale}/sdk/easy/flutter/getting-started`,
         `/${locale}/sdk/easy/javascript/getting-started`,
+        `/${locale}/sdk/easy/rust/getting-started`,
+        `/${locale}/sdk/easy/csharp/getting-started`,
+        `/${locale}/sdk/easy/cpp/getting-started`,
+        `/${locale}/sdk/easy/python/getting-started`,
         `/${locale}/api`,
         `/${locale}/api/conventions`,
         `/${locale}/api/authentication`,

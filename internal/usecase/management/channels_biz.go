@@ -26,7 +26,6 @@ const (
 	maxBusinessChannelUIDBytes              = 256
 	maxNewBusinessChannelIDBytes            = 256
 	internalMemberListChannelPrefix         = "__wk_internal_memberlist__/"
-	derivedCommandChannelSuffix             = "____cmd"
 )
 
 const (
@@ -361,7 +360,7 @@ func (a *App) ListBusinessChannels(ctx context.Context, req ListBusinessChannels
 				return ListBusinessChannelsResponse{}, err
 			}
 			for _, ch := range page {
-				if !businessChannelMatches(ch, req.TypeFilter, keyword) {
+				if !a.businessChannelMatches(ch, req.TypeFilter, keyword) {
 					continue
 				}
 				item := businessChannelListItem(snapshot.HashSlots, ch)
@@ -389,7 +388,7 @@ func (a *App) GetBusinessChannel(ctx context.Context, channelID string, channelT
 	if a == nil || a.channelBusinessOperator == nil || a.cluster == nil {
 		return BusinessChannelDetail{}, ErrBusinessChannelOperatorUnavailable
 	}
-	channelID, typed, err := validateExistingBusinessChannelKey(channelID, channelType)
+	channelID, typed, err := a.validateExistingBusinessChannelKey(channelID, channelType)
 	if err != nil {
 		return BusinessChannelDetail{}, err
 	}
@@ -427,7 +426,7 @@ func (a *App) CreateBusinessChannel(ctx context.Context, req CreateBusinessChann
 	if a == nil || a.channelBusinessOperator == nil {
 		return BusinessChannelDetail{}, ErrBusinessChannelOperatorUnavailable
 	}
-	channelID, channelType, err := validateNewBusinessChannelKey(req.ChannelID, req.ChannelType)
+	channelID, channelType, err := a.validateNewBusinessChannelKey(req.ChannelID, req.ChannelType)
 	if err != nil {
 		return BusinessChannelDetail{}, err
 	}
@@ -446,7 +445,7 @@ func (a *App) UpdateBusinessChannel(ctx context.Context, req UpdateBusinessChann
 	if a == nil || a.channelBusinessOperator == nil {
 		return BusinessChannelDetail{}, ErrBusinessChannelOperatorUnavailable
 	}
-	channelID, channelType, err := validateExistingBusinessChannelKey(req.ChannelID, req.ChannelType)
+	channelID, channelType, err := a.validateExistingBusinessChannelKey(req.ChannelID, req.ChannelType)
 	if err != nil {
 		return BusinessChannelDetail{}, err
 	}
@@ -466,7 +465,7 @@ func (a *App) ListBusinessChannelMembers(ctx context.Context, req ListBusinessCh
 	if a == nil || a.channelBusinessOperator == nil {
 		return ListBusinessChannelMembersResponse{}, ErrBusinessChannelOperatorUnavailable
 	}
-	channelID, channelType, err := validateExistingBusinessChannelKey(req.ChannelID, req.ChannelType)
+	channelID, channelType, err := a.validateExistingBusinessChannelKey(req.ChannelID, req.ChannelType)
 	if err != nil {
 		return ListBusinessChannelMembersResponse{}, err
 	}
@@ -532,7 +531,7 @@ func (a *App) MutateBusinessChannelMembers(ctx context.Context, req MutateBusine
 	if a == nil || a.channelBusinessOperator == nil {
 		return MutateBusinessChannelMembersResponse{}, ErrBusinessChannelOperatorUnavailable
 	}
-	channelID, channelType, err := validateExistingBusinessChannelKey(req.ChannelID, req.ChannelType)
+	channelID, channelType, err := a.validateExistingBusinessChannelKey(req.ChannelID, req.ChannelType)
 	if err != nil {
 		return MutateBusinessChannelMembersResponse{}, err
 	}
@@ -648,8 +647,8 @@ func slotIDForHashSlot(table control.HashSlotTable, hashSlot uint16) uint32 {
 	return 0
 }
 
-func businessChannelMatches(ch metadb.Channel, typeFilter int64, keyword string) bool {
-	if isInternalBusinessChannelID(ch.ChannelID) {
+func (a *App) businessChannelMatches(ch metadb.Channel, typeFilter int64, keyword string) bool {
+	if a.isInternalBusinessChannelID(ch.ChannelID) {
 		return false
 	}
 	if typeFilter != 0 && ch.ChannelType != typeFilter {
@@ -688,20 +687,20 @@ func (c ChannelListCursor) shardCursor() metadb.ChannelCursor {
 	return metadb.ChannelCursor{ChannelID: c.ChannelID, ChannelType: c.ChannelType}
 }
 
-func isInternalBusinessChannelID(channelID string) bool {
-	return strings.HasPrefix(channelID, internalMemberListChannelPrefix) || strings.HasSuffix(channelID, derivedCommandChannelSuffix)
+func (a *App) isInternalBusinessChannelID(channelID string) bool {
+	return strings.HasPrefix(channelID, internalMemberListChannelPrefix) || a.commandChannels.IsCommandChannel(channelID)
 }
 
-func validateExistingBusinessChannelKey(channelID string, channelType int64) (string, uint8, error) {
-	if channelID == "" || !utf8.ValidString(channelID) || isInternalBusinessChannelID(channelID) || channelType <= 0 || channelType > math.MaxUint8 {
+func (a *App) validateExistingBusinessChannelKey(channelID string, channelType int64) (string, uint8, error) {
+	if channelID == "" || !utf8.ValidString(channelID) || a.isInternalBusinessChannelID(channelID) || channelType <= 0 || channelType > math.MaxUint8 {
 		return "", 0, metadb.ErrInvalidArgument
 	}
 	return channelID, uint8(channelType), nil
 }
 
-func validateNewBusinessChannelKey(channelID string, channelType int64) (string, uint8, error) {
+func (a *App) validateNewBusinessChannelKey(channelID string, channelType int64) (string, uint8, error) {
 	channelID = strings.TrimSpace(channelID)
-	channelID, typed, err := validateExistingBusinessChannelKey(channelID, channelType)
+	channelID, typed, err := a.validateExistingBusinessChannelKey(channelID, channelType)
 	if err != nil {
 		return "", 0, err
 	}

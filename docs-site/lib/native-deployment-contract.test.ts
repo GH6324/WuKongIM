@@ -113,7 +113,7 @@ describe('native deployment publication contract', () => {
       expect(content).not.toContain('docker volume create');
       expect(content).not.toContain('--mount');
       expect(content).not.toContain('node1.toml');
-      expect(content.match(/WK_CURRENT_IMAGE_TAG/g)).toHaveLength(3);
+      expect(content.match(/WK_CURRENT_IMAGE_TAG/g)).toHaveLength(5);
       expect(content).not.toMatch(/\b\d+\.\d+\.\d+-(?:alpha|beta|rc)[0-9A-Za-z.-]*/);
       for (const optional of [
         'cluster.id',

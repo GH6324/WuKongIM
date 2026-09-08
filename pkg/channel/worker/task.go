@@ -384,7 +384,19 @@ func runStoreLoad(ctx context.Context, deps Deps, t Task) Result {
 			_ = cs.Close()
 		}
 	}()
-	initial, err := cs.Load(ctx)
+	var initial store.InitialState
+	if deps.QuorumLog != nil {
+		// Quorum writes can be durable before their cached LEO is published.
+		// Cold replicas must load one append/checkpoint-consistent frontier.
+		loader, ok := cs.(store.ExactStateLoader)
+		if !ok {
+			return invalidResult(t)
+		}
+		exact, loadErr := loader.LoadExactState(ctx)
+		initial, err = exact.InitialState, loadErr
+	} else {
+		initial, err = cs.Load(ctx)
+	}
 	if err != nil {
 		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
 	}

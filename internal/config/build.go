@@ -58,8 +58,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			LargeGroupSubscriberThreshold: 500,
 		},
 		Message: app.MessageConfig{
-			SystemUID:      "____system",
-			SystemDeviceID: "____device",
+			CMDChannelSuffix: "____cmd",
+			SystemUID:        "____system",
+			SystemDeviceID:   "____device",
 		},
 		ChannelMessageRetention: app.ChannelMessageRetentionConfig{
 			ScanInterval:     time.Minute,
@@ -867,6 +868,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Message.PersonWhitelistEnabled = enabled
 	}
+	if raw := configValue(values, "WK_MESSAGE_CMD_CHANNEL_SUFFIX"); raw != "" {
+		cfg.Message.CMDChannelSuffix = raw
+	}
 	if raw := configValue(values, "WK_MESSAGE_SYSTEM_UID"); raw != "" {
 		cfg.Message.SystemUID = raw
 	}
@@ -1198,6 +1202,30 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Webhook.RetryMaxAttempts = attempts
 	}
+	if raw := configValue(values, "WK_WEBHOOK_BEFORE_SEND_ENABLED"); raw != "" {
+		value, err := parseBool("WK_WEBHOOK_BEFORE_SEND_ENABLED", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Webhook.BeforeSend.Enabled = value
+	}
+	if raw := configValue(values, "WK_WEBHOOK_BEFORE_SEND_TIMEOUT"); raw != "" {
+		value, err := parseDuration("WK_WEBHOOK_BEFORE_SEND_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Webhook.BeforeSend.Timeout = value
+	}
+	if raw := configValue(values, "WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT"); raw != "" {
+		value, err := parseInt("WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Webhook.BeforeSend.MaxInFlight = value
+	}
+	cfg.Webhook.BeforeSend.HTTPAddr = configValue(values, "WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR")
+	cfg.Webhook.BeforeSend.OnTimeout = configValue(values, "WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT")
+	cfg.Webhook.BeforeSend.OnError = configValue(values, "WK_WEBHOOK_BEFORE_SEND_ON_ERROR")
 	cfg.Webhook, err = app.NormalizeWebhookConfig(cfg.Webhook)
 	if err != nil {
 		return app.Config{}, err

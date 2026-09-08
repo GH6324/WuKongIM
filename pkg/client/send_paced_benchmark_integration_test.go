@@ -169,13 +169,13 @@ func benchmarkRealTCPSendackPacedAtRate(b *testing.B, synchronousRecvack bool, s
 		b.Fatal(firstErr)
 	}
 
-	reportPacedTCPLatency(b, "send", latencies)
-	reportPacedTCPLatency(b, "pending-to-write", pendingWaits)
-	reportPacedTCPLatency(b, "write-to-ack", wireWaits)
+	reportPacedTCPLatency(b, "send", latencies, rate)
+	reportPacedTCPLatency(b, "pending-to-write", pendingWaits, rate)
+	reportPacedTCPLatency(b, "write-to-ack", wireWaits, rate)
 	frameHandled, dispatchWait, transportWrite := observer.snapshot()
-	reportPacedTCPLatency(b, "gateway-handler", frameHandled)
-	reportPacedTCPLatency(b, "gateway-dispatch-wait", dispatchWait)
-	reportPacedTCPLatency(b, "sendack-transport-write", transportWrite)
+	reportPacedTCPLatency(b, "gateway-handler", frameHandled, rate)
+	reportPacedTCPLatency(b, "gateway-dispatch-wait", dispatchWait, rate)
+	reportPacedTCPLatency(b, "sendack-transport-write", transportWrite, rate)
 }
 
 func pacedTCPBenchmarkClientOrder(count int, shuffled bool) []int {
@@ -526,7 +526,14 @@ func pacedTCPBenchmarkWaitUntil(deadline time.Time) {
 	}
 }
 
-func reportPacedTCPLatency(b *testing.B, prefix string, latencies []time.Duration) {
+type pacedTCPBenchmarkReporter interface {
+	Helper()
+	Logf(string, ...any)
+	ReportMetric(float64, string)
+	Errorf(string, ...any)
+}
+
+func reportPacedTCPLatency(b pacedTCPBenchmarkReporter, prefix string, latencies []time.Duration, rate int) {
 	b.Helper()
 	if len(latencies) == 0 {
 		return
@@ -534,18 +541,29 @@ func reportPacedTCPLatency(b *testing.B, prefix string, latencies []time.Duratio
 	sorted := append([]time.Duration(nil), latencies...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
 	p99 := sorted[(len(sorted)*99-1)/100]
-	aboveBudget := 0
+	// Match the hosted workflow without weakening the dedicated capacity gate.
+	budget := 200 * time.Millisecond
+	if rate == pacedTCPHostedBenchmarkRate {
+		budget = 400 * time.Millisecond
+	}
+	above200, aboveBudget := 0, 0
 	for _, latency := range latencies {
 		if latency > 200*time.Millisecond {
+			above200++
+		}
+		if latency > budget {
 			aboveBudget++
 		}
 	}
 	ratio := 100 * float64(aboveBudget) / float64(len(latencies))
-	b.Logf("%s latency: p99=%s over_200ms=%.3f%%", prefix, p99, ratio)
+	b.Logf("%s latency: p99=%s over_%s=%.3f%%", prefix, p99, budget, ratio)
 	b.ReportMetric(float64(p99)/float64(time.Millisecond), prefix+"-p99-ms")
-	b.ReportMetric(ratio, prefix+"-over-200ms-pct")
+	b.ReportMetric(100*float64(above200)/float64(len(latencies)), prefix+"-over-200ms-pct")
+	if budget == 400*time.Millisecond {
+		b.ReportMetric(ratio, prefix+"-over-400ms-pct")
+	}
 	if prefix == "send" && len(latencies) >= 1000 && ratio > 1 {
-		b.Errorf("real TCP SEND operations above 200ms = %.3f%%, p99=%s; want <= 1%%", ratio, p99)
+		b.Errorf("real TCP SEND operations above %s = %.3f%%, p99=%s; want <= 1%%", budget, ratio, p99)
 	}
 }
 

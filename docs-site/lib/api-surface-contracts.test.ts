@@ -97,7 +97,7 @@ describe('operations HTTP surface', () => {
 });
 
 describe('Manager private surface', () => {
-  test('matches all 108 registered method and path pairs', async () => {
+  test('matches all 109 registered method and path pairs', async () => {
     const [server, backups, restore] = await Promise.all([
       source('../../internal/access/manager/server.go'),
       source('../../internal/access/manager/backups.go'),
@@ -133,8 +133,8 @@ describe('Manager private surface', () => {
       ...parseGinCalls(restore, { restore: '/manager/backups' }),
     ].filter((route) => route === 'ANY /mcp' || route.includes(' /manager'));
 
-    expect(managerRoutes).toHaveLength(108);
-    expect(new Set(managerRoutes.map(({ method, path }) => routeKey(method, path))).size).toBe(108);
+    expect(managerRoutes).toHaveLength(109);
+    expect(new Set(managerRoutes.map(({ method, path }) => routeKey(method, path))).size).toBe(109);
     expect(sorted(actual)).toEqual(
       sorted(managerRoutes.map(({ method, path }) => routeKey(method, path))),
     );
@@ -182,7 +182,7 @@ describe('cluster transport catalog', () => {
       }
     }
 
-    expect(nodeTransportServices).toHaveLength(56);
+    expect(nodeTransportServices).toHaveLength(58);
     expect(parsed.sort((a, b) => a.id - b.id)).toEqual(
       nodeTransportServices
         .map(({ id, symbol }) => ({ id, symbol }))
@@ -205,7 +205,7 @@ describe('cluster transport catalog', () => {
     expect(nodeTransportServices.find(({ id }) => id === 20)?.stability).toBe('reserved');
   });
 
-  test('keeps private Slot IDs outside default composition visible as catalog debt', async () => {
+  test('promotes Slot identity reads while retaining remaining private catalog debt', async () => {
     const [store, identity, migration, plugin] = await Promise.all([
       source('../../pkg/slot/proxy/store.go'),
       source('../../pkg/slot/proxy/identity_rpc.go'),
@@ -217,10 +217,10 @@ describe('cluster transport catalog', () => {
     )?.[0];
     if (!defaultConstructor) throw new Error('default Slot metadata constructor is missing');
 
-    expect(identity).toContain('identityRPCServiceID uint8 = 4');
+    expect(identity).toContain('identityRPCServiceID uint8 = clusternet.RPCSlotIdentityMetadata');
     expect(migration).toContain('channelMigrationRPCServiceID uint8 = 47');
     expect(plugin).toContain('pluginBindingRPCServiceID uint8 = 53');
-    expect(defaultConstructor).not.toContain('identityRPCServiceID');
+    expect(defaultConstructor).toContain('identityRPCServiceID');
     expect(defaultConstructor).not.toContain('channelMigrationRPCServiceID');
     expect(defaultConstructor).not.toContain('pluginBindingRPCServiceID');
   });
@@ -268,14 +268,15 @@ describe('MCP and agent-only contracts', () => {
 
 describe('other private protocol inventories', () => {
   test('matches plugin-host RPC paths and outbound webhook event names', async () => {
-    const [plugin, webhook] = await Promise.all([
+    const [plugin, notifications, beforeSend] = await Promise.all([
       source('../../internal/access/plugin/server.go'),
       source('../../internal/runtime/webhook/types.go'),
+      source('../../internal/infra/webhook/before_send.go'),
     ]);
     const routeBlock = plugin.match(/var routePaths = \[\]string\{([^\n]+)\}/u)?.[1];
     if (!routeBlock) throw new Error('plugin host route catalog is missing');
     const pluginPaths = [...routeBlock.matchAll(/"([^"]+)"/gu)].map((match) => match[1]);
-    const events = [...webhook.matchAll(/Event[A-Za-z]+\s*=\s*"([^"]+)"/gu)].map(
+    const events = [...(notifications + beforeSend).matchAll(/Event[A-Za-z]+\s*=\s*"([^"]+)"/gu)].map(
       (match) => match[1],
     );
 

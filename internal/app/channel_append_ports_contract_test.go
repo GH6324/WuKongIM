@@ -198,7 +198,7 @@ type subscriberPageNodeStub struct {
 	err         error
 }
 
-func (node *subscriberPageNodeStub) ListChannelSubscribersPage(
+func (node *subscriberPageNodeStub) ListChannelSubscribersAuthoritative(
 	_ context.Context,
 	channelID string,
 	channelType int64,

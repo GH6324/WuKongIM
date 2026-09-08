@@ -23,8 +23,8 @@ func TestRecoveryProbeOwnerPreservesUnprovenSuffixEvenWithAllVoters(t *testing.T
 		ChannelKey: "1:owner", ChannelID: ch.ChannelID{ID: "owner", Type: 1},
 		Leader: 1, Voters: []ch.NodeID{1, 2, 3}, Quorum: 2, Timeout: time.Minute,
 	}, dispatcher)
-	if !errors.Is(err, errRecoveryProbeIncomplete) {
-		t.Fatalf("recoverQuorumPrefix() error = %v; want incomplete suffix proof", err)
+	if err != nil || !selected.NeedsConvergence {
+		t.Fatalf("recoverQuorumPrefix() = %+v, %v; want explicit suffix convergence", selected, err)
 	}
 	if selected.Index != 5 || selected.Identity != prefix || selected.CertifiedCommitted != 5 {
 		t.Fatalf("recoverQuorumPrefix() = %+v, want certified prefix 5", selected)

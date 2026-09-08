@@ -43,6 +43,12 @@ similarly sensitive values, then attaches that snapshot to `app.Config`.
 `internal/app` only serves the supplied snapshot for the local node and returns
 `ErrNodeConfigUnavailable` when the startup loader did not provide one. It is
 read-only and does not watch or mutate live runtime config.
+The separate TOML document projects every public schema field through the owning
+runtime defaults, with hidden values represented by comments. The loader also
+attaches bilingual field help, provenance and base line positions. App serves an
+owned metadata copy for the exact local node through independently versioned RPC;
+legacy snapshot DTOs stay unchanged. Semantic startup rejection still belongs to
+App.New, so document generation does not move invalid-config checks into Load.
 
 The diagnostics store is app-owned because only the composition root knows
 whether `Observability.Diagnostics.Enabled` installed the bounded event store,
@@ -271,7 +277,9 @@ SEND with channel authority routing enabled:
 
 ```text
 gateway/API send
-  -> message.App delegates to channelappend.Router
+  -> message.App evaluates permissions and optional Send plugins
+  -> optional synchronous before-send Webhook admits or rejects the message
+  -> channelappend.Router
   -> local authority writer or forwarded Channel Append RPC
   -> ordinary Channel message row plus sender-sequence index commit atomically
      (CMD/SyncOnce uses the separate command Channel log)

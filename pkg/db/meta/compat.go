@@ -2001,19 +2001,19 @@ func (s *ShardStore) GetActiveChannelMigrationTask(ctx context.Context, channelI
 	return s.shard.GetActiveChannelMigrationTask(ctx, channelID, channelType)
 }
 
-// ListActiveChannelMigrationTaskPage forwards a bounded cursor read without changing storage layout.
-func (s *ShardStore) ListActiveChannelMigrationTaskPage(ctx context.Context, cursor ChannelMigrationTaskCursor, limit int) ([]ChannelMigrationTask, ChannelMigrationTaskCursor, bool, error) {
-	if err := s.validate(); err != nil {
-		return nil, cursor, false, err
-	}
-	return s.shard.ListActiveChannelMigrationTaskPage(ctx, cursor, limit)
-}
-
 func (s *ShardStore) ListActiveChannelMigrationTasks(ctx context.Context, limit int) ([]ChannelMigrationTask, error) {
 	if err := s.validate(); err != nil {
 		return nil, err
 	}
 	return s.shard.ListActiveChannelMigrationTasks(ctx, limit)
+}
+
+// ListActiveChannelMigrationTaskPage resumes a bounded active-index scan.
+func (s *ShardStore) ListActiveChannelMigrationTaskPage(ctx context.Context, after ChannelMigrationTaskCursor, limit int) ([]ChannelMigrationTask, ChannelMigrationTaskCursor, bool, error) {
+	if err := s.validate(); err != nil {
+		return nil, after, false, err
+	}
+	return s.shard.ListActiveChannelMigrationTaskPage(ctx, after, limit)
 }
 
 func (s *ShardStore) ListChannelMigrationTasks(ctx context.Context) ([]ChannelMigrationTask, error) {

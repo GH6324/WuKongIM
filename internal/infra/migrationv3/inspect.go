@@ -222,7 +222,7 @@ func (v *nativeView) Message(ctx context.Context, id migration.ChannelIdentity, 
 	if !found || indexed.MessageSeq != seq {
 		return m, false, errors.New("message ID index differs from primary row")
 	}
-	if m.ClientMsgNo != "" {
+	if m.FromUID != "" && m.ClientMsgNo != "" {
 		hit, found, err := log.LookupIdempotency(ctx, message.IdempotencyKey{FromUID: m.FromUID, ClientMsgNo: m.ClientMsgNo})
 		if err != nil {
 			return m, false, err

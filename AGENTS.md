@@ -25,6 +25,10 @@ The keywords `MUST`, `MUST NOT`, `SHOULD`, and `MAY` define requirement levels:
 ## Before You Work
 
 - Development SHOULD use a Git worktree with its working copy located in the .worktrees directory
+- After a task branch is fully merged into its target branch, you MUST remove
+  its clean worktree and delete the original local task branch as part of delivery.
+  Verify that the target contains the branch tip before cleanup, and preserve
+  any uncommitted work. Do not force-delete unmerged branches.
 - Before deeply analyzing or changing a package, you MUST read every applicable
   `FLOW.md`. Broad repository discovery and symbol search do not trigger this
   requirement. A FLOW with `scope: package` applies only to its directory; a
@@ -88,6 +92,12 @@ app -> access/usecase/runtime/infra/pkg
 
 ### Release Notes
 
+- A release request MUST include publication to the applicable signed native
+  package channel in `WuKongIM/packages`, followed by public APT/RPM client
+  verification of the exact target version. Docker images, GitHub Release
+  assets, and documentation alone MUST NOT be reported as a complete release.
+  Follow `docs/development/RELEASING.md`; if the applicable channel is disabled
+  or publication fails, report the release as incomplete.
 - User-visible changes MUST add a concise user/operator-facing entry to the
   root `CHANGELOG.md` under `Unreleased`.
 - A pull request MAY omit a Changelog entry only when its description explains

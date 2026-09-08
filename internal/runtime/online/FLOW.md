@@ -23,7 +23,9 @@ owner-local session handles. It is not a distributed presence directory.
    promotes it after authority registration and an active recheck.
 2. `MarkClosingAndUnregister` removes local indexes before the authority
    tombstone is queued and returns only the owner-route projection.
-3. `MarkTouched` marks an active route dirty; bounded drains produce one touch
+3. An active UID index serves bounded owner reconstruction pages; pending,
+   closing, superseded, and output-saturated snapshots cannot prove online state.
+4. `MarkTouched` marks an active route dirty; bounded drains produce one touch
    chunk, and failed routes are requeued only if the same active owner remains.
 
 ## Invariants and Failure Semantics

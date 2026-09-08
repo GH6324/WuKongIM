@@ -6,7 +6,8 @@ WuKongIMSDK and WuKongEasySDK, and the public API and protocol references.
 
 ## Develop
 
-The site uses Bun `1.3.11`.
+The site uses Bun `1.3.11`. The complete verification gate also needs Go
+1.22+ for the dependency-free business Webhook example.
 
 ```bash
 bun install
@@ -27,12 +28,25 @@ Its browser code talks to WuKongIM Gateway only. The loopback development BFF
 owns Product HTTP calls and must be replaced by an authenticated application
 backend in production.
 
+The Go before-send Webhook example is a separate standard-library-only module:
+
+```bash
+cd examples/go-webhook
+go run .
+```
+
+See its `README.md` for direct callback requests, server configuration, business
+rules, and Product HTTP send/history checks. `bun run sample:go-webhook:check`
+runs its fast unit tests from the documentation-site root and is part of `verify`.
+
 ## Content workflow
 
 - `lib/navigation.ts` is the bilingual publication registry. Add both `.mdx`
   and `.en.mdx` variants for every published page.
 - `SDK_DOCUMENTATION_SPEC.md` defines the maintained full-SDK versions,
   learning order, and writing contract.
+- `EASY_SDK_DOCUMENTATION_SPEC.md` defines the eight EasySDK quickstarts,
+  example-first learning path, and separate engineering validation history.
 - `redirects.json` records public route migrations. Removed pages must not be
   retained as duplicate MDX content.
 - `NAVIGATION.md` is generated. Refresh it with `bun run navigation:write`.

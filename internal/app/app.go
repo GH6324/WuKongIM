@@ -115,6 +115,8 @@ type App struct {
 	pluginReceive channelappend.OfflineRecipientObserver
 	// webhook owns bounded best-effort webhook delivery workers.
 	webhook WorkerRuntime
+	// beforeSendWebhook owns synchronous admission independently of notification workers.
+	beforeSendWebhook *message.BeforeSendWebhook
 	// webhookNotify adapts durable committed envelopes into msg.notify webhook events.
 	webhookNotify channelappend.PersistAfterEnqueuer
 	// webhookOffline adapts offline recipient batches into msg.offline webhook events.

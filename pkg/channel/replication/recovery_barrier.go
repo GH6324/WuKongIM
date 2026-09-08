@@ -25,9 +25,11 @@ func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered
 	}
 	if recovered.LEO > 0 {
 		tail := recovered.TailIdentity
-		// Clearing a native transfer fence advances FenceVersion without a new
-		// leader term. Use the same complete authority order as Install.
-		if compareAuthorityID(authority.ID, AuthorityID{ChannelEpoch: tail.ChannelEpoch, LeaderTerm: tail.LeaderTerm, FenceVersion: tail.FenceVersion}) <= 0 {
+		// Clearing a migration fence advances route authority without changing
+		// the leader term. Every component of the durable authority still fences
+		// the barrier, including same-term fence-version advances.
+		previous := AuthorityID{ChannelEpoch: tail.ChannelEpoch, LeaderTerm: tail.LeaderTerm, FenceVersion: tail.FenceVersion}
+		if compareAuthorityID(authority.ID, previous) <= 0 {
 			return recoveryBarrierResult{}, ch.ErrStaleMeta
 		}
 	}

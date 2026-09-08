@@ -1,66 +1,23 @@
 ---
 title: 运行官方示例
-description: 用固定 WuKongIM revision 跑通 Web、Android、iOS 与 Flutter 的源码 example 和正式发布包。
+description: 准备服务端与两个账号，运行八个平台的示例并确认在线双向消息。
 ---
 
-本页记录两类可复现凭据。2026 年 8 月 31 日，四个官方仓库的源码 example 都已连接 WuKongIM `5676700d2dc966fa6fc9b2f0620a6ae429adad5a`，服务端进程级 JSON-RPC E2E 也在该 revision 通过。9 月 1 日，从 npm、Maven Central、CocoaPods 与 pub.dev 解析的四个正式包连接 PR 最终 HEAD `1c9430f15fc8844e7025df07d54ab6e80e026414` 的测试合并服务端 `35f314cc2512f3f0f5d55d9677e817cb64129985`，完成 Alice → Bob、Bob → Alice 与断开清理。
+先让 Alice 与 Bob 在两个客户端里互发消息，再把对应教程的代码接入应用。以下示例只需要你选择一个平台；两个客户端也可以使用不同平台。
 
-<Callout type="warn" title="源码 example 与正式发布包是两类证据">
-  源码运行证明精确仓库 revision，正式包运行证明 Registry 实际提供的归档。Web `v2.0.4`、Android `v1.0.5` 与 iOS `v1.1.1` 已包含先前验证的 example 和连接生命周期修复，Flutter 继续使用 `v1.1.0`；记录结果时仍要同时保留两类凭据。
-</Callout>
+## 1. 准备开发用单节点集群
 
-## 已验证结果
-
-### 正式发布包（2026-09-01）
-
-| 平台 | 正式包与发布源码 | 构建与运行环境 | 实际结果 |
-| --- | --- | --- | --- |
-| Web | [`easyjssdk@2.0.4`](https://www.npmjs.com/package/easyjssdk/v/2.0.4) · [`9c03c98c725982fac224cd1d3b52456eae983975`](https://github.com/WuKongIM/WuKongEasySDK-JS/commit/9c03c98c725982fac224cd1d3b52456eae983975) | Chrome 151；托管 Node.js 对端 | 浏览器与正式包对端的双向消息、SENDACK 和断开通过 |
-| Android | [`com.githubim:easysdk-android:1.0.5`](https://central.sonatype.com/artifact/com.githubim/easysdk-android/1.0.5) · [`61ae6dc6d0077b15e47cda1fd530296b97a06a7a`](https://github.com/WuKongIM/WuKongEasySDK-Android/commit/61ae6dc6d0077b15e47cda1fd530296b97a06a7a) | JDK 17、Android 14 / API 34 托管模拟器 | Maven 解析、instrumentation 双向消息和断开通过 |
-| iOS | [`WuKongEasySDK 1.1.1`](https://cocoapods.org/pods/WuKongEasySDK) · [`ca688fcac2c4cd8d6f8e8163faf165376b520ba9`](https://github.com/WuKongIM/WuKongEasySDK-iOS/commit/ca688fcac2c4cd8d6f8e8163faf165376b520ba9) | CocoaPods 1.16.2、iOS Simulator | Pod 解析、双向消息和断开通过 |
-| Flutter | [`wukong_easy_sdk 1.1.0`](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) · [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/commit/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6) | Flutter 3.41.4、iOS Simulator | hosted 依赖解析、双向消息和断开通过 |
-
-Android、iOS 与 Flutter 的托管任务以及每项共用的 npm `2.0.4` 对端见[最终 HEAD 正式包验收运行](https://github.com/WuKongIM/WuKongIM/actions/runs/33484491015)。
-
-### 官方源码 example（2026-08-31）
-
-| 平台 | 官方 example 源码 | 构建与运行环境 | 实际结果 |
-| --- | --- | --- | --- |
-| Web | [`a055b3667247333b6b3183249f5d5929673dfd53`](https://github.com/WuKongIM/WuKongEasySDK-JS/tree/a055b3667247333b6b3183249f5d5929673dfd53/example) | Node.js 22.12、Chrome 151、macOS | 61 个测试通过，ESM/CJS 构建通过，浏览器双向消息、断开与重连通过 |
-| Android | [`7134bbd0263fd01d9e7f71b7bd05b226f75b2292`](https://github.com/WuKongIM/WuKongEasySDK-Android/tree/7134bbd0263fd01d9e7f71b7bd05b226f75b2292/example) | JDK 17、Gradle 8.4、Android 14 / API 34 模拟器 | Gradle 测试与 Debug 构建通过，双向消息、手动断开和心跳超时语义通过 |
-| iOS | [`40014c16c0becd390c105098d359048901f4d87c`](https://github.com/WuKongIM/WuKongEasySDK-iOS/tree/40014c16c0becd390c105098d359048901f4d87c/Examples/WuKongIMExample-Unified) | Xcode 16.2、iPhone 16 / iOS 18.3 Simulator | 30 个测试与 Release 构建通过，macOS/iOS 脚本通过，双向消息正文与时间显示正确 |
-| Flutter | [`98ab8f3d9a1ad53f40c32caef0979845a37ae9a6`](https://github.com/WuKongIM/WuKongEasySDK-Flutter/tree/98ab8f3d9a1ad53f40c32caef0979845a37ae9a6/example) (`v1.1.0`) | Flutter 3.41.4、Dart 3.11.1、iOS Simulator | 25 个测试与静态分析通过，官方 example 双向消息通过 |
-
-服务端还通过了固定的进程级回归测试：
-
-```bash
-GOWORK=off go test -tags=e2e ./test/e2e/message/easy_sdk_jsonrpc \
-  -count=1 -timeout 2m -p=1 -v
-```
-
-这份结果覆盖单节点集群、默认 256 个 Hash Slot、JSON-RPC CONNECT、Ping、SEND/SENDACK、RECV/RECVACK、在线双向消息和客户端清理。它不覆盖物理真机、WSS 代理、生产 Token 拒绝、离线同步、推送、多设备、容量或长期稳定性。
-
-## 1. 启动同一版 WuKongIM
-
-在一个终端中启动开发用单节点集群：
-
-```bash
-git clone https://github.com/WuKongIM/WuKongIM.git
-cd WuKongIM
-git checkout 5676700d2dc966fa6fc9b2f0620a6ae429adad5a
-cp wukongim.toml.example wukongim.toml
-go run ./cmd/wukongim -config ./wukongim.toml
-```
-
-另开终端检查就绪状态：
+按 [Docker 部署](/zh/server/deployment/docker)启动 WuKongIM 开发用单节点集群，确认 WebSocket 端口 `5200` 和 Product HTTP 端口 `5001` 可达。默认使用 256 Hash Slots。保持服务端运行，在受信开发终端检查：
 
 ```bash
 curl -fsS http://127.0.0.1:5001/readyz
 ```
 
-默认开发入口是 Product HTTP `http://127.0.0.1:5001` 与 EasySDK WebSocket `ws://127.0.0.1:5200`。生产环境必须改用受保护的 HTTPS/WSS 入口。
+就绪请求应成功。开发地址默认是 `ws://127.0.0.1:5200`，仅在 listener 或反向代理配置了 `/ws` 时追加该路径。客户端侧生产连接使用 WSS；管理接口留在可信后端。
 
 ## 2. 准备 Alice 与 Bob
+
+**先确定设备类别。** 下方请求以移动端 `0` 为例。Web 改为 `1`，Rust/C#/C++/Python 改为 `2`；两个客户端平台不同，就分别填写各自的值。`alice-token`、`bob-token` 仅用于本机演示。
 
 由受信业务后端为两个用户准备各自的 `uid`、`token` 和 WebSocket 地址。只在本机回环开发环境中，可以由受信终端调用 [`POST /user/token`](/zh/api/product-http/users/setQuickstartUserToken) 建立测试身份。以下以两个原生客户端为例；如果某个用户由 Web example 登录，把该用户的 `device_flag` 改为 `1`：
 
@@ -74,7 +31,7 @@ curl -fsS -X POST http://127.0.0.1:5001/user/token \
   -d '{"uid":"bob","token":"bob-token","device_flag":0,"device_level":1}'
 ```
 
-原生移动端使用 APP `0`，Web 使用 WEB `1`，桌面端使用 PC `2`。默认产品装配会精确校验相同 UID 与设备类别的已存 Token；生产部署仍需保护该接口、实现过期与轮换策略，并单独证明无效、撤销和按业务规则过期的 Token 会被拒绝。
+iOS、Android、Flutter 默认 APP `0`，Web 默认 WEB `1`，Rust、C#、C++、Python 默认 PC `2`。默认产品装配会精确校验相同 UID 与设备类别的已存 Token；生产部署仍需保护该接口、实现过期与轮换策略，并单独证明无效、撤销和按业务规则过期的 Token 会被拒绝。
 
 根据客户端运行位置填写 WebSocket 地址：
 
@@ -84,41 +41,16 @@ curl -fsS -X POST http://127.0.0.1:5001/user/token \
 | Android Emulator | `ws://10.0.2.2:5200` |
 | 物理手机 | `ws://<开发机局域网 IP>:5200`，并确认防火墙与路由可达 |
 
-## 3. 运行平台 example
+## 3. 选择并运行示例
 
-### Web
+先准备目标平台的开发工具。下面的源码示例固定在指定版本；应用通过包管理器接入时，使用对应快速接入页的安装命令。
 
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
-cd WuKongEasySDK-JS
-git checkout 9c03c98c725982fac224cd1d3b52456eae983975
-npm ci
-npm test
-npm run build
-python3 -m http.server 8080
-```
-
-打开 `http://127.0.0.1:8080/example/`。用两个隔离的浏览器上下文分别填写 Alice 与 Bob；不要在 Console 中打印 Token 或完整 Payload。
-
-### Android
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
-cd WuKongEasySDK-Android
-git checkout 61ae6dc6d0077b15e47cda1fd530296b97a06a7a
-./gradlew test :example:assembleDebug
-./gradlew :example:installDebug
-```
-
-在 API 21+ 设备或模拟器中启动 `example`。Android Emulator 连接宿主机时使用 `ws://10.0.2.2:5200`，不是 `localhost`。需要两个原生身份时使用两台设备或两个独立模拟器；也可以让浏览器 example 作为另一端。
-
-### iOS 与 macOS
+### iOS [#ios]
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-iOS.git
 cd WuKongEasySDK-iOS
-git checkout ca688fcac2c4cd8d6f8e8163faf165376b520ba9
-swift test
+git checkout v1.1.1
 swift build -c release
 cd Examples/WuKongIMExample-Unified
 ./build.sh macos
@@ -133,15 +65,29 @@ cd Examples/WuKongIMExample-Unified
 
 也可以用 `./build.sh macos --run` 启动 macOS 版本。示例中的 iOS ATS 明文例外只用于本地 `ws://` 开发，不能复制到生产 App。
 
-### Flutter
+[iOS 快速接入](/zh/sdk/easy/ios/getting-started)
+
+### Android [#android]
+
+```bash
+git clone https://github.com/WuKongIM/WuKongEasySDK-Android.git
+cd WuKongEasySDK-Android
+git checkout v1.0.5
+./gradlew :example:assembleDebug
+./gradlew :example:installDebug
+```
+
+在 API 21+ 设备或模拟器中启动 `example`。Android Emulator 连接宿主机时使用 `ws://10.0.2.2:5200`，不是 `localhost`。需要两个原生身份时使用两台设备或两个独立模拟器；也可以让浏览器 example 作为另一端。
+
+[Android 快速接入](/zh/sdk/easy/android/getting-started)
+
+### Flutter [#flutter]
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-Flutter.git
 cd WuKongEasySDK-Flutter
-git checkout 98ab8f3d9a1ad53f40c32caef0979845a37ae9a6
+git checkout v1.1.0
 flutter pub get
-flutter analyze
-flutter test
 cd example
 flutter pub get
 flutter devices
@@ -150,38 +96,93 @@ flutter run -d <device-id>
 
 为每个实际发布目标分别运行，不要用 iOS Simulator 结果替代 Android、Web 或桌面端验收。
 
-当前 Web、Android 与 iOS 发布提交只在已验证源码之上修改版本、变更日志或发布说明，example 行为源码保持不变；Flutter 发布源码与先前验证 revision 相同。若要核对 8 月 31 日的精确源码凭据，使用上方“官方源码 example”表中的 revision。
+[Flutter 快速接入](/zh/sdk/easy/flutter/getting-started)
 
-## 4. 重跑正式包自动验收
-
-仓库中的 `Safety Automation - EasySDK Released Package Acceptance` 会从四个 Registry 解析精确版本，构建当前 WuKongIM，再用正式 npm 包作为 Bob，分别在 Android API 34 与两个 iOS Simulator 任务中完成双向消息。需要重跑时可手动触发：
+### Web [#javascript]
 
 ```bash
-gh workflow run easysdk-release-acceptance.yml --ref main
+git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
+cd WuKongEasySDK-JS
+git checkout v2.0.5
+npm ci
+npm run build
+python3 -m http.server 8080
 ```
 
-工作流会检查 Gradle、Podfile.lock 与 Dart package config 的实际来源，避免本地源码依赖冒充正式包。真实浏览器仍应按 Web 教程单独验收。
+打开 `http://127.0.0.1:8080/example/`。用两个隔离的浏览器上下文分别填写 Alice 与 Bob；不要在 Console 中打印 Token 或完整 Payload。
 
-## 5. 完成双向验收
+[Web 快速接入](/zh/sdk/easy/javascript/getting-started)
 
-1. 两端都观察到连接成功，再启用发送按钮；
-2. Alice 向个人 Channel `bob` 发送 `{"type":1,"content":"hello bob"}`；
-3. Alice 看到 SEND 完成，Bob 核对 `fromUid`、`channelId`、`messageId`、正文和时间；
-4. Bob 向个人 Channel `alice` 回发，完成反向链路；
-5. 主动断开再连接，确认每次只发出一个连接/断开事件，消息监听没有重复；
-6. 停止服务端或断开网络，确认客户端在有界时间内进入失败或重连状态，而不是永久停在 Connecting；
-7. 退出页面或账号，移除监听器并执行平台对应的 `disconnect`、`dispose` 或 `destroy`。
+### Rust [#rust]
 
-发送成功、对端实时收到、对端展示和业务处理是四个不同状态。消息恢复和去重还要按[消息收发](/zh/guide/integration/messaging)单独设计。
+需要 Rust 1.86+。检出与 crates.io 0.1.0 对应的源码：
+
+```bash
+git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Rust.git
+cd WuKongEasySDK-Rust
+cargo build --locked --example chat
+```
+
+两个终端分别设置 `WK_WS_URL`、`WK_UID`、`WK_TOKEN`、`WK_PEER_UID`，执行 `cargo run --locked --example chat`。双方连接成功后输入文本，观察接收事件；输入 `/quit` 退出。
+
+[Rust 快速接入](/zh/sdk/easy/rust/getting-started)
+
+### C# [#csharp]
+
+用 [C# 快速接入](/zh/sdk/easy/csharp/getting-started) 的完整 `Program.cs` 创建 `MyChat`，安装公共 NuGet 1.0.0。两个终端分别设置 `WUKONGIM_WS_URL`、`WUKONGIM_UID`、`WUKONGIM_TOKEN`：
+
+```bash
+# Alice
+dotnet run --project MyChat -- bob
+# Bob
+dotnet run --project MyChat -- alice
+```
+
+两端显示 `Connected.` 后按 Enter 发送，观察对端的 `Message received.`，完成双向检查后再次按 Enter 退出。
+
+[C# 快速接入](/zh/sdk/easy/csharp/getting-started)
+
+### C++ [#cpp]
+
+按 [C++ 快速接入](/zh/sdk/easy/cpp/getting-started) 用 vcpkg 构建 `my_app`，或用预编译包的 `wukong_chat`。前者设置 `WKIM_URL`、`WKIM_UID`、`WKIM_TOKEN` 后执行 `./build/my_app bob`（Bob 改为 `alice`）；后者设置 `WKIM_TOKEN`，执行 `./build/wukong_chat ws://127.0.0.1:5200 alice bob`。
+
+`my_app` 等两端连接后按 Enter 发送，再按 Enter 退出；`wukong_chat` 允许连续输入消息，`/quit` 退出。Windows 可执行文件位于 `build/Release/` 并带 `.exe` 后缀。
+
+[C++ 快速接入](/zh/sdk/easy/cpp/getting-started)
+
+### Python [#python]
+
+在 Python 3.11+ 虚拟环境中运行：
+
+```bash
+python -m pip install --index-url https://pypi.org/simple "wukong-easy-sdk==0.1.0"
+git clone --branch v0.1.0 --depth 1 https://github.com/WuKongIM/WuKongEasySDK-Python.git
+python WuKongEasySDK-Python/examples/chat.py
+```
+
+运行前分别设置 `WKIM_URL`、`WKIM_UID`、`WKIM_TOKEN`、`WKIM_PEER`。双方出现 `Connected` 后输入文本；`/quit` 退出。
+
+[Python 快速接入](/zh/sdk/easy/python/getting-started)
+
+## 4. 检查结果并退出
+
+1. 两端各自显示连接成功。
+2. Alice 发送后看到服务端发送结果；Bob 的消息事件显示 Alice 的消息。
+3. Bob 回发，Alice 也能收到。
+4. 按平台说明退出或关闭页面，再次进入时没有重复事件或旧连接。
+
+示例界面可以展示测试消息正文，生产日志不要记录 Token 或完整消息。
 
 ## 常见问题
 
-- **Android 模拟器连接失败**：把 `localhost` 改为 `10.0.2.2`；真机改用开发机局域网地址。
-- **检出 tag 后现象与上表不同**：先确认 `git rev-parse HEAD` 与包管理器锁文件都对应当前固定版本；不要让本地 `path`、`project(':')` 或缓存依赖替代 Registry 产物。
-- **SEND 成功但另一端没有消息**：确认目标 Channel ID 就是对方 UID、两端都在线，且接收端没有因重复 listener 或错误去重丢弃 RECV。
-- **iOS 或 Android 构建要求接受 License**：先按本机 Xcode、Android SDK Manager 的提示接受对应 License 并下载目标 runtime，再重跑原命令。
-- **本地 Token 能连接**：这只证明内置精确匹配成功。继续验证错误、撤销、按业务规则过期的 Token 会被拒绝，并明确有效 Token 的重放限制。
+**无法连接**：先检查 `/readyz`、设备可达地址与端口。Android Emulator 使用 `10.0.2.2`，真机使用开发机局域网地址。
+
+**认证失败**：核对 UID、Token 和 `device_flag`，两端使用不同 UID。
+
+**发送成功但对端没收到**：确认对端已在线、发送目标是对方 UID，且事件监听已注册。SENDACK 不是对端接收证明。
+
+**离线后缺消息**：EasySDK 不补拉历史；需要业务后端恢复或选择完整版 SDK。
 
 ## 下一步
 
-根据目标平台继续阅读 [iOS](/zh/sdk/easy/ios/getting-started)、[Android](/zh/sdk/easy/android/getting-started)、[Flutter](/zh/sdk/easy/flutter/getting-started) 或 [Web](/zh/sdk/easy/javascript/getting-started) 快速接入，再用[上线验收](/zh/guide/integration/acceptance)补齐 WSS、真机、离线、容量与回滚证据。
+[选择平台接入应用](/zh/sdk/easy)。历史版本、源码与正式包的独立运行结果见[工程验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md)；实际部署继续检查 WSS、Token 轮换与故障恢复。

@@ -127,7 +127,7 @@ func benchmarkDurableQuorumCluster1000QPS(b *testing.B, cluster *durableQuorumBe
 	if err := cluster.firstError(); err != nil {
 		b.Fatal(err)
 	}
-	reportDurableQuorumBenchmark(b, metricPrefix, latencies, cluster.commitObserver.snapshot())
+	reportDurableQuorumBenchmark(b, metricPrefix, latencies, cluster.commitObserver.snapshot(), threeNodeBenchmarkRate)
 }
 
 // BenchmarkThreeNodeChannelAppend1000QPS adds the public Channel service,
@@ -305,7 +305,7 @@ func BenchmarkThreeNodeChannelAppendMixedCold1000QPS(b *testing.B) {
 	if err := cluster.firstError(); err != nil {
 		b.Fatal(err)
 	}
-	reportDurableQuorumBenchmark(b, "mixed-hot", hotLatencies, cluster.commitObserver.snapshot())
+	reportDurableQuorumBenchmark(b, "mixed-hot", hotLatencies, cluster.commitObserver.snapshot(), threeNodeBenchmarkRate)
 }
 
 func benchmarkThreeNodeChannelAppendCluster1000QPS(b *testing.B, cluster *durableQuorumBenchmarkCluster, metricPrefix string) {
@@ -405,7 +405,7 @@ func benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b *testing.B, cluster 
 	b.Logf("channel stages: %s", cluster.channelObserver.summary())
 	cluster.transportObserver.report(b)
 	cluster.exchangeObserver.report(b)
-	reportDurableQuorumBenchmark(b, metricPrefix, latencies, cluster.commitObserver.snapshot())
+	reportDurableQuorumBenchmark(b, metricPrefix, latencies, cluster.commitObserver.snapshot(), rate)
 }
 
 type durableQuorumBenchmarkChannel struct {
@@ -1082,7 +1082,13 @@ func durationP99(durations []time.Duration) time.Duration {
 	return sorted[(len(sorted)*99-1)/100]
 }
 
-func reportDurableQuorumBenchmark(b *testing.B, prefix string, latencies []time.Duration, commits durableQuorumCommitSnapshot) {
+type durableQuorumBenchmarkReporter interface {
+	Helper()
+	ReportMetric(float64, string)
+	Errorf(string, ...any)
+}
+
+func reportDurableQuorumBenchmark(b durableQuorumBenchmarkReporter, prefix string, latencies []time.Duration, commits durableQuorumCommitSnapshot, rate int) {
 	b.Helper()
 	if len(latencies) == 0 {
 		return
@@ -1090,22 +1096,34 @@ func reportDurableQuorumBenchmark(b *testing.B, prefix string, latencies []time.
 	sorted := append([]time.Duration(nil), latencies...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
 	p99 := sorted[(len(sorted)*99-1)/100]
-	aboveBudget := 0
+	// Hosted regression uses the workflow's 400ms contract; dedicated capacity
+	// benchmarks retain their original 200ms budget and diagnostic series.
+	budget := 200 * time.Millisecond
+	if rate == threeNodeHostedBenchmarkRate {
+		budget = 400 * time.Millisecond
+	}
+	above200, aboveBudget := 0, 0
 	for _, latency := range latencies {
 		if latency > 200*time.Millisecond {
+			above200++
+		}
+		if latency > budget {
 			aboveBudget++
 		}
 	}
 	b.ReportMetric(float64(p99)/float64(time.Millisecond), prefix+"-p99-ms")
-	b.ReportMetric(100*float64(aboveBudget)/float64(len(latencies)), prefix+"-over-200ms-pct")
+	b.ReportMetric(100*float64(above200)/float64(len(latencies)), prefix+"-over-200ms-pct")
+	if budget == 400*time.Millisecond {
+		b.ReportMetric(100*float64(aboveBudget)/float64(len(latencies)), prefix+"-over-400ms-pct")
+	}
 	if commits.batches > 0 {
 		b.ReportMetric(float64(commits.batches)/float64(len(latencies)), "physical-commits/op")
 		b.ReportMetric(float64(commits.records)/float64(commits.batches), "records/physical-commit")
 		b.ReportMetric(float64(commits.commit)/float64(commits.batches)/float64(time.Millisecond), "physical-commit-ms")
 	}
 	if len(latencies) >= 1000 && float64(aboveBudget)/float64(len(latencies)) > 0.01 {
-		b.Errorf("%s operations above 200ms = %.3f%%, p99=%s, physical batches=%d, records=%d, mean physical commit=%s; want <= 1%%",
-			prefix, 100*float64(aboveBudget)/float64(len(latencies)), p99, commits.batches, commits.records,
+		b.Errorf("%s operations above %s = %.3f%%, p99=%s, physical batches=%d, records=%d, mean physical commit=%s; want <= 1%%",
+			prefix, budget, 100*float64(aboveBudget)/float64(len(latencies)), p99, commits.batches, commits.records,
 			commits.commit/time.Duration(max(commits.batches, 1)))
 	}
 }

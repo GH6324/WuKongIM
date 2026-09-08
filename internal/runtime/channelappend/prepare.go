@@ -33,11 +33,13 @@ type preparedSend struct {
 }
 
 type preparePorts struct {
-	messageID   MessageIDAllocator
-	authorizer  Authorizer
-	idempotency IdempotencyStore
-	senderFence SenderFenceValidator
-	clock       Clock
+	// commandChannels applies the deployment suffix without process-global state.
+	commandChannels runtimechannelid.CommandCodec
+	messageID       MessageIDAllocator
+	authorizer      Authorizer
+	idempotency     IdempotencyStore
+	senderFence     SenderFenceValidator
+	clock           Clock
 }
 
 type prepareOutcome struct {
@@ -160,7 +162,7 @@ func prepareRequestScopedSend(ctx context.Context, cmd SendCommand, ports prepar
 	if cmd.ChannelID != "" {
 		return prepareSendResult{err: ErrRequestSubscribersConflictChannel}, true
 	}
-	scoped, err := runtimechannelid.RequestSubscriberChannelFor(cmd.MessageScopedUIDs)
+	scoped, err := ports.commandChannels.RequestSubscriberChannelFor(cmd.MessageScopedUIDs)
 	if err != nil {
 		if errors.Is(err, runtimechannelid.ErrRequestSubscribersRequired) {
 			return prepareSendResult{err: ErrRequestSubscribersRequired}, true
@@ -184,7 +186,7 @@ func prepareCanonicalSend(ctx context.Context, cmd SendCommand, ports preparePor
 	}
 	cmd = nextCmd
 	if cmd.SyncOnce {
-		cmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
+		cmd.ChannelID = ports.commandChannels.ToCommandChannel(cmd.ChannelID)
 	}
 	if lookupIdempotency {
 		if existing, ok, err := lookupIdempotentSend(ctx, cmd, ports); err != nil {
@@ -197,16 +199,12 @@ func prepareCanonicalSend(ctx context.Context, cmd SendCommand, ports preparePor
 }
 
 func prepareNoPersistSend(ctx context.Context, cmd SendCommand, ports preparePorts, normalizePerson bool) (prepareSendResult, bool) {
-	sourceChannelID, alreadyCommandChannel := runtimechannelid.FromCommandChannel(cmd.ChannelID)
+	sourceChannelID, alreadyCommandChannel := ports.commandChannels.FromCommandChannel(cmd.ChannelID)
 	cmd.ChannelID = sourceChannelID
-	if !cmd.SyncOnce && !alreadyCommandChannel {
-		nextCmd, result, done := prepareValidatedCommand(ctx, cmd, ports, normalizePerson)
-		if done {
-			return result, true
-		}
-		return prepareSendResult{result: SendResult{Reason: ReasonSuccess}, command: nextCmd, canonicalResult: true}, true
+	// Ordinary transient sends retain their source Channel authority and recipients.
+	if cmd.SyncOnce || alreadyCommandChannel {
+		cmd.ChannelID = ports.commandChannels.ToCommandChannel(cmd.ChannelID)
 	}
-	cmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
 	return prepareNoPersistRealtimeSend(ctx, cmd, ports, normalizePerson)
 }
 
@@ -216,9 +214,6 @@ func prepareNoPersistRealtimeSend(ctx context.Context, cmd SendCommand, ports pr
 		return result, true
 	}
 	cmd = nextCmd
-	if !runtimechannelid.IsCommandChannel(cmd.ChannelID) {
-		cmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
-	}
 	return prepareAllocatedSend(cmd, ports, true)
 }
 
@@ -245,9 +240,14 @@ func prepareValidatedCommand(ctx context.Context, cmd SendCommand, ports prepare
 		}
 	}
 	if normalizePerson && cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
-		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
+		// A command suffix belongs to the channel, never to either participant UID.
+		sourceID, isCommand := ports.commandChannels.FromCommandChannel(cmd.ChannelID)
+		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, sourceID)
 		if err != nil {
 			return cmd, prepareSendResult{err: err}, true
+		}
+		if isCommand {
+			channelID = ports.commandChannels.ToCommandChannel(channelID)
 		}
 		cmd.ChannelID = channelID
 	}

@@ -36,6 +36,15 @@ Open <http://127.0.0.1:5173>.
 The event panel distinguishes a local outgoing message, the server send result,
 an online incoming message, and a message restored after reconnect.
 
+The first person-message directory is projected asynchronously after SENDACK.
+A latest-page history request can briefly return HTTP 200 with an empty list.
+The example's backend retries only an empty latest-page result (both sequence
+bounds zero) within its existing 20-attempt budget, waiting 250 ms between
+attempts. A genuinely empty chat returns an empty list after at most 19 waits
+(4.75 seconds plus HTTP request time). Nonempty results and ordinary cursor pages
+return immediately. Unrelated errors still fail; production applications must
+provide their own consistency and request-deadline policy.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -61,6 +70,7 @@ src/client/   Browser UI, SDK wrapper, and reconnect flow
 src/server/   Local service and Product HTTP client
 public/       HTML and CSS
 test/         Fast unit tests
+e2e/          Real-browser messaging and reconnect assertions
 scripts/      Browser bundle build
 ```
 
@@ -75,6 +85,14 @@ npm run build
 output. The browser bundle removes SDK `console` calls because the published SDK
 can log decoded message data.
 
+## Browser tests
+
+The repository's Go E2E harness starts a single-node cluster with Token
+authentication enabled and runs the pinned Chromium tests through `npm run test:e2e`.
+The tests use BFF-issued credentials and cover online messaging and reconnect
+recovery. Run this scenario from the repository root following
+`test/e2e/message/javascript_web_quickstart/AGENTS.md`.
+
 ## Production work still required
 
 - Authenticate users in your own backend and issue short-lived credentials.
@@ -86,3 +104,5 @@ can log decoded message data.
   multi-device conflict handling separately.
 - Test reconnect, offline recovery, browser lifecycle, and rollback in every
   browser and deployment environment you support.
+
+On reconnect, live delivery may precede the history response. The browser test checks that history contains the offline message and that the UI displays it once across both paths.

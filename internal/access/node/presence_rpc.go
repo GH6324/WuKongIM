@@ -30,14 +30,16 @@ const (
 	rpcStatusBackpressured           = "backpressured"
 	rpcStatusRejected                = "rejected"
 
-	presenceOpRegisterRoute      = "register_route"
-	presenceOpCommitRoute        = "commit_route"
-	presenceOpAbortRoute         = "abort_route"
-	presenceOpUnregisterRoute    = "unregister_route"
-	presenceOpEndpointsByUID     = "endpoints_by_uid"
-	presenceOpEndpointsByTargets = "endpoints_by_targets"
-	presenceOpTouchRoutes        = "touch_routes"
-	presenceOpApplyRouteAction   = "apply_route_action"
+	presenceOpRegisterRoute            = "register_route"
+	presenceOpCommitRoute              = "commit_route"
+	presenceOpAbortRoute               = "abort_route"
+	presenceOpUnregisterRoute          = "unregister_route"
+	presenceOpEndpointsByUID           = "endpoints_by_uid"
+	presenceOpEndpointsByTargets       = "endpoints_by_targets"
+	presenceOpTouchRoutes              = "touch_routes"
+	presenceOpApplyRouteAction         = "apply_route_action"
+	presenceOpReadOwnerRoutes          = "read_owner_routes"
+	presenceOpReadOwnerRoutesByTargets = "read_owner_routes_by_targets"
 )
 
 // PresenceAuthorityRPCServiceID is the cluster RPC service for UID route authority calls.
@@ -230,6 +232,8 @@ type Options struct {
 	Authority PresenceAuthority
 	// Owner handles owner-local session conflict actions after payload decoding.
 	Owner PresenceOwner
+	// OwnerRoutes serves bounded active-route reconstruction reads.
+	OwnerRoutes presence.OwnerRouteReader
 	// Delivery handles owner-local delivery push batches after payload decoding.
 	Delivery DeliveryOwnerPush
 	// ManagerConnections handles owner-local manager connection inventory requests.
@@ -289,7 +293,8 @@ type Adapter struct {
 	// authority owns business decisions; Adapter only performs RPC adaptation.
 	authority PresenceAuthority
 	// owner mutates only owner-local real session state.
-	owner PresenceOwner
+	owner       PresenceOwner
+	ownerRoutes presence.OwnerRouteReader
 	// delivery pushes messages into owner-local delivery sessions.
 	delivery DeliveryOwnerPush
 	// presence owns UID connection authority decisions.
@@ -353,6 +358,7 @@ func New(opts Options) *Adapter {
 	return &Adapter{
 		authority:                opts.Authority,
 		owner:                    opts.Owner,
+		ownerRoutes:              opts.OwnerRoutes,
 		delivery:                 opts.Delivery,
 		managerConnections:       opts.ManagerConnections,
 		managerLogs:              opts.ManagerLogs,
@@ -521,6 +527,12 @@ func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([
 			wklog.Error(err),
 		)
 		return nil, err
+	}
+	if req.Op == presenceOpReadOwnerRoutesByTargets {
+		return a.handleOwnerRoutesByTargets(ctx, req)
+	}
+	if req.Op == presenceOpReadOwnerRoutes {
+		return a.handleOwnerRoutes(ctx, req)
 	}
 	if a == nil || a.owner == nil {
 		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: rpcStatusRejected})

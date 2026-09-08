@@ -10,9 +10,7 @@ summary: Composes product and Agent runtimes and owns their dependency-safe life
 This package is the only composition root under `internal`. It converts
 validated configuration into product access adapters, use cases, node-local
 runtimes, infrastructure adapters, cluster/gateway services, observability,
-and lifecycle ownership. It also contains standalone Issue Agent, Review Agent,
-Cloud Analysis, and Cloud View composition roots that do not start the product
-cluster.
+and lifecycle ownership. Agent/Analysis/View roots do not start the product cluster.
 
 ## Boundaries
 
@@ -54,8 +52,12 @@ Stop or startup rollback
 
 - Every product deployment, including one node, uses cluster semantics. Wiring
   must not introduce a local business bypass.
+- Synchronous before-send Webhook admission is wired independently of asynchronous
+  Webhook workers and plugin enablement; configuration errors fail startup.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
+- Command-channel suffixes are injected across send, delivery, CMD sync, plugin
+  projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user
   privilege checks, Product HTTP compatibility, legacy conversation projection,
   and plugin-origin default sends.
@@ -65,11 +67,13 @@ Stop or startup rollback
 - The benchmark terminal controller is advertised only with a non-empty token,
   the real Gateway SEND drainer, Channel append group, and Online Delivery
   runtime. Partial compositions cannot mint a terminal capability.
-- Channel append producers start after their post-commit consumers and drain
-  before those dependencies stop. A drain timeout returns promptly but keeps
+- Channel append uses Slot-leader subscribers and owns versioned snapshot reuse.
+  Producers start after consumers and drain before them; a drain timeout keeps
   dependencies alive so a later `Stop` can continue the same drain.
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
+- Presence wiring shares one owner boot identity between session activation and
+  recovery replies, and installs bounded UID reconstruction before lookups.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.
 - Restore maintenance keeps Manager reachable while product traffic is fenced;
@@ -83,18 +87,14 @@ Stop or startup rollback
   its committed-entry lag is zero, not invalid or an unsigned underflow.
 - Issue/Review Agent composition keeps read, verification, signed-state, and
   publication credentials separated and never joins the product cluster.
-
 ## Read First
-
 - [app.go](app.go)
 - [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)
 - [backup.go](backup.go)
 - [issue_agent.go](issue_agent.go)
 - [review_agent.go](review_agent.go)
-
 ## Update Triggers
 
 - Dependency ownership or the sole-composition-root boundary changes.
 - Product startup, readiness, rollback, drain, or shutdown ordering changes.
-- Restore maintenance or side-effect lifecycle fencing changes.
-- Optional capability wiring or Agent credential/authority separation changes.
+- Restore maintenance, side-effect fencing, optional wiring, or Agent authority changes.

@@ -119,6 +119,10 @@ const (
 	RPCSlotPermissionMetadataBatch
 	// RPCChannelQuorumExchange carries bounded quorum replication, probe, and repair batches.
 	RPCChannelQuorumExchange
+	// RPCSlotIdentityMetadata serves authoritative Slot-leader user and device reads.
+	RPCSlotIdentityMetadata
+	// RPCManagerNodeConfigDocument serves versioned redacted startup TOML documents.
+	RPCManagerNodeConfigDocument
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -191,6 +195,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager diagnostics"
 	case RPCManagerPlugins:
 		return "manager plugins"
+	case RPCManagerNodeConfigDocument:
+		return "manager node config document"
 	case RPCManagerNodeConfig:
 		return "manager node config"
 	case RPCManagerLatestMessages:
@@ -231,6 +237,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot permission metadata batch"
 	case RPCChannelQuorumExchange:
 		return "channel quorum exchange"
+	case RPCSlotIdentityMetadata:
+		return "slot identity metadata"
 	case RPCChannelMigrationMeta:
 		return "channel migration meta"
 	case RPCMessageEventAppend:

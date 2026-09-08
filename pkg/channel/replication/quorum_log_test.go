@@ -307,7 +307,7 @@ func TestQuorumLogHigherFencedAuthorityPermanentlyClosesOldAdmission(t *testing.
 	fenced.ID.FenceVersion++
 	fenced.WriteFence = ch.WriteFence{Token: "transfer", Version: fenced.ID.FenceVersion, Reason: ch.WriteFenceReasonLeaderTransfer}
 	if _, err := log.Install(context.Background(), fenced); err != nil {
-		t.Fatalf("Install(fenced authority) error = %v, want recovered read-only authority", err)
+		t.Fatalf("Install(fenced authority) must recover with writes closed: %v", err)
 	}
 	before := harness.syncCalls
 	proposal := Proposal{
@@ -320,8 +320,15 @@ func TestQuorumLogHigherFencedAuthorityPermanentlyClosesOldAdmission(t *testing.
 	if _, err := log.Commit(context.Background(), proposal); !errors.Is(err, ch.ErrNotReady) && !errors.Is(err, ch.ErrStaleMeta) {
 		t.Fatalf("Commit(old authority after fence) error = %v, want fail-closed admission", err)
 	}
+	proposal.Expected = fenced.ID
+	if _, err := log.Commit(context.Background(), proposal); !errors.Is(err, ch.ErrWriteFenced) {
+		t.Fatalf("Commit(current fenced authority) error=%v, want ErrWriteFenced", err)
+	}
+	if _, err := log.Install(context.Background(), fenced); err != nil {
+		t.Fatal(err)
+	}
 	if harness.syncCalls != before {
-		t.Fatalf("old authority issued %d writes after higher fence", harness.syncCalls-before)
+		t.Fatalf("fenced authority issued %d business writes", harness.syncCalls-before)
 	}
 }
 
@@ -419,3 +426,51 @@ var _ DurableQuorumLog = (*quorumLog)(nil)
 var _ recoveryProbeDispatcher = (*replicaHarness)(nil)
 var _ recoveryFetchDispatcher = (*replicaHarness)(nil)
 var _ durabilityDispatcher = (*replicaHarness)(nil)
+
+func TestQuorumLogFencedRecoveryPreservesCommittedPrefixUntilFenceClears(t *testing.T) {
+	harness := newReplicaHarness(t, 1, 2, 3)
+	log, err := newQuorumLog(quorumLogConfig{Local: 1, Store: harness.stores[1], Recovery: harness, Durability: harness, RecoveryTimeout: time.Minute, RecoveryPageBytes: 64 << 10, MaxChannels: 8, MaxVoters: 3, MaxProposalRecords: 256, MaxProposalBytes: 64 << 10, MaxRetainedCommands: 16})
+	if err != nil {
+		t.Fatal(err)
+	}
+	authority := Authority{Key: "1:fenced-recovery", ChannelID: ch.ChannelID{ID: "fenced-recovery", Type: 1}, ID: AuthorityID{ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1}, Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2}
+	if _, err := log.Install(context.Background(), authority); err != nil {
+		t.Fatal(err)
+	}
+	proposal := Proposal{Key: authority.Key, Expected: authority.ID, CommandID: ch.CommandID{31: 91}, Records: []ch.Record{{ID: 901, Epoch: 1, Payload: []byte("before"), SizeBytes: 6, ServerTimestampMS: 901}}}
+	receipt, err := log.Commit(context.Background(), proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fenced := authority
+	fenced.ID.LeaderTerm++
+	fenced.ID.FenceVersion++
+	fenced.WriteFence = ch.WriteFence{Token: "failover", Version: 2, Reason: ch.WriteFenceReasonLeaderTransfer}
+	installed, err := log.Install(context.Background(), fenced)
+	if err != nil || installed.HW != receipt.Last+1 {
+		t.Fatalf("fenced recovery=%+v err=%v receipt=%+v", installed, err, receipt)
+	}
+	before := harness.syncCalls
+	proposal.Expected = fenced.ID
+	proposal.CommandID = ch.CommandID{31: 92}
+	proposal.Records[0].ID = 902
+	if _, err := log.Commit(context.Background(), proposal); !errors.Is(err, ch.ErrWriteFenced) {
+		t.Fatalf("fenced commit=%v", err)
+	}
+	repeated, err := log.Install(context.Background(), fenced)
+	if err != nil || repeated != installed || harness.syncCalls != before {
+		t.Fatalf("repeat=%+v err=%v writes=%d", repeated, err, harness.syncCalls-before)
+	}
+	cleared := fenced
+	cleared.ID.FenceVersion++
+	cleared.WriteFence = ch.WriteFence{}
+	ready, err := log.Install(context.Background(), cleared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposal.Expected = cleared.ID
+	after, err := log.Commit(context.Background(), proposal)
+	if err != nil || after.First != ready.HW+1 {
+		t.Fatalf("unfenced commit=%+v ready=%+v err=%v", after, ready, err)
+	}
+}

@@ -14,10 +14,12 @@ type Registry struct {
 }
 
 type registryShard struct {
-	mu         sync.RWMutex
-	bySession  map[uint64]LocalSession
-	dirtyIDs   map[uint64]struct{}
-	dirtyOrder []uint64
+	mu        sync.RWMutex
+	bySession map[uint64]LocalSession
+	// activeByUID supports bounded reconstruction without scanning every session.
+	activeByUID map[string]map[uint64]struct{}
+	dirtyIDs    map[uint64]struct{}
+	dirtyOrder  []uint64
 }
 
 // NewRegistry creates an owner-local online registry.
@@ -31,6 +33,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	}
 	for i := range reg.shards {
 		reg.shards[i].bySession = make(map[uint64]LocalSession)
+		reg.shards[i].activeByUID = make(map[string]map[uint64]struct{})
 		reg.shards[i].dirtyIDs = make(map[uint64]struct{})
 	}
 	return reg
@@ -52,6 +55,9 @@ func (r *Registry) RegisterPending(session LocalSession) error {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
+	if old, ok := shard.bySession[route.SessionID]; ok {
+		shard.removeActiveUID(old)
+	}
 	delete(shard.dirtyIDs, route.SessionID)
 	shard.bySession[route.SessionID] = session
 	return nil
@@ -71,6 +77,10 @@ func (r *Registry) MarkActive(sessionID uint64) error {
 		return nil
 	}
 	session.State = RouteStateActive
+	if shard.activeByUID[session.Route.UID] == nil {
+		shard.activeByUID[session.Route.UID] = make(map[uint64]struct{})
+	}
+	shard.activeByUID[session.Route.UID][sessionID] = struct{}{}
 	shard.bySession[sessionID] = session
 	return nil
 }
@@ -85,6 +95,7 @@ func (r *Registry) MarkClosingAndUnregister(sessionID uint64) (OwnerRoute, bool)
 	if !ok {
 		return OwnerRoute{}, false
 	}
+	shard.removeActiveUID(session)
 	delete(shard.bySession, sessionID)
 	delete(shard.dirtyIDs, sessionID)
 	session.State = RouteStateClosing

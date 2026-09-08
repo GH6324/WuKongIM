@@ -47,6 +47,7 @@ it owns lifecycle, readiness and bounded snapshots in every cluster.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read
    Controller-visible state without waiting for runtime task reconciliation.
+   Repair also reads this fresh health snapshot so a stalled task cannot hide failures.
 6. Controller-backed management mutations, including Slot leader-transfer task
    creation, preserve semantic CAS errors and task identity through typed RPC;
    task-result RPC carries executor progress and terminal observations.
@@ -81,7 +82,9 @@ it owns lifecycle, readiness and bounded snapshots in every cluster.
   Repair scans rotate Slots with row cursors under tick/task budgets. Slot
   leadership loss drops its cursor; newly unavailable nodes restart owned Slot
   scans, while unchanged health retains progress. Migration ticks have a five-second
-  deadline, up to eight durable steps of one automatic failover, and task cursors.
+  deadline and up to eight durable steps per automatic failover. Task cursors
+  advance one candidate at a time, rechecking Slot ownership; a timed-out task
+  cannot skip other unstarted candidates in a larger configured tick budget.
   Fresh durable progress permits continuation; stalled work yields immediately.
 - Maintenance closes business admission before storage replacement and keeps
   only explicitly allowed restore RPC available. Backup and restore retain

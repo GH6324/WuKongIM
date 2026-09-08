@@ -3,6 +3,7 @@ package channels
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -87,11 +88,13 @@ type RepairScanner struct {
 	store   RepairScannerStore
 	planner FailoverPlanner
 	repair  ReplicaRepairPlanner
-	// cursors retain bounded per-Slot progress; RunOnce is called serially by its owner.
+	// Per-owned-Slot cursors retain bounded progress; dropped leadership removes
+	// its cursor. RunOnce is called serially by the node-owned worker.
 	cursors map[uint32]metadb.ChannelRuntimeMetaCursor
-	// lastSlot rotates the next tick beyond the Slot that consumed the prior budget.
-	lastSlot uint32
-	// healthyNodes detects eligibility loss after an earlier page was scanned.
+	// lastSlot rotates page admission so a large or failing Slot cannot starve peers.
+	lastSlot     uint32
+	haveLastSlot bool
+	// healthyNodes invalidates old cursor positions when a leader becomes ineligible.
 	healthyNodes map[uint64]bool
 }
 
@@ -106,7 +109,7 @@ func NewRepairScanner(cfg RepairScannerConfig, source RepairScannerSource, store
 	if cfg.MaxTasksPerTick <= 0 {
 		cfg.MaxTasksPerTick = defaultRepairScannerMaxTasksPerTick
 	}
-	return &RepairScanner{cfg: cfg, source: source, store: store, planner: NewFailoverPlanner(), repair: NewReplicaRepairPlanner(), cursors: make(map[uint32]metadb.ChannelRuntimeMetaCursor)}
+	return &RepairScanner{cfg: cfg, source: source, store: store, planner: NewFailoverPlanner(), repair: NewReplicaRepairPlanner()}
 }
 
 // RunOnce scans bounded local Slot-leader pages and creates repair tasks.
@@ -125,15 +128,12 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 	if err != nil {
 		return result, err
 	}
-	// A pause may begin before the last health report expires. Revisit rows
-	// already scanned as healthy when a node loses placement eligibility, rather
-	// than waiting for a potentially large full-page cycle. Stable reports retain
-	// cursors and all per-tick page/task budgets still apply.
 	healthy := failoverHealthyNodeSet(snapshot.Nodes)
 	for nodeID := range s.healthyNodes {
 		if !healthy[nodeID] {
 			clear(s.cursors)
 			s.lastSlot = 0
+			s.haveLastSlot = false
 			break
 		}
 	}
@@ -142,48 +142,58 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 	if err != nil {
 		return result, err
 	}
-	// Reconcile cursor ownership and rotate even when one Slot has many pages.
-	owned := make(map[uint32]bool, len(slotIDs))
-	for _, id := range slotIDs {
-		owned[id] = true
+	slices.Sort(slotIDs)
+	slotIDs = slices.Compact(slotIDs)
+	if s.cursors == nil {
+		s.cursors = make(map[uint32]metadb.ChannelRuntimeMetaCursor)
 	}
-	for id := range s.cursors {
-		if !owned[id] {
-			delete(s.cursors, id)
+	for slotID := range s.cursors {
+		if _, owned := slices.BinarySearch(slotIDs, slotID); !owned {
+			delete(s.cursors, slotID)
 		}
 	}
-	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
-	start := sort.Search(len(slotIDs), func(i int) bool { return slotIDs[i] > s.lastSlot })
-	for offset := 0; offset < len(slotIDs); offset++ {
-		slotID := slotIDs[(start+offset)%len(slotIDs)]
-		s.lastSlot = slotID
-		cursor := s.cursors[slotID]
-		for result.PagesScanned < s.cfg.MaxPagesPerTick {
-			page, next, done, err := s.source.ListRepairScannerRuntimeMetaPage(ctx, slotID, cursor, s.cfg.PageLimit)
-			if err != nil {
-				return result, err
-			}
-			result.PagesScanned++
-			for _, item := range page {
-				if result.TasksCreated+result.TasksAborted >= s.cfg.MaxTasksPerTick {
-					return s.observeRepairScan(result), nil
-				}
-				if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
-					return result, err
-				}
-				// A task budget can interrupt a page. Resume after the last
-				// processed row, never after the unread remainder of the page.
-				s.cursors[slotID] = metadb.ChannelRuntimeMetaCursor{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}
-			}
-			if done {
-				delete(s.cursors, slotID)
+	if len(slotIDs) == 0 {
+		return s.observeRepairScan(result), nil
+	}
+	index := 0
+	if s.haveLastSlot {
+		index = sort.Search(len(slotIDs), func(i int) bool { return slotIDs[i] > s.lastSlot }) % len(slotIDs)
+	}
+	finished := make(map[uint32]bool, len(slotIDs))
+	for result.PagesScanned < s.cfg.MaxPagesPerTick && result.TasksCreated+result.TasksAborted < s.cfg.MaxTasksPerTick && len(finished) < len(slotIDs) {
+		slotID := slotIDs[index]
+		index = (index + 1) % len(slotIDs)
+		if finished[slotID] {
+			continue
+		}
+		s.lastSlot, s.haveLastSlot = slotID, true
+		page, next, done, err := s.source.ListRepairScannerRuntimeMetaPage(ctx, slotID, s.cursors[slotID], s.cfg.PageLimit)
+		if err != nil {
+			return s.observeRepairScan(result), err
+		}
+		result.PagesScanned++
+		processed := 0
+		for _, item := range page {
+			if result.TasksCreated+result.TasksAborted >= s.cfg.MaxTasksPerTick {
 				break
 			}
-			cursor = next
-			s.cursors[slotID] = next
+			if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
+				return s.observeRepairScan(result), err
+			}
+			// A task limit can stop inside a page. Resume after only the last
+			// inspected row, never after unseen rows from the returned page.
+			s.cursors[slotID] = metadb.ChannelRuntimeMetaCursor{
+				ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType,
+			}
+			processed++
 		}
-		if result.PagesScanned >= s.cfg.MaxPagesPerTick || result.TasksCreated+result.TasksAborted >= s.cfg.MaxTasksPerTick {
-			break
+		if processed == len(page) {
+			if done {
+				s.cursors[slotID] = metadb.ChannelRuntimeMetaCursor{}
+				finished[slotID] = true
+			} else {
+				s.cursors[slotID] = next
+			}
 		}
 	}
 	return s.observeRepairScan(result), nil

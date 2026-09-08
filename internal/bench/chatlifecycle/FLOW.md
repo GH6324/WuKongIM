@@ -22,16 +22,14 @@ immutable cost, expiry, topology, and dataset evidence.
 ## Main Flows
 
 ```text
-strict config and black-box preflight
-  -> fixed group setup and exact three-worker assignment/Start rounds
+strict black-box preflight -> group setup and fenced worker Start
   -> fixed global 100-login/s bootstrap to 10,000 CONNECT plus fresh full-sync readiness
   -> settle initial activity, then first complete global grant
   -> measured clock, continuous grants, observation, and lifecycle proof
   -> cutoff, stable worker stop, evidence reconciliation, atomic report
   -> atomically replace bounded live diagnostic status on every evidence cut
 
-passing 72-hour formal generation
-  -> prove the same live aged dataset and process generation
+passing 72-hour formal generation -> same aged dataset and process proof
   -> continue the same workers, grants, and observer
   -> bounded capacity staircase and 2,000 SEND/s recovery
 ```
@@ -43,6 +41,9 @@ passing 72-hour formal generation
   bounded aggregates. All control rounds are bounded and attempt three workers concurrently.
 - The coordinator is the sole global rate allocator. Workers apply only their
   sequenced share; delayed ticks discard credit and never catch up in bursts.
+- Before CONNECT, each login upserts its APP token through the authenticated
+  Bench API within five seconds and the session concurrency bound. Failure
+  blocks CONNECT; Bench secrets stay worker-local and no UID history is kept.
 - The measured clock starts only after all users finish real CONNECT plus a
   fresh zero-coverage conversation sync and all workers accept the first grant.
 - Repository YAML keeps reviewed stage durations fixed; only the direct repair rehearsal CLI may inject and report a bounded process duration, and formal or shakeout evidence never accepts it.
@@ -71,7 +72,7 @@ passing 72-hour formal generation
 - Observer rounds retain source time for resource scheduling; late samples rebase
   only verdict order, so monotonic classification keeps exact-hour evidence.
 - Failure cleanup fences new work, attempts exact stop for every applicable
-  worker with an independent bound, and never overwrites the original cause.
+  worker with an independent bound, preserving the original cause.
 - Verdict precedence is product, infrastructure, harness, then operator stop.
   Missing, stale, regressing, partial, overflowing, or unbounded evidence can
   never produce pass.
@@ -88,8 +89,7 @@ passing 72-hour formal generation
 
 ## Read First
 
-- [config.go](config.go)
-- [coordinator.go](coordinator.go)
+- [config.go](config.go) and [coordinator.go](coordinator.go)
 - [worker_server.go](worker_server.go)
 - [engine.go](engine.go)
 - [production_controller.go](production_controller.go)

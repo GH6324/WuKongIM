@@ -190,7 +190,7 @@ type Node struct {
 	channelMigrationMu              sync.Mutex
 	channelMigrationCancel          context.CancelFunc
 	channelMigrationWG              sync.WaitGroup
-	// channelMigrationScan rotates bounded active-task pages across owned shards.
+	// channelMigrationScan bounds and rotates active-task reads across owned hash slots.
 	channelMigrationScan migrationTaskScan
 	// healthReportCancel stops the low-frequency Controller health reporter.
 	healthReportCancel context.CancelFunc

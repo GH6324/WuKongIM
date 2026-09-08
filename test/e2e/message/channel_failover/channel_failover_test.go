@@ -167,6 +167,9 @@ func fastRecoveryOptionsForNodes(nodeCount int, extra map[string]string) []suite
 	opts := []suite.Option{suite.WithManagerHTTP()}
 	for nodeID := uint64(1); nodeID <= uint64(nodeCount); nodeID++ {
 		overrides := map[string]string{
+			// This Channel-only fixture uses the tokenless WKProto readiness probe.
+			"WK_GATEWAY_TOKEN_AUTH_ON":                       "false",
+			"WK_CLUSTER_HASH_SLOT_COUNT":                     "256",
 			"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL":         fastRecoveryHealthReportInterval.String(),
 			"WK_CLUSTER_NODE_HEALTH_REPORT_TTL":              fastRecoveryHealthReportTTL.String(),
 			"WK_CHANNEL_MIGRATION_ENABLE":                    "true",

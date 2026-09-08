@@ -348,6 +348,17 @@ jobs:
           sbom: false
           cache-from: type=gha,scope=docker-release
 
+      - name: Verify embedded Prometheus candidates
+        if: steps.publication.outputs.recovery != 'true'
+        shell: bash
+        env:
+          WK_DOCKER_PROMETHEUS_ARTIFACT_DIR: ${{ runner.temp }}/prometheus-candidates
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            bash scripts/verify-docker-prometheus.sh "wukongim-release-scan:$arch" "linux/$arch"
+          done
+
       - name: Set up Trivy
         uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
         with:
@@ -368,6 +379,12 @@ jobs:
               --exit-code 1 \
               --no-progress \
               "wukongim-release-scan:$arch"
+            # Scan the extracted child executable: image scanners cannot rely
+            # on discovering another Go program inside a go:embed payload.
+            scan="${{ runner.temp }}/prometheus-candidate-$arch.scan.json"
+            trivy rootfs --scanners vuln --severity CRITICAL,HIGH --exit-code 1 --no-progress \
+              --format json --output "$scan" "${{ runner.temp }}/prometheus-candidates/$arch"
+            jq -e '[.Results[]? | select(.Type == "gobinary")] | length == 1' "$scan" >/dev/null
           done
 
       - name: Scan recovered canonical image
@@ -450,6 +467,23 @@ jobs:
             ] | sort | unique) == ["amd64", "arm64"]
           ' canonical-manifest.json >/dev/null
 
+      - name: Verify canonical embedded Prometheus
+        shell: bash
+        env:
+          CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
+          WK_DOCKER_PROMETHEUS_ARTIFACT_DIR: ${{ runner.temp }}/prometheus-canonical
+          TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            docker pull --platform "linux/$arch" "$CANONICAL_IMAGE@$CANONICAL_DIGEST"
+            bash scripts/verify-docker-prometheus.sh "$CANONICAL_IMAGE@$CANONICAL_DIGEST" "linux/$arch"
+            scan="${{ runner.temp }}/prometheus-canonical-$arch.scan.json"
+            trivy rootfs --scanners vuln --severity CRITICAL,HIGH --exit-code 1 --no-progress \
+              --format json --output "$scan" "$WK_DOCKER_PROMETHEUS_ARTIFACT_DIR/$arch"
+            jq -e '[.Results[]? | select(.Type == "gobinary")] | length == 1' "$scan" >/dev/null
+          done
+
       - name: Set up Syft
         id: syft
         uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
@@ -464,11 +498,21 @@ jobs:
         run: |
           set -euo pipefail
           syft_cmd="${{ steps.syft.outputs.cmd }}"
+          source docker/prometheus/toolchain.env
           for arch in amd64 arm64; do
             output="sbom-linux-$arch.cdx.json"
             "$syft_cmd" scan "registry:$CANONICAL_IMAGE@$CANONICAL_DIGEST" \
               --platform "linux/$arch" \
               --output "cyclonedx-json=$output"
+            child_sbom="${{ runner.temp }}/prometheus-$arch.cdx.json"
+            "$syft_cmd" scan "dir:${{ runner.temp }}/prometheus-canonical/$arch" \
+              --output "cyclonedx-json=$child_sbom"
+            jq --slurpfile child "$child_sbom" \
+              --arg prometheus_version "$PROMETHEUS_VERSION" \
+              --arg prometheus_revision "$PROMETHEUS_SOURCE_COMMIT" \
+              -f scripts/merge-docker-prometheus-sbom.jq \
+              "$output" >"$output.merged"
+            mv "$output.merged" "$output"
             jq -e '.bomFormat == "CycloneDX" and (.components | type == "array")' "$output" >/dev/null
           done
 

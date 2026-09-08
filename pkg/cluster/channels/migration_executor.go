@@ -125,7 +125,8 @@ func NewMigrationExecutor(cfg MigrationExecutorConfig) *MigrationExecutor {
 	}
 }
 
-// RunOnce advances at most one runnable task within fixed step and time budgets.
+// RunOnce advances a bounded task page within one time budget. Failover tasks
+// may take several durable steps; waiting or failed tasks yield to their peers.
 func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -135,22 +136,44 @@ func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, defaultMigrationExecutorTimeout)
 	defer cancel()
-	tasks, err := e.source.ListRunnableMigrationTasks(ctx, e.localNode, e.taskLimit)
-	if err != nil {
-		return err
+	var firstErr error
+	type taskIdentity struct {
+		channelID   string
+		channelType int64
+		taskID      string
 	}
-	e.observeMigrationTaskCounts(tasks)
-	nowMS := e.clock().UnixMilli()
-	for _, task := range tasks {
+	seen := make(map[taskIdentity]struct{}, e.taskLimit)
+	for inspected := 0; inspected < e.taskLimit; inspected++ {
+		if err := ctxErr(ctx); err != nil {
+			return err
+		}
+		// Advance the source cursor only for work about to be attempted. A slow
+		// task cannot skip its unstarted peers, and each lookup rechecks Slot ownership.
+		tasks, err := e.source.ListRunnableMigrationTasks(ctx, e.localNode, 1)
+		if err != nil {
+			return err
+		}
+		if len(tasks) == 0 {
+			break
+		}
+		e.observeMigrationTaskCounts(tasks[:1])
+		task := tasks[0]
+		identity := taskIdentity{task.ChannelID, task.ChannelType, task.TaskID}
+		if _, duplicate := seen[identity]; duplicate {
+			break
+		}
+		seen[identity] = struct{}{}
 		if task.IsTerminal() || task.Status == metadb.ChannelMigrationStatusBlocked {
 			continue
 		}
-		if task.OwnerNodeID != e.localNode && task.OwnerNodeID != 0 && task.OwnerLeaseUntilMS > nowMS {
+		if task.OwnerNodeID != e.localNode && task.OwnerNodeID != 0 && task.OwnerLeaseUntilMS > e.clock().UnixMilli() {
 			continue
 		}
-		return e.advanceSelectedTask(ctx, task)
+		if err := e.advanceSelectedTask(ctx, task); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return nil
+	return firstErr
 }
 
 // advanceSelectedTask follows only a fresh durable version of the same identity.

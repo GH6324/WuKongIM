@@ -6,59 +6,65 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-<!--
-Use only the non-empty categories that apply: `⚠️ Breaking Changes /
-破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,
-`🔧 Improvements / 改进`, `⬆️ Upgrade Notes / 升级说明`,
-`🔒 Security / 安全`, `📚 Documentation / 文档`, and
-`⚠️ Known Issues / 已知问题`. Prefix the selected category with `### `.
+### 🔧 Improvements / 改进
 
-Every category must contain at least one "- " list entry. Release headings use
-the exact form: ## [v3.0.0-beta.5] - 2026-09-01
--->
+- Restructure all eight EasySDK quickstarts and examples in Chinese and English around first-message integration, move historical validation into engineering reference, and pin Web installation to 2.0.5. / 重整八个平台的中英文 EasySDK 入门与示例，统一首次收发流程，将历史验证移入工程文档，并将 Web 安装版本更新为 2.0.5。
 
-### 🚀 New Features / 新功能
+- Use current health, retain fair Channel repair scan progress, and activate authoritative cold replicas from consistent durable frontiers for migration probes after node loss; allow fenced leader recovery while keeping business writes closed. / 频道修复使用最新健康状态、保留公平扫描进度，并按权威元数据和一致持久化状态加载冷副本；写入栅栏内可完成新 leader 恢复，业务写入仍保持关闭。
 
-- `wkmigrate` 支持按捕获摘要、用户／频道身份和保留消息尾序号限定补齐缺失会话，将已核验历史设为已读；原生历史可见范围保持完整，未批准或证据变化的情况仍拒绝。
+- Document C# EasySDK application endpoint replacement and optional three-node reproduction, with server blockers tracked separately. / 补充 C# EasySDK 应用侧地址切换与三节点手动复现说明，单独记录服务端阻塞。
 
-- `wkmigrate` 可显式接受经完整消息前缀、正式副本多数和已应用配置日志证明的源副本落后；保留当前 Leader 原历史并在归档重建时重新核验，默认仍阻断空 Leader、同任期换主及内容冲突。另可按显式恢复决定选取空 Leader 频道的一份完整正式多数副本，绑定捕获、完整诊断和消息摘要；未知异常仍阻断。
+- Document Python EasySDK group examples and installed-package membership/permission acceptance, including the required server cache fix. / 补充 Python EasySDK 群聊示例、正式包成员与权限验收，以及所需的服务端缓存修复说明。
 
-- `wkmigrate` 支持插件程序分块归档、离线重建、原生目录安装及独立文件校验；显式兼容规则仅接受已审计的 AI 示例 Linux/amd64 原程序、Receive 注册和统一配置。未知程序仍阻断，精确重试拒绝程序被替换或权限漂移。
+- Document Rust EasySDK released-package three-node messaging, permissions and same-endpoint ingress crash recovery acceptance. / 补充 Rust EasySDK 正式包三节点通信、权限与接入节点崩溃后原地址重连验收。
 
-- `wkmigrate` 可显式将原用户创建／更新时间完整留档，以适配没有对应字段的 v3 原生用户表；报告绑定每个节点的原值，归档重建重新核对，用户身份、插件绑定及设备凭据仍严格比较。
+- Document Rust EasySDK weak-network and resource-boundary acceptance, including SEND ambiguity, backpressure, observer lag and repeated cleanup. / 补充 Rust EasySDK 弱网与资源边界验收，覆盖发送结果未知、背压、监听器落后和反复清理。
 
-- Add explicit offline stream-message exclusion with source archives, continuous per-channel sequences, mapped read/delete boundaries, and native append/restart validation. / 离线迁移支持显式排除流消息，完整归档源行、连续编号频道消息并映射读删位置，验证原生追加与重启接续。
+- Document C++ EasySDK released-package three-node WSS recovery acceptance and clarify uncertain SEND outcomes and same-endpoint reconnect behavior. / 补充 C++ EasySDK 正式包三节点 WSS 恢复验收，明确 SEND 结果不确定性与原地址重连边界。
 
-- `wkmigrate dedupe-plan` 报告 v3 新增按节点的消息字段影响统计，区分排除 CMD、去重后的保留消息与排除消息，并提供有界样本；不修改协议字段、不放宽兼容检查，需使用新的规划工作空间。
+- Make Manager JavaScript preload ordering reproducible while preserving stylesheet order, so rebuild verification is stable. / 固定 Manager JavaScript 预加载顺序并保留样式顺序，避免重建校验因依赖遍历顺序变化失败。
 
-- 迁移计划新增 `plugin_configs`，可让指定插件统一采用某源节点的有效配置，同时保留各节点启用状态、时间戳和全部原配置。导入配置纳入批次完整性检查，离线校验从原始归档独立重算并拒绝缺失、篡改或多余配置；业务兼容检查仍保留。
+- Document independent Python EasySDK three-node WSS fault recovery and bounded stability acceptance. / 补充 Python EasySDK 三节点 WSS 故障恢复与限时稳定性验收说明。
 
-- 新增插件迁移的单节点/三节点隔离验收，串联原绑定导入、默认程序扫描、节点配置、真实消息落库，并在两次完整重启后、发送新消息前核对全部已有消息和回复；发现逐节点配置会影响自动回复内容时，仍阻止业务兼容放行，支持对已批准的指定插件显式选择统一配置来源。
+- Document Rust EasySDK group messaging and released-package checks for member fanout, permissions, membership changes and reconnect. / 补充 Rust EasySDK 群聊用法及正式包成员投递、权限、成员变更与重连验收。
 
-- 迁移工具支持把原 `PluginUser` 绑定按 UID 重新分配到 v3 原生表，并从源归档独立核对绑定字段、副本数量和双向查询；原纳秒时间保留在归档，目标沿用原生毫秒精度。插件程序、配置及业务行为仍须通过兼容验收。
+- Clarify the pending C++ EasySDK submission to the default vcpkg catalog and retain the working custom-registry setup in both languages. / 补充 C++ EasySDK 申请进入 vcpkg 默认目录的待收录状态，中英文接入说明继续保留可用的自定义 registry 配置。
 
-- 迁移计划可显式指定 `plugin_nodes`，为每个目标选择配置来源，支持同一来源扩展到多个目标及缩容时明确选择来源；全部原配置留档，保持所选启用状态和时间戳。遗漏或重复目标、未知来源时拒绝，归档重建独立重算；该步骤不解除插件业务兼容检查。
+- Document WuKongEasySDK-Python 0.1.0 PyPI installation, matching examples, and published-package verification. / 更新 WuKongEasySDK-Python 0.1.0 的 PyPI 安装、配套示例与正式包验证说明。
 
-- `wkmigrate diagnose` 的插件兼容问题新增各节点的配置、方法及原记录指纹，可识别节点配置差异且不输出配置值；诊断结果不代表插件已兼容，也不放宽迁移检查。
+- Document Rust EasySDK 0.1.0 public-package WSS recovery acceptance and stabilize the ready-key scheduler regression test with deterministic synchronization. / 补充 Rust EasySDK 0.1.0 正式包 WSS 恢复验收，并使用确定性同步稳定调度器就绪 Key 回归测试。
 
-- 迁移工具可按原唯一索引与当前 Slot Leader 列表核对重复会话，保留已读、删除位置及列表版本，并检查去重前数量上限；空频道管理记录仅在无业务引用、正式副本及原配置日志一致时完整归档。两项均须显式启用，归档重建重新验证，默认仍严格拒绝。
+- Publish Rust EasySDK 0.1.0 installation instructions for crates.io, with bilingual examples and separately identified package and WSS recovery verification. / 更新 Rust EasySDK 0.1.0 的 crates.io 正式包安装文档，提供双语示例并分别记录包校验与 WSS 恢复验收。
 
-- `wkmigrate` 新增显式 `metadata.device_lookup=v2_cold_start` 选项，按原版冷启动登录的 UID 索引保留最小设备 ID 的完整凭据；原始重复记录留档，归档重建重新选择并验证。默认拒绝重复凭据，不推断停机前缓存，也不放宽副本一致性或会话检查。
+- Increase the initial logical Slot count in `wukongim init` and shipped single-node/three-node cluster configurations from 10 to 12. Hash slots remain 256; existing clusters retain their persisted Slot count. / `wukongim init` 及随仓库提供的单节点、三节点集群配置将初始逻辑 Slot 数从 10 调整为 12；Hash Slot 保持 256，已有集群继续使用持久化的 Slot 数。
 
-- `wkmigrate prepare` 从原始捕获的 Slot 配置命令和完整消息历史重建来源证明，支持有充分证据的补副本状态及历史 Leader 自指标记；归档携带命令并独立重验，缺失、改动或错位命令仍拒绝，不改变原库或 v3 放置与存储逻辑。
-
-- `wkmigrate` 支持显式排除 CMD 消息、保留最新重复消息并压紧剩余序号；同步映射普通会话的已读/删除位置，省略旧 CMD 同步位置，生成可校验序号映射，支持 `export-map` 从归档重建。原始记录完整归档，跨频道冲突及不确定来源仍拒绝，不改变 v3 存储逻辑。
-
-- 新增 `wkmigrate dedupe-plan`：按频道内原序号规划重复 MessageID 或发送者 ClientMsgNo 的最新记录保留，输出每条候选删除记录、保留依据及连续序号影响；源数据保持不变，跨频道身份冲突与相互淘汰的保留记录明确阻止规划通过。
-
-- 新增 `wkmigrate authority` 专项核验：只读核对带迁移标记的源频道配置、已保留的 Slot 配置日志及逐序号副本消息，输出校验和绑定的分类证据；不清除迁移标记、不选择或修改业务数据，也不放宽迁移门槛。
-
-- 新增 `wkmigrate diagnose` 全量源诊断：收集所有可读节点的兼容问题，以磁盘排序统计重复 ID/索引冲突，输出分节点数量、有限样例和带校验和的完整明细；扫描不完整时明确标记，诊断结果不能作为迁移通过凭据。
-
-- `wkmigrate` 支持显式排除升级遗留的旧流分片及元数据，保留主消息及原序号；排除项完整归档并列出数量和校验摘要，默认仍拒绝，插件兼容检查不受影响。
-- 新增 `wkmigrate prepare/export/import/verify` 离线迁移命令，读取未经升级的固定 v2 源版本，导入全新 v3 集群，并校验业务字段、消息索引、摘要链、初始化快照与副本记录数量。相同计划支持中断恢复；拒绝不兼容业务插件、关键源索引损坏和超出原生恢复预算的单条消息，不覆盖已有业务目标。大规模性能验收尚未完成。
+- Improve Manager node-log troubleshooting with explicit keyword search, a navigable details drawer and copy feedback, reliable retry, and live scrolling that preserves the reading position. / 优化管理台节点日志排查：关键字提交查询、可切换事件的详情抽屉与复制反馈、可靠重试，以及保护阅读位置的实时跟随。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Migration verification accepts valid empty-sender messages while checking their existing exact client index; history continuation reads respect the remaining page demand. Recovery rechecks all observed tails, and timed-out migration tasks yield without skipping peers.
+
+- Reconstruct online routes from current gateway owners after Slot authority changes, preventing an empty rebuilding directory from skipping acknowledged messages. / Slot 权威切换后按连接所属节点重建在线路由，避免空目录将已确认消息的在线接收者误判为离线。
+- Recover consecutive Channel failures by proving compatible durable tails, copying missing immutable entries, and rechecking quorum without truncating acknowledged messages; rotate migration tasks so one waiting recovery cannot starve others. / 连续节点故障时验证日志前缀、补齐缺失记录并重新确认 quorum，保留已确认消息；轮转迁移任务，避免单个恢复任务阻塞其他频道。
+- Synchronize benchmark RECVACK counter assertions with completed accounting under race instrumentation. / 修复 race 模式下 RECVACK 计数测试过早断言的问题。
+
+- Restore online delivery for ordinary `no_persist=1, sync_once=0` HTTP and WKProto sends, returning a transient message ID with sequence zero and preserving the receive flag without writing message history. / 修复普通频道 `no_persist=1, sync_once=0` 的 HTTP 与 WKProto 消息成功返回却不在线投递的问题；分配瞬时消息 ID、保持序号为零并保留接收标志，不写入消息历史。
+
+- Refresh group recipient versions from the current Slot leader before routed sends so membership changes through another ingress exclude removed users and include new members. / 群消息发送前从当前 Slot Leader 读取成员版本，修复跨入口变更成员后被移除用户仍收消息、新成员漏收的问题。
+
+- Bundle Prometheus binaries built from pinned source with dependency security fixes in Linux amd64/arm64 Docker images so enabling the managed Prometheus process starts successfully and persists metrics on the existing data volume. / Docker 镜像为 Linux amd64/arm64 内嵌从固定源码构建并修复依赖漏洞的 Prometheus 二进制，修复开启内置进程后启动失败、容器反复重启的问题，指标随现有数据卷持久化。
+
+- Preserve queued WebSocket payloads across subsequent reads, preventing corrupted JSON-RPC messages and unexpected client disconnections. / 修复 WebSocket 入队数据被后续读取覆盖导致的 JSON-RPC 消息损坏与客户端异常断开。
+
+- WebSocket handshake rejection logs now include peer addresses, HTTP status, and bounded requested/expected paths for path mismatches without URL query parameters. Manager parses console log fields and shows the error and listener without expanding details. / 完善 WebSocket 握手拒绝日志，补充来源地址、HTTP 状态和路径不匹配时的实际/期望路径，不记录 URL 查询参数；Manager 支持解析 console 日志字段并直接显示错误原因和监听器。
+
+- Fix JavaScript/Web quickstart reconnect history occasionally appearing empty while person membership is still being projected after SENDACK; the example backend now retries empty latest pages within its existing finite budget. / 修复 JavaScript/Web 示例重连时偶发空历史：后端在既有有限预算内等待最新空页的单聊成员投影。
+
+- Read device credentials from the current Slot leader so newly written or rotated Tokens authenticate consistently through any ingress, including nodes outside the Slot replica set. This uses promoted internal RPC 87; upgrade all cluster nodes together before relying on cross-node authentication.
+- Fix benchmark Token preparation to persist device credentials through the user use case before chat-lifecycle CONNECT, restoring authenticated three-node workloads without disabling Gateway authentication.
+- Restore Manager browser smoke validation with Gateway Token authentication enabled by using all-node HTTP readiness before authenticated browser navigation.
+- Restore the documentation browser acceptance runner and pinned Chromium dependency; validate BFF-issued credentials with Gateway Token authentication enabled, including bidirectional messaging and reconnect recovery.
+- Fix transient person-channel command sends rejecting valid system senders or deriving recipients and client channel IDs with the command suffix. Preserve the command flag on delivered packets.
 
 - 修复内部控制记录导致普通历史分页提前结束的问题：单次与批量同步、插件读取在有界扫描内按可见消息数量判断 `more`，整页控制记录不再遮住更早历史；聊天 Demo 沿用调用方页大小，并支持在没有滚动条时手动加载更早消息。
 
@@ -110,11 +116,105 @@ the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 
 - 恢复原版 `/message/eventsync` 的持久事件投影读取，保留事件序号、分页及可见性过滤行为。
 
+### 🚀 New Features / 新功能
+
+- Show selected-node startup configuration as redacted TOML with effective defaults, full-document search/copy, and optional detailed Chinese/English comments; older nodes report unsupported TOML inspection explicitly. / 节点配置页改为脱敏 TOML，补齐生效默认值，支持全文搜索、复制和可选中英文详细说明，并明确提示旧节点不支持的情况。
+
+- Add opt-in synchronous `msg.before_send` Webhooks for payload replacement or rejection, independent timeout/error policies, bounded concurrency, and business rejection codes 128–255 through SENDACK and HTTP. / 新增可选同步发送前 Webhook，支持内容修改、拒绝发送、独立超时及错误策略、有界并发和业务拒绝码透传。
+- Add `message.cmd_channel_suffix` (`WK_MESSAGE_CMD_CHANNEL_SUFFIX`), defaulting to `____cmd`, consistently across command send, delivery, sync, plugins and Manager filtering. All nodes must agree; changing the suffix does not migrate existing command channels or bindings.
+
+- `wkmigrate` 支持按捕获摘要、用户／频道身份和保留消息尾序号限定补齐缺失会话，将已核验历史设为已读；原生历史可见范围保持完整，未批准或证据变化的情况仍拒绝。
+
+- `wkmigrate` 可显式接受经完整消息前缀、正式副本多数和已应用配置日志证明的源副本落后；保留当前 Leader 原历史并在归档重建时重新核验，默认仍阻断空 Leader、同任期换主及内容冲突。另可按显式恢复决定选取空 Leader 频道的一份完整正式多数副本，绑定捕获、完整诊断和消息摘要；未知异常仍阻断。
+
+- `wkmigrate` 支持插件程序分块归档、离线重建、原生目录安装及独立文件校验；显式兼容规则仅接受已审计的 AI 示例 Linux/amd64 原程序、Receive 注册和统一配置。未知程序仍阻断，精确重试拒绝程序被替换或权限漂移。
+
+- `wkmigrate` 可显式将原用户创建／更新时间完整留档，以适配没有对应字段的 v3 原生用户表；报告绑定每个节点的原值，归档重建重新核对，用户身份、插件绑定及设备凭据仍严格比较。
+
+- Add explicit offline stream-message exclusion with source archives, continuous per-channel sequences, mapped read/delete boundaries, and native append/restart validation. / 离线迁移支持显式排除流消息，完整归档源行、连续编号频道消息并映射读删位置，验证原生追加与重启接续。
+
+- `wkmigrate dedupe-plan` 报告 v3 新增按节点的消息字段影响统计，区分排除 CMD、去重后的保留消息与排除消息，并提供有界样本；不修改协议字段、不放宽兼容检查，需使用新的规划工作空间。
+
+- 迁移计划新增 `plugin_configs`，可让指定插件统一采用某源节点的有效配置，同时保留各节点启用状态、时间戳和全部原配置。导入配置纳入批次完整性检查，离线校验从原始归档独立重算并拒绝缺失、篡改或多余配置；业务兼容检查仍保留。
+
+- 新增插件迁移的单节点/三节点隔离验收，串联原绑定导入、默认程序扫描、节点配置、真实消息落库，并在两次完整重启后、发送新消息前核对全部已有消息和回复；发现逐节点配置会影响自动回复内容时，仍阻止业务兼容放行，支持对已批准的指定插件显式选择统一配置来源。
+
+- 迁移工具支持把原 `PluginUser` 绑定按 UID 重新分配到 v3 原生表，并从源归档独立核对绑定字段、副本数量和双向查询；原纳秒时间保留在归档，目标沿用原生毫秒精度。插件程序、配置及业务行为仍须通过兼容验收。
+
+- 迁移计划可显式指定 `plugin_nodes`，为每个目标选择配置来源，支持同一来源扩展到多个目标及缩容时明确选择来源；全部原配置留档，保持所选启用状态和时间戳。遗漏或重复目标、未知来源时拒绝，归档重建独立重算；该步骤不解除插件业务兼容检查。
+
+- `wkmigrate diagnose` 的插件兼容问题新增各节点的配置、方法及原记录指纹，可识别节点配置差异且不输出配置值；诊断结果不代表插件已兼容，也不放宽迁移检查。
+
+- 迁移工具可按原唯一索引与当前 Slot Leader 列表核对重复会话，保留已读、删除位置及列表版本，并检查去重前数量上限；空频道管理记录仅在无业务引用、正式副本及原配置日志一致时完整归档。两项均须显式启用，归档重建重新验证，默认仍严格拒绝。
+
+- `wkmigrate` 新增显式 `metadata.device_lookup=v2_cold_start` 选项，按原版冷启动登录的 UID 索引保留最小设备 ID 的完整凭据；原始重复记录留档，归档重建重新选择并验证。默认拒绝重复凭据，不推断停机前缓存，也不放宽副本一致性或会话检查。
+
+- `wkmigrate prepare` 从原始捕获的 Slot 配置命令和完整消息历史重建来源证明，支持有充分证据的补副本状态及历史 Leader 自指标记；归档携带命令并独立重验，缺失、改动或错位命令仍拒绝，不改变原库或 v3 放置与存储逻辑。
+
+- `wkmigrate` 支持显式排除 CMD 消息、保留最新重复消息并压紧剩余序号；同步映射普通会话的已读/删除位置，省略旧 CMD 同步位置，生成可校验序号映射，支持 `export-map` 从归档重建。原始记录完整归档，跨频道冲突及不确定来源仍拒绝，不改变 v3 存储逻辑。
+
+- 新增 `wkmigrate dedupe-plan`：按频道内原序号规划重复 MessageID 或发送者 ClientMsgNo 的最新记录保留，输出每条候选删除记录、保留依据及连续序号影响；源数据保持不变，跨频道身份冲突与相互淘汰的保留记录明确阻止规划通过。
+
+- 新增 `wkmigrate authority` 专项核验：只读核对带迁移标记的源频道配置、已保留的 Slot 配置日志及逐序号副本消息，输出校验和绑定的分类证据；不清除迁移标记、不选择或修改业务数据，也不放宽迁移门槛。
+
+- 新增 `wkmigrate diagnose` 全量源诊断：收集所有可读节点的兼容问题，以磁盘排序统计重复 ID/索引冲突，输出分节点数量、有限样例和带校验和的完整明细；扫描不完整时明确标记，诊断结果不能作为迁移通过凭据。
+
+- `wkmigrate` 支持显式排除升级遗留的旧流分片及元数据，保留主消息及原序号；排除项完整归档并列出数量和校验摘要，默认仍拒绝，插件兼容检查不受影响。
+- 新增 `wkmigrate prepare/export/import/verify` 离线迁移命令，读取未经升级的固定 v2 源版本，导入全新 v3 集群，并校验业务字段、消息索引、摘要链、初始化快照与副本记录数量。相同计划支持中断恢复；拒绝不兼容业务插件、关键源索引损坏和超出原生恢复预算的单条消息，不覆盖已有业务目标。大规模性能验收尚未完成。
+
+### 📚 Documentation / 文档
+
+- Update C# EasySDK documentation with published npm `easyjssdk 2.0.5` interoperability evidence for Node and Chromium/WSS.
+
+- Document C#/Chromium WSS acceptance with certificate rejection controls and separately pinned JavaScript native-WebSocket recovery source. / 补充 C#/Chromium WSS 验收、证书拒绝检查与独立固定版本的 JS 原生 WebSocket 恢复修复记录。
+
+- Document C++ SDK 0.1.0 prebuilt archives for Windows x64, macOS arm64 and Linux x64, including offline CMake integration, compatibility, checksums and upgrades. / 补充 C++ SDK 0.1.0 三平台预编译包的离线 CMake 接入、兼容要求、校验和升级说明。
+
+- Add C#/JavaScript EasySDK interoperability evidence for public NuGet and candidate source, including pinned dependencies, recovery scenarios, and Node/ws transport scope. / 补充 C#/JavaScript EasySDK 正式包与源码互通验证记录，明确固定依赖、故障恢复场景和 Node/ws 传输范围。
+
+- Add bilingual WuKongEasySDK-Python quickstarts, source installation, asyncio lifecycle guidance, and Python/JavaScript interoperability evidence. / 新增 WuKongEasySDK-Python 中英文接入教程、源码安装、asyncio 生命周期说明与 Python/JavaScript 互通验证记录。
+
+- Document the C++ EasySDK vcpkg Git registry with automatic dependency installation and a minimal CMake consumer. / 新增 C++ EasySDK vcpkg Git registry 接入文档，支持自动安装依赖和最小 CMake 消费端示例。
+
+- Add bilingual WuKongEasySDK-Rust quickstarts with pinned Git installation, Tokio lifecycle, bounded queues, and Rust/JavaScript interoperability examples. / 新增 WuKongEasySDK-Rust 中英文接入文档，覆盖固定 Git 版本安装、Tokio 生命周期、有界队列与 Rust/JavaScript 互通示例。
+
+- Document the public WuKongEasySDK C# NuGet 1.0.0 installation and its independent package verification in both languages. / 更新 C# WuKongEasySDK 中英文文档，提供 NuGet 1.0.0 正式包安装与独立发布验证记录。
+
+- Align the Manager and internal transport documentation inventories with the startup TOML route and RPC 88, restoring documentation publication checks. / 补齐启动 TOML 接口与 RPC 88 的文档清单，恢复文档发布检查。
+
+- Add bilingual C# WuKongEasySDK integration, console example, async lifecycle, and pinned-source installation guidance for the new `WuKongEasySDK-CSharp` repository. / 新增 C# WuKongEasySDK 中英文接入文档，覆盖固定源码安装、控制台示例、异步生命周期和验证边界。
+- Add bilingual WuKongEasySDK-CPP documentation for pinned C++17 source, CMake integration, WS/WSS, messaging, thread cleanup, and real C++/JS interoperability evidence. / 新增 WuKongEasySDK-CPP 中英文文档，覆盖固定 C++17 源码、CMake、WS/WSS、消息收发、线程清理与真实 C++/JS 互通凭据。
+
+- 中英文 Docker 部署文档补充阿里云镜像地址，说明中国大陆用户如何在 `docker run` 和 Docker Compose 中切换仓库，并保持镜像版本同步。
+
+- Add a directly runnable, standard-library Go before-send Webhook example with allow/replace/reject rules, bilingual setup instructions, and real-process send/history validation. / 新增可直接运行的 Go 发送前 Webhook 示例，支持放行、改写及拒绝，并附中英文接入说明和真实进程验证。
+
+- Add a reproducible local three-node Webhook acceptance guide covering Token authentication, failure policies, overload isolation, recovery, and observable results. / 新增本机三节点 Webhook 验收指南，覆盖 Token 鉴权、失败策略、过载隔离、恢复及观测结果。
+
+- Document synchronous before-send Webhook configuration, request/response contracts, failure policies, business rejection codes, and cluster behavior in Chinese and English. / 补充同步发送前 Webhook 的中英文接入、配置及协议文档。
+
+<!--
+Use only the non-empty categories that apply: `⚠️ Breaking Changes /
+破坏性变更`, `🚀 New Features / 新功能`, `🐛 Bug Fixes / 问题修复`,
+`🔧 Improvements / 改进`, `⬆️ Upgrade Notes / 升级说明`,
+`🔒 Security / 安全`, `📚 Documentation / 文档`, and
+`⚠️ Known Issues / 已知问题`. Prefix the selected category with `### `.
+
+Every category must contain at least one "- " list entry. Release headings use
+the exact form: ## [v3.0.0-beta.5] - 2026-09-01
+-->
+
+## [v3.0.0-beta.9] - 2026-09-07
+
+### 🐛 Bug Fixes / 问题修复
+
+- 修复 Demo 打开尚无消息的单聊时历史同步和未读清零返回 400 的问题：单条及批量同步返回空消息数组，缺失会话的未读操作幂等成功，不创建成员关系；群成员校验、已移除成员限制和真实存储/路由故障仍保持有效。
+- 未配置客户端对外地址时，默认公网 `/route` 和 `/route/batch` 会用请求主机名补全 Gateway 的通配监听地址，修复标准 Docker 部署中 Demo 连接 `ws://0.0.0.0:5200` 失败的问题；显式地址、Linux 回环监听、内网查询和指定节点路由保持原有行为。
 - `/message/send` 现在会在 `from_uid` 与兼容别名 `sender_uid` 均为空时使用系统账号，并支持通过 `message.system_uid` / `WK_MESSAGE_SYSTEM_UID` 配置该账号（默认 `____system`），恢复 Demo 命令消息的旧版兼容行为。
 
 ### 🔧 Improvements / 改进
 
-- 内嵌聊天 Demo 新增中英文界面，根据浏览器语言偏好自动选择，未匹配支持语言时默认使用英文。
+- 内嵌聊天 Demo 新增中英文界面，根据浏览器语言偏好自动选择，未匹配支持语言时默认使用英文；可通过 `?lang=en` 或 `?lang=zh` 分享固定语言的体验入口。
 - 频道消息同步、旧会话同步与插件读取共用分页规则，继续保持各入口原有的可见范围、返回顺序和错误语义。
 
 - Manager 消息诊断页现在会在集群节点未启用 diagnostics 时显示 TOML 与环境变量配置指引、标出受影响节点并禁用无效的追踪操作，不再直接暴露内部错误文本。
@@ -125,6 +225,7 @@ the exact form: ## [v3.0.0-beta.5] - 2026-09-01
 - 补充原版 v2 数据迁入指定三节点 v3 测试目录的部署验收报告，记录旧环境备份、真实 SDK 缓存重置、插件回复、完整重启和监控检查。
 
 - Document the legacy stream-parent audit and the explicit decision to omit stream messages while preserving continuous sequences. / 记录旧流主消息语义核对及本次排除流消息、保持连续序号的明确范围。
+- 中英文 README 现以业务开发者的首次接入为主线，提供 Linux 软件包安装、systemd 启动、SSH 转发与双用户收发步骤，并提供 Docker 部署指南入口，更新 SDK 选型入口，明确业务后端和 Product HTTP 认证边界；英文版采用英文 Demo 操作说明与真实截图。
 
 - 中英文文档补齐 Web 双用户接入闭环，统一教程文本消息与 Manager 访问方式，并提供可下载的监控告警、压测配置及结果解读。
 

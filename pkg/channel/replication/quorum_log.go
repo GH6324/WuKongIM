@@ -2,7 +2,6 @@ package replication
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"sync"
 	"time"
@@ -132,24 +131,31 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (Installed
 	if authorityAdvanced && l.cfg.RepairAuthorities != nil {
 		l.cfg.RepairAuthorities.InstallAuthority(authority)
 	}
-	// Installation proves the native durable frontier while a transfer fence
-	// still blocks Commit. Requiring an unfenced authority here would deadlock
-	// the task that verifies the new leader before clearing that fence.
+	// Installation proves recovered state even while a migration fences business
+	// writes. Commit retains the fence until authoritative metadata clears it.
 
 	request := recoveryProbeRequest{
 		ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
 		Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout,
 	}
 	selection, err := recoverQuorumPrefix(ctx, request, l.cfg.Recovery)
-	if errors.Is(err, errRecoveryProbeIncomplete) {
-		if err = l.convergeRecoveryPrefix(ctx, authority); err != nil {
-			return Installed{}, err
-		}
-		// Copied proposals only become recovery evidence after a fresh read quorum.
-		selection, err = recoverQuorumPrefix(ctx, request, l.cfg.Recovery)
-	}
 	if err != nil {
 		return Installed{}, err
+	}
+	if selection.NeedsConvergence {
+		if err := l.convergeRecoverySuffix(ctx, authority, selection); err != nil {
+			return Installed{}, err
+		}
+		selection, err = recoverQuorumPrefix(ctx, recoveryProbeRequest{
+			ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
+			Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout,
+		}, l.cfg.Recovery)
+		if err != nil {
+			return Installed{}, err
+		}
+		if selection.NeedsConvergence {
+			return Installed{}, ch.ErrNotReady
+		}
 	}
 	recovered, err := repairQuorumPrefix(ctx, recoveryRepairRequest{
 		ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader, Local: l.cfg.Local,

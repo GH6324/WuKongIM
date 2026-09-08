@@ -1,255 +1,205 @@
 <p align="center">
-  <img src="./resources/images/logo.png" alt="WuKongIM logo" height="112">
+  <img src="./resources/images/logo.png" alt="WuKongIM logo" height="80">
 </p>
 
 <h1 align="center">WuKongIM</h1>
 
 <p align="center">
-  <strong>High-performance distributed communication infrastructure for real-time messaging.</strong>
+  <strong>Self-hosted messaging for your app, with built-in storage and clustering.</strong>
 </p>
 
 <p align="center">
-  Build chat, notifications, customer service, IoT, live interaction, and AI messaging on one channel-oriented core.
+  <a href="#quick-start">Quick start</a> ·
+  <a href="https://demo.githubim.com/">Live demo</a> ·
+  <a href="https://docs.githubim.com/en/">Documentation</a> ·
+  <a href="./README_CN.md">简体中文</a>
 </p>
 
 <p align="center">
-  <a href="#quick-start"><strong>Quick start</strong></a> ·
-  <a href="https://docs.githubim.com/en"><strong>Documentation</strong></a> ·
-  <a href="https://github.com/WuKongIM/WuKongIM"><strong>GitHub</strong></a>
+  <a href="https://github.com/WuKongIM/WuKongIM/releases"><img src="https://img.shields.io/badge/status-v3%20beta-F15A3A?style=flat-square" alt="v3 beta"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="Apache 2.0"></a>
 </p>
 
-<p align="center">
-  <a href="./README_CN.md">简体中文</a> ·
-  <a href="https://githubim.com">Website</a> ·
-  <a href="https://github.com/WuKongIM/WuKongIM/releases">Releases</a> ·
-  <a href="https://github.com/WuKongIM/WuKongIM/issues">Issues</a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/status-v3%20beta-F15A3A?style=flat-square" alt="v3 beta">
-  <img src="https://img.shields.io/badge/Go-1.25.11-00ADD8?style=flat-square&logo=go" alt="Go 1.25.11">
-  <a href="https://github.com/WuKongIM/WuKongIM/stargazers"><img src="https://img.shields.io/github/stars/WuKongIM/WuKongIM?style=flat-square" alt="GitHub stars"></a>
-  <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="Apache 2.0"></a>
-</p>
-
-<p align="center">
-  <img src="./resources/readme/wukongim-hero.webp" alt="Messages flowing through a distributed WuKongIM cluster" width="100%">
-</p>
-
-<p align="center"><sub>One messaging core, from a single-node cluster to a distributed deployment.</sub></p>
-
-> [!NOTE]
-> WuKongIM v3 is currently in beta. APIs, configuration, and durable formats may change before the stable release; validate the system with your workload before production use.
+WuKongIM is a messaging server for personal chats, groups, and application notifications. It handles message storage, synchronization, presence, and online delivery. Your application supplies the user interface, account system, and business rules.
 
 ## Why WuKongIM?
 
-WuKongIM is a channel-oriented communication server. Clients publish ordered messages to personal, group, or custom channels; WuKongIM handles persistence, replication, synchronization, presence, and online delivery.
+- **Fewer deployment dependencies.** Message, metadata, and replication storage are built in; the core needs no external database, cache, or message queue.
+- **One cluster model.** Start with a single-node cluster and use the same messaging model in a multi-node cluster, with 256 hash slots by default.
+- **Messaging building blocks.** Per-channel ordering, offline synchronization, multi-device sessions, and personal, group, or custom channels.
+- **Tools included.** The embedded Chat Demo, Manager, metrics, diagnostics, and backup tools help you try and operate the service.
 
-<table>
-  <tr>
-    <td width="25%" align="center"><strong>🧭 One cluster model</strong><br><sub>Single-node and multi-node deployments share the same Controller, Slot, Channel, routing, and storage paths.</sub></td>
-    <td width="25%" align="center"><strong>💾 Self-contained core</strong><br><sub>Pebble-backed message, metadata, and Raft storage are built in—no external database, cache, or queue is required.</sub></td>
-    <td width="25%" align="center"><strong>⚡ Predictable messaging</strong><br><sub>Per-channel ordering, idempotency, explicit commit boundaries, offline sync, and multi-device sessions.</sub></td>
-    <td width="25%" align="center"><strong>🔭 Built to operate</strong><br><sub>Readiness, metrics, tracing, diagnostics, pressure views, Manager UI, and dedicated operations tools.</sub></td>
-  </tr>
-</table>
-
-### Built for
-
-| 💬 Messaging | 📣 Interaction | 🔌 Infrastructure |
-| --- | --- | --- |
-| Instant messaging, group chat, communities | Notifications, customer service, live streams | IoT, audio/video signaling, messaging middleware |
-| Multi-device sessions and offline sync | AI assistants and generated-message workflows | Custom channel models and plugin integrations |
+> [!NOTE]
+> v3 is in beta. The Linux quick start uses the Preview package repository; check the installed version with `wukongim version`. APIs, configuration, and durable formats may change, so review [upgrade guidance](https://docs.githubim.com/en/server/operations/upgrade-and-migration/) before changing versions.
 
 ## Quick start
 
-### Run a single-node cluster from source
+To deploy with Docker, follow the [Docker deployment guide](https://docs.githubim.com/en/server/deployment/docker/).
 
-Requirements: Git and Go `1.25.11`.
+Install a single-node WuKongIM cluster on a Linux server and exchange messages between two test users. The package repository supports **amd64/x86_64**: Ubuntu 24.04, Debian 13, Rocky Linux 9, AlmaLinux 9, and RHEL 9. You need systemd, sudo, curl, and SSH access from your computer. No Go installation is required.
 
-```bash
-git clone https://github.com/WuKongIM/WuKongIM.git
-cd WuKongIM
+Run steps 1–3 **on the Linux server**. The generated configuration binds services to loopback; use SSH forwarding to open the Demo and Manager from your computer.
 
-cp wukongim.toml.example wukongim.toml
-GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
-```
+### 1. Install the package
 
-Verify readiness from another terminal:
+On **Ubuntu / Debian**:
 
 ```bash
-curl --fail http://127.0.0.1:5001/readyz
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo apt update
+sudo apt install -y wukongim
 ```
 
-The example starts the complete cluster path on one node and embeds both browser applications:
-
-| Open | Address |
-| --- | --- |
-| Chat Demo | <http://127.0.0.1:5001/demo/> |
-| Manager | <http://127.0.0.1:5301> — `admin` / `a1234567` |
-| API and metrics | `http://127.0.0.1:5001` |
-
-Open the Chat Demo, enter a unique test UID, and send a message—no separate frontend process is required.
-
-### Explore a three-node cluster
-
-Requirements: Docker with the Compose plugin.
+<details>
+<summary>Rocky Linux / AlmaLinux / RHEL 9</summary>
 
 ```bash
-docker compose up -d --build
-curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
-  http://127.0.0.1:15001/readyz
+curl -fsSL https://packages.githubim.com/repo | sudo sh
+sudo dnf -y --disablerepo='*' --enablerepo=wukongim-preview makecache --refresh
+sudo dnf install -y wukongim
 ```
 
-The development stack starts three WuKongIM nodes, Prometheus, and Grafana. Open the [Manager](http://127.0.0.1:18080) or [Chat Demo](http://127.0.0.1:15001/demo/), and use `docker compose down` when finished.
+</details>
 
-> [!CAUTION]
-> The Compose environment exposes development credentials and local benchmark surfaces. Do not use its defaults in production.
+Check the installed version:
 
-## See it running
+```bash
+wukongim version
+```
 
-### Operate the cluster
+### 2. Initialize configuration
+
+```bash
+sudo wukongim init
+sudo wukongim config validate --config /etc/wukongim/wukongim.toml
+```
+
+Save the Manager administrator password printed during initialization; it is shown only once. Configuration is stored at `/etc/wukongim/wukongim.toml`.
+
+### 3. Start and check readiness
+
+```bash
+sudo systemctl enable --now wukongim
+curl --retry 30 --retry-delay 2 --retry-all-errors --max-time 5 --fail \
+  http://127.0.0.1:5001/readyz
+```
+
+Wait for `{"ready":true}` before continuing.
+
+### 4. Open the Demo and Manager
+
+For a remote server, run this **on your computer**, replacing `user@server-ip` with your SSH login, and keep the terminal open:
+
+```bash
+ssh -N \
+  -L 127.0.0.1:5001:127.0.0.1:5001 \
+  -L 127.0.0.1:5200:127.0.0.1:5200 \
+  -L 127.0.0.1:5301:127.0.0.1:5301 \
+  user@server-ip
+```
+
+If your browser runs on the Linux server itself, skip the tunnel. Open:
+
+| Application | Address | Login |
+| --- | --- | --- |
+| English Chat Demo | <http://127.0.0.1:5001/demo/?lang=en> | Test users below |
+| Manager | <http://127.0.0.1:5301> | `admin` / the password saved during initialization |
+
+### 5. Send and receive the first message
+
+The English UI and `?lang=en` are included in the current development build. Older packages and the hosted demo may still show Chinese until they are updated. The steps and screenshot below use the English UI.
+
+1. Open Chat Demo in **two separate browser sessions**, such as a normal window and a private window. Keep **API base URL** at `http://127.0.0.1:5001`.
+2. Enter the following credentials. **Fill in both Account and Password**; the password is a test connection token, and no account registration is needed.
+
+   | Session | Account (UID) | Password / test token |
+   | --- | --- | --- |
+   | Alice | `quickstart-alice` | `alice-local-token` |
+   | Bob | `quickstart-bob` | `bob-local-token` |
+
+3. Click **Log in** and wait for both pages to show **Connected**. On Alice's page, click **Start a chat**, select **Direct chat**, enter `quickstart-bob`, and click **OK**. On Bob's page, select `quickstart-alice` the same way.
+4. On Alice's page, enter `hello from alice` and click **Send**. Confirm it appears on **Bob's page**, then have Bob reply with `hello from bob`.
+5. Confirm Alice receives the reply. You have verified connection, sending, and online delivery in both directions.
+
+The Demo registers test tokens directly through `/user/token`. In your application, a trusted backend must own identity checks and token issuance; clients must not register or reset their own tokens.
+
+<details>
+<summary>Troubleshooting and stopping the demo</summary>
+
+If readiness fails, inspect the service logs. If a client stays disconnected, check that its token is non-empty, the API address is correct, and the SSH tunnel forwards port `5200`. If messages do not arrive, check both connection states and the recipient UID.
+
+Run these commands on the Linux server:
+
+```bash
+sudo journalctl -u wukongim -n 100 --no-pager
+sudo systemctl stop wukongim
+sudo systemctl start wukongim
+```
+
+Stop when finished; start the same service to resume. Messages remain in `/var/lib/wukongim`. See the [Linux deployment guide](https://docs.githubim.com/en/server/deployment/linux/) for package and service details.
+
+</details>
 
 <p align="center">
-  <img src="./resources/readme/manager-nodes-en.jpg" alt="WuKongIM v3 Manager showing a healthy single-node cluster" width="100%">
+  <img src="./resources/readme/chat-demo-en.png" alt="Alice and Bob exchanging messages in the English Chat Demo" width="100%">
 </p>
 
-<p align="center"><sub>The v3 Manager brings cluster health, lifecycle, Slots, Channels, diagnostics, backups, and runtime pressure into one operations cockpit.</sub></p>
+## Connect your application
 
-### Send and receive in real time
-
-<p align="center">
-  <img src="./resources/readme/chat-demo.jpg" alt="WuKongIM embedded Chat Demo exchanging real-time messages" width="100%">
-</p>
-
-<p align="center"><sub>The embedded Chat Demo exercises the same API, gateway, Channel ordering, persistence, and delivery path used by client integrations.</sub></p>
-
-## Architecture
+Start with the [JavaScript / Web quickstart](https://docs.githubim.com/en/sdk/javascript/quickstart/): its runnable example includes a development backend, two client sessions, and offline recovery. Then replace the development backend with your own authenticated application backend.
 
 ```mermaid
 flowchart TB
-    Clients["Client SDKs"] --> Access
-    Services["Business services"] --> Access
-    Operators["Operators"] --> Manager
-
-    subgraph Node["WuKongIM node"]
-        Access["Gateway · HTTP API"]
-        Manager["Manager · operations API"]
-        Core["Application core<br/>use cases · node-local runtimes · infrastructure adapters"]
-        Cluster["Distributed runtime<br/>Controller · Slot · Channel"]
-        Storage["Durable node-local storage<br/>metadata · messages · Raft logs"]
-        Observe["Metrics · diagnostics · tracing · runtime pressure"]
-
-        Access --> Core
-        Manager --> Core
-        Core --> Cluster
-        Cluster --> Storage
-        Access -.-> Observe
-        Core -.-> Observe
-        Cluster -.-> Observe
-    end
+    Client["Your app<br/>+ client SDK"] -->|"Login / credentials"| Backend["Your application backend"]
+    Client <-->|"Authenticated messaging"| Gateway["WuKongIM Gateway"]
+    Backend -->|"Trusted HTTP calls"| API["WuKongIM Product HTTP API"]
+    Gateway --> Core["WuKongIM cluster<br/>+ built-in storage"]
+    API --> Core
 ```
 
-- **Controller** owns canonical membership, node health, the physical hash-slot table, logical Slot placement, and operator tasks.
-- **Slot** Raft Groups shard users, channels, membership, conversations, plugin bindings, and Channel runtime metadata. Stable routing first uses 256 physical hash slots by default, then maps those fences onto the logical Slot Groups.
-- **Channel** owns ordered message logs, replicas, commit progress, retention boundaries, and runtime lifecycle.
-
-A one-node deployment is a **single-node cluster**, not a standalone bypass. See the [server architecture guide](https://docs.githubim.com/en/server/architecture) for the deeper model.
-
-### Message lifecycle
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Access as Gateway / HTTP API
-    participant Core as Message use case
-    participant Channel as Channel authority
-    participant Replicas as Channel replicas
-    participant Owners as Recipient owner nodes
-
-    Client->>Access: SEND / POST message
-    Access->>Core: authenticate, authorize, normalize
-    Core->>Channel: ordered append
-    Channel->>Replicas: append and replicate
-    Replicas-->>Channel: advance commit progress
-    Channel-->>Core: committed result
-    Core-->>Client: SENDACK / HTTP response
-    Channel-->>Owners: bounded post-commit fan-out
-    Owners-->>Client: online delivery or later offline sync
-```
-
-## Core capabilities
-
-| Area | What is included |
+| WuKongIM provides | Your application owns |
 | --- | --- |
-| Client access | WKProto over TCP, WebSocket multiplexing for WKProto and JSON-RPC, pluggable listeners, bounded asynchronous dispatch |
-| Messaging | Personal, group, and custom channels; ordered append; idempotency; custom payloads; command messages; stream events |
-| Channel policy | Subscribers, blacklist, whitelist, ban/disband state, stranger policy, system users, large-group-aware access |
-| User state | Distributed presence, multi-device sessions, online status, recent conversations, read cursors, unread state |
-| Delivery | Owner-node routing, `RECVACK` tracking, bounded retries, recipient partitioning, best-effort post-commit fan-out |
-| Extensibility | HTTP webhooks and node-local PDK-compatible plugins with lifecycle, message hooks, and host RPC |
+| Messaging connections, channel message storage, replication, and online delivery | Account login, token issuance, and access to Product HTTP |
+| Channel and subscriber APIs, synchronization APIs | Business permissions, group/friend workflows, and SDK synchronization providers |
+| Client SDKs, webhooks, and plugin interfaces | Product UI, media storage, and application-specific behavior |
 
-## Performance you can verify
+**Product HTTP has no built-in business caller authentication.** Keep it behind your trusted backend or an authenticated API gateway. Manager login protects Manager, not Product HTTP. A successful send confirms the server send result; recipient delivery and processing are separate events. Offline recovery requires client synchronization.
 
-WuKongIM does not publish a context-free “maximum QPS” number. Hardware, storage, channel shape, replication, online fan-out, and latency targets all change the result.
+### Choose an SDK
 
-- Use [`wkbench`](./cmd/wkbench/README.md) to search stable ingress capacity, stress hot channels, and inspect tail latency.
-- Follow the [performance triage runbook](./docs/development/PERF_TRIAGE.md) to capture metrics and profiles consistently.
-- Review the checked-in [performance reports](./docs/superpowers/reports/) and reproduce the scenario that matches your workload.
-
-## SDKs
-
-| Platform | Repository |
+| Your integration needs | Start here |
 | --- | --- |
-| Android | [WuKongIMAndroidSDK](https://github.com/WuKongIM/WuKongIMAndroidSDK) |
-| iOS | [WuKongIMiOSSDK](https://github.com/WuKongIM/WuKongIMiOSSDK) |
-| JavaScript / Web | [WuKongIMJSSDK](https://github.com/WuKongIM/WuKongIMJSSDK) |
-| Flutter | [WuKongIMFlutterSDK](https://github.com/WuKongIM/WuKongIMFlutterSDK) |
-| UniApp | [WuKongIMUniappSDK](https://github.com/WuKongIM/WuKongIMUniappSDK) |
-| HarmonyOS | [WuKongIMHarmonyOSSDK](https://github.com/WuKongIM/WuKongIMHarmonyOSSDK) |
+| Chat state, conversations, unread counts, and offline recovery | [WuKongIMSDK](https://docs.githubim.com/en/sdk/wukongim/) — Android, iOS, JavaScript/Web, Flutter, HarmonyOS |
+| Lightweight online connections and send/receive | [WuKongEasySDK](https://docs.githubim.com/en/sdk/easy/) — Android, iOS, JavaScript/Web, Flutter |
 
-See the [SDK overview](https://docs.githubim.com/en/sdk/overview) to choose an integration path.
+Use the [SDK selector](https://docs.githubim.com/en/sdk/) for the maintained versions and platform guides. The old standalone UniApp SDK is no longer maintained; use the [JavaScript / UniApp migration guide](https://docs.githubim.com/en/sdk/javascript/advanced/offline-and-uniapp/).
 
-## Operations toolkit
+## Operate and evaluate
 
-| Tool | Purpose |
-| --- | --- |
-| Manager | Browser cockpit for cluster state, connections, messages, plugins, migrations, diagnostics, backups, and metrics |
-| [`wkcli`](./cmd/wkcli/README.md) | Command-line contexts, node operations, runtime `top`, simulation, and lightweight send checks |
-| [`wkbench`](./cmd/wkbench/README.md) | Black-box workload validation, capacity searches, simulations, and reports |
-| [`wkdb`](./cmd/wkdb/README.md) | Node-local offline inspection plus explicit export, import, and diff workflows |
-| Prometheus and Grafana | Gateway, cluster, storage, delivery, transport, and process-pressure observability |
+The embedded Manager shows cluster state, connections, channels, messages, diagnostics, and backups.
 
-Configuration is TOML-first, with `WK_` environment variables overriding file values. Start with [`wukongim.toml.example`](./wukongim.toml.example).
+<p align="center">
+  <img src="./resources/readme/manager-nodes-en.jpg" alt="WuKongIM Manager showing a healthy single-node cluster" width="100%">
+</p>
 
-## Before production
+- **Deploy:** [Linux packages](https://docs.githubim.com/en/server/deployment/linux/), [Docker](https://docs.githubim.com/en/server/deployment/docker/), and [multi-node clusters](https://docs.githubim.com/en/server/deployment/multi-node/).
+- **Prepare for production:** replace example credentials, configure [security and network access](https://docs.githubim.com/en/server/configuration/security/), and exercise [backup and restore](https://docs.githubim.com/en/server/operations/backup-and-restore/).
+- **Understand the system:** [architecture](https://docs.githubim.com/en/server/architecture/) and [operations tools](https://docs.githubim.com/en/server/tools/).
 
-- Replace every example credential, JWT secret, join token, and internal capability.
-- Protect client and administrative traffic with appropriate TLS and network-access controls.
-- Put node data on independent durable storage and define capacity and retention boundaries.
-- Exercise [backup and restore](./docs/development/BACKUP_AND_RESTORE.md) before relying on recovery.
-- Validate expected traffic, large groups, failover, and tail latency with your own workload.
-- Restrict Manager, metrics, diagnostics, debug, and benchmark surfaces to trusted networks.
+To evaluate performance, read the [conversation and messaging performance report](./docs/superpowers/reports/2026-08-06-membership-conversation-performance-acceptance.md) for workloads, revisions, latency, and limits. Its results apply to the historical three-process, single-host setup documented there. Measure your own version and workload with [`wkbench`](./cmd/wkbench/README.md) and the [performance runbook](./docs/development/PERF_TRIAGE.md).
 
-## Development
+## Development and community
 
-The repository uses Go `1.25.11`; the Manager uses Bun `1.3.11`.
+For source development, clone this repository and follow the [configuration and startup guide](https://docs.githubim.com/en/server/configuration/). The repository uses Go `1.25.11`.
 
 ```bash
 GOWORK=off go build ./cmd/wukongim ./cmd/wkcli ./cmd/wkbench ./cmd/wkdb
 GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1
 ```
+See [repository conventions](./AGENTS.md) and [CI](./docs/development/CI.md). For frontend changes, follow the [Manager](./web/README.md) and [Chat Demo](./demo/chatdemo/README.md) build guides; their generated assets are embedded in the Go binary and must be rebuilt and committed when changed.
 
-See [`AGENTS.md`](./AGENTS.md) for repository conventions and [CI](./docs/development/CI.md) for the validation matrix.
+[Website](https://githubim.com) · [Documentation](https://docs.githubim.com/en/) · [Issues](https://github.com/WuKongIM/WuKongIM/issues) · [Releases](https://github.com/WuKongIM/WuKongIM/releases)
 
-## Community
+WeChat: `wukongimgo` — ask to join the WuKongIM community group.
 
-- Website: <https://githubim.com>
-- Documentation: <https://docs.githubim.com/en>
-- Issues: <https://github.com/WuKongIM/WuKongIM/issues>
-- Releases: <https://github.com/WuKongIM/WuKongIM/releases>
-- WeChat: `wukongimgo` — mention that you want to join the WuKongIM community group.
-
-## License
-
-WuKongIM is licensed under the [Apache License 2.0](./LICENSE).
+Licensed under the [Apache License 2.0](./LICENSE).

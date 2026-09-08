@@ -38,3 +38,25 @@ func TestOfflineImportedLogVerificationRejectsCorruptInteriorIdentity(t *testing
 	setPhysicalTestValue(t, engine, encodeEntryIdentityKey(store.log.key, 1), encodeDurableEntryIdentity(entry))
 	require.ErrorIs(t, store.log.VerifyOfflineImportedLog(ctx, 1<<20), dberrors.ErrCorruptState)
 }
+
+func TestOfflineEmptySenderChecksExactClientIndex(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	log := testChannelLog(store)
+	defer log.Close()
+	ctx := context.Background()
+	_, err := log.Append(ctx, []Record{{ID: 61, ClientMsgNo: "shared", Payload: []byte("one")}, {ID: 62, ClientMsgNo: "shared", Payload: []byte("two")}}, AppendOptions{})
+	require.NoError(t, err)
+	for seq := uint64(1); seq <= 2; seq++ {
+		row, found, err := log.ReadOfflineMessage(ctx, seq)
+		require.NoError(t, err)
+		require.True(t, found)
+		require.EqualValues(t, seq, row.MessageSeq)
+	}
+	setPhysicalTestValue(t, &Engine{engine: store.engine}, encodeMessageClientMsgNoIndexKey(log.key, "shared", 1), encodeMessageIDIndexValue(2))
+	_, _, err = log.ReadOfflineMessage(ctx, 1)
+	require.ErrorIs(t, err, dberrors.ErrCorruptState)
+	_, found, err := log.ReadOfflineMessage(ctx, 2)
+	require.NoError(t, err)
+	require.True(t, found)
+}

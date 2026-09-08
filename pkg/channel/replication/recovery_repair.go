@@ -63,7 +63,7 @@ func repairQuorumPrefix(ctx context.Context, request recoveryRepairRequest, disp
 	// Probes are observations, not promises that block concurrent accepted work.
 	// Preserve even an uncommitted local suffix learned after the quorum proof.
 	if local.LEO > selection.Index {
-		return ReplicaState{}, errRecoveryProbeIncomplete
+		return ReplicaState{}, errors.Join(ch.ErrNotReady, errRecoveryProbeIncomplete)
 	}
 	keepThrough := local.LEO
 	previous := local.TailIdentity

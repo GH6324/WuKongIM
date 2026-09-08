@@ -1,59 +1,36 @@
 ---
 title: Web quickstart
-description: Install exactly easyjssdk 2.0.4 and use a product BFF plus contiguous TypeScript code for an online browser messaging loop.
+description: Install version 2.0.5, obtain credentials from your backend, exchange online messages, and clean up.
 ---
 
-The browser asks the product BFF for the current user's connection material, then EasyJSSDK establishes a WebSocket JSON-RPC connection. The client holds no Product HTTP management credential, and Alice and Bob accept the path in two isolated browser contexts.
+This tutorial uses **2.0.5** to exchange online messages between Alice and Bob in separate clients. WebSocket JSON-RPC CONNECT authenticates the connection.
 
-<Callout type="info" title="The current Product Gateway supports this connection path">
-  The current Product Gateway supports pinned `v2.0.4` JSON-RPC CONNECT and online bidirectional messaging, including requests without `jsonrpc`, Base64 SEND, and object RECV. Browsers default to WEB `1`; the full wire set is APP `0`, WEB `1`, and PC `2`. The tutorial installs [npm 2.0.4](https://www.npmjs.com/package/easyjssdk/v/2.0.4). The official browser example passed at source revision `a055b3667247333b6b3183249f5d5929673dfd53`, which is now included in the [v2.0.4 Release](https://github.com/WuKongIM/WuKongEasySDK-JS/releases/tag/v2.0.4). The npm artifact then completed bidirectional messaging and disconnect in Chrome 151 and hosted released-package peer runs.
-</Callout>
-
-## What you will have
-
-- An npm dependency pinned to `easyjssdk@2.0.4`.
-- A browser client that consumes only a minimal product-BFF response.
-- Event callbacks that can be removed precisely with `off`, plus page-exit cleanup.
-- Two independent observations: Alice's send result and Bob's realtime receive.
-
-## Run the official example first (recommended)
-
-Check out the exact source to reproduce the verified path:
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-JS.git
-cd WuKongEasySDK-JS
-git checkout a055b3667247333b6b3183249f5d5929673dfd53
-npm ci
-npm test
-npm run build
-python3 -m http.server 8080
-```
-
-Open `http://127.0.0.1:8080/example/`. [Run the Official Examples](/en/sdk/easy/examples) covers WuKongIM startup, Alice/Bob preparation, and endpoint mapping. The source example and npm `2.0.4` artifact now have separate runtime receipts; keep those evidence classes distinct.
-
-## Before you begin
+## 1. Prepare
 
 Prepare the following:
 
 - A modern browser with native WebSocket, `TextEncoder`, and `TextDecoder`.
 - A WuKongIM single-node cluster or multi-node cluster whose `/readyz` is healthy and whose WebSocket Gateway is browser-reachable.
-- A same-origin product BFF, or one with a deliberately configured cross-origin policy.
+- A same-origin product BFF (your application backend), or one with a deliberately configured cross-origin policy.
 - A BFF that validates the product session and returns `uid`, a short-lived `token`, and `websocketUrl` for the current user.
 
 Read [Identity & Token](/en/guide/integration/authentication) first. Production pages and WebSockets use HTTPS/WSS, and tokens never belong in URLs, Local Storage, logs, or analytics events.
 
-## Step 1: install an exact version
+To see messages first, follow [the official example](/en/sdk/easy/examples#javascript) with two clients. The steps below integrate the SDK into your application.
+
+The default device category is **WEB `1`**. Store the Token with the same `device_flag` on your backend: APP is `0`, WEB is `1`, and PC is `2`.
+
+## 2. Install the SDK
 
 Run this in an existing Vite, Next.js, or other bundled application:
 
 ```bash
-npm install --save-exact easyjssdk@2.0.4
+npm install --save-exact easyjssdk@2.0.5
 ```
 
 Commit `package-lock.json`. This tutorial does not use a floating CDN version that could silently replace the SDK after a page refresh.
 
-## Step 2: obtain connection material from the product BFF
+## 3. Connect and listen
 
 `/api/im/bootstrap` below is your product route, not WuKongIM Product HTTP. The BFF validates the server-side login session, issues a short-lived token, and safely selects the WebSocket address returned by `/route`:
 
@@ -77,16 +54,14 @@ async function fetchIMBootstrap(): Promise<IMBootstrap> {
 
 The browser never calls `/user/token` or `/route` directly. Their management boundary, server credential, and response filtering remain inside the BFF.
 
-## Step 3: initialize, subscribe, and connect
-
 `on` receives a function reference; `off` must receive the same reference. This example disables global-singleton mode so hot reload, tests, or a multi-instance page cannot silently destroy another client:
 
 ```ts
-import { WKIM, WKIMChannelType, WKIMEvent } from 'easyjssdk';
+import { WKIM, WKIMChannelType, WKIMEvent, type RecvMessage } from 'easyjssdk';
 
 export class EasyChatClient {
   private im?: WKIM;
-  private readonly messages = new Map<string, unknown>();
+  constructor(private readonly receiveMessage: (message: RecvMessage) => void) {}
 
   private readonly onConnect = (_result: unknown) => {
     console.info('EasySDK connected');
@@ -96,10 +71,8 @@ export class EasyChatClient {
     console.info('EasySDK disconnected');
   };
 
-  private readonly onMessage = (message: any) => {
-    if (this.messages.has(message.messageId)) return;
-    this.messages.set(message.messageId, message);
-    // Pass the deduplicated message to application state.
+  private readonly onMessage = (message: RecvMessage) => {
+    this.receiveMessage(message);
   };
 
   private readonly onError = (_error: unknown) => {
@@ -172,22 +145,46 @@ export class EasyChatClient {
 
 An application normally creates one `EasyChatClient`. The SDK has an internal timeout for the CONNECT JSON-RPC request, but the WebSocket-open phase can still hang; `connectWithin` bounds the complete wait at 10 seconds and calls `destroy` after failure. React can keep the client in a root-level Provider and call `stop()` from an Effect cleanup. Vue and Svelte use the corresponding component or application unmount hook.
 
-## Step 4: send the first message
+## 4. Exchange the first message
+
+Add a button and receive area to the page. Click send after both clients connect; on Bob’s page change the target from `bob` to `alice`. The UI displays only the latest message, without retaining an unbounded history.
+
+```html
+<button id="send-message" disabled>Send</button>
+<pre id="received-message"></pre>
+```
 
 ```ts
-const chat = new EasyChatClient();
-const alice = await fetchIMBootstrap();
-
-await chat.start(alice);
-await chat.sendText('bob', 'Hello from Web EasySDK');
-console.info('SEND completed');
-
+const output = document.querySelector<HTMLElement>('#received-message');
+const button = document.querySelector<HTMLButtonElement>('#send-message');
+if (!output || !button) throw new Error('Missing message UI');
+button.disabled = true;
+const chat = new EasyChatClient((message) => {
+  output.textContent = JSON.stringify({
+    fromUid: message.fromUid,
+    payload: message.payload,
+  });
+});
 window.addEventListener('pagehide', () => chat.stop(), { once: true });
+try {
+  await chat.start(await fetchIMBootstrap());
+  button.disabled = false;
+} catch {
+  chat.stop();
+  output.textContent = 'Connection failed';
+}
+button.onclick = async () => {
+  try {
+    // Bob sends to 'alice'. Click only after both clients are connected.
+    await chat.sendText('bob', 'Hello from Web EasySDK');
+    console.info('SEND completed');
+  } catch {
+    console.error('Send failed; check its outcome before retrying');
+  }
+};
 ```
 
 Alice's resolved Promise means the send request received a server result. Bob must still observe the message in an independent page through `WKIMEvent.Message`. Do not render Alice's send result as proof that Bob read or processed it.
-
-## Step 5: accept with Alice and Bob
 
 1. Open two independent browser profiles or isolated browser contexts and sign in as Alice and Bob.
 2. Both sides obtain connection material from their own product session and observe `WKIMEvent.Connect`.
@@ -197,24 +194,18 @@ Alice's resolved Promise means the send request received a server result. Bob mu
 6. Use an unreachable address and confirm failure plus `destroy` within 10 seconds, rather than leaving the page in Connecting forever.
 7. Refresh, close, or sign out and confirm that the old instance called `off` and `destroy`, leaving no duplicate connection.
 
-That exact source ran against the same WuKongIM revision in Chrome 151 and completed bidirectional messaging, manual disconnect, and reconnect. The npm `2.0.4` artifact also completed bidirectional messaging, SENDACK, and disconnect in real Chrome and hosted released-package peer runs. The loop still does not cover offline synchronization or production WSS. When Bob is offline, the application cannot wait only for an EasySDK realtime event; it needs a product-designed durable synchronization path.
+## 5. Clean up
 
-## Troubleshooting
+Call `chat.stop()` on logout, application unmount, or page exit. It removes callbacks with the same function references and calls `destroy()`. Page subscribers remove their handlers; the connection owner destroys the instance.
+
+## 6. Troubleshooting
 
 - **The page says WebSocket or encoding APIs are missing:** confirm the browser and build environment provide WebSocket, `TextEncoder`, and `TextDecoder`; do not infer Mini Program support from the browser path.
 - **Connection is rejected before ready:** inspect the BFF-returned WSS address, token lifetime, certificate, proxy Upgrade, and Gateway reachability.
 - **Messages duplicate after refresh:** do not call `on` during every component render; retain callbacks and call `off`/`destroy` during unmount.
-- **The console still contains a token or payload:** first use the lockfile and browser bundle to confirm that `easyjssdk@2.0.4` is actually shipped, then inspect application event callbacks, error handling, and collectors for complete-object logging. SDK diagnostics are off by default and should emit only sanitized operational metadata when explicitly enabled. Reproduce with the npm artifact and retain only low-sensitivity evidence before filing an issue.
+- **The console still contains a token or payload:** first use the lockfile and browser bundle to confirm that `easyjssdk@2.0.5` is actually shipped, then inspect application event callbacks, error handling, and collectors for complete-object logging. SDK diagnostics are off by default and should emit only sanitized operational metadata when explicitly enabled. Reproduce with the npm artifact and retain only low-sensitivity evidence before filing an issue.
 - **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and review the current build and runtime boundaries under [API Versions & Compatibility](/en/api/compatibility). Do not mix method names between the two SDKs.
-
-## Before production
-
-- Serve both the page and WebSocket over HTTPS/WSS, then verify certificates, proxy Upgrade, the BFF origin policy, and Gateway reachability.
-- Return only the current session's connection material from the BFF; tokens never belong in URLs, Local Storage, logs, or analytics events.
-- `debugLogging` is off by default. Keep it `false` in production and inspect the actual npm `2.0.4` bundle, Console, error reporting, and collectors with non-production canaries for tokens, payloads, raw frames, or complete event objects.
-- Retain the lockfile, browser and build versions, network, and server revision; separately verify refresh, logout, reconnect, and durable recovery while Bob is offline.
-- Continue with [Integration Acceptance](/en/guide/integration/acceptance) for capacity, observability, upgrades, and rollback.
 
 ## Next
 
-Return to the [WuKongEasySDK overview](/en/sdk/easy), or continue with [Messaging](/en/guide/integration/messaging), [Offline Messages & Push](/en/guide/tutorials/push), and the [Release Checks](/en/guide/integration/acceptance).
+Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#javascript) retain the exact environments and scope of past runs.

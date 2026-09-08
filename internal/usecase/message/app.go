@@ -5,10 +5,13 @@ import (
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 // Options configures the message usecase.
 type Options struct {
+	// CommandChannelSuffix selects command IDs; empty retains the legacy default.
+	CommandChannelSuffix string
 	// Submitter owns channel-authority send routing and append admission.
 	Submitter Submitter
 	// Reader owns compatible channel message sync reads.
@@ -30,6 +33,8 @@ type Options struct {
 	PersonDirectory PersonDirectoryEnsurer
 	// SendHook optionally mutates or rejects permission-accepted sends before append admission.
 	SendHook SendHook
+	// BeforeSendWebhook evaluates final payloads independently of plugin skip controls.
+	BeforeSendWebhook *BeforeSendWebhook
 	// SystemUIDs identifies internal system senders that bypass business permissions.
 	SystemUIDs SystemUIDChecker
 	// PersonWhitelistEnabled enables receiver-side personal allowlist checks.
@@ -46,12 +51,14 @@ type Options struct {
 
 // App is a thin message facade over channel append submission and sync reads.
 type App struct {
-	submitter    Submitter
-	reader       ChannelMessageReader
-	memberships  SyncMembershipStore
-	channelState SyncChannelStateStore
-	eventStore   MessageEventStore
-	permissions  PermissionStore
+	// commandChannels applies the deployment suffix without process-global state.
+	commandChannels runtimechannelid.CommandCodec
+	submitter       Submitter
+	reader          ChannelMessageReader
+	memberships     SyncMembershipStore
+	channelState    SyncChannelStateStore
+	eventStore      MessageEventStore
+	permissions     PermissionStore
 	// permissionBatch performs one authoritative, batch-scoped metadata read
 	// when the configured store supports it and no cross-batch TTL cache is enabled.
 	permissionBatch PermissionBatchStore
@@ -59,6 +66,7 @@ type App struct {
 	permissionAuthority    PermissionStore
 	personDirectory        PersonDirectoryEnsurer
 	sendHook               SendHook
+	beforeSendWebhook      *BeforeSendWebhook
 	systemUIDs             SystemUIDChecker
 	personWhitelistEnabled bool
 	systemDeviceID         string
@@ -77,6 +85,7 @@ func New(opts Options) *App {
 		permissionBatch = opts.PermissionBatchStore
 	}
 	return &App{
+		commandChannels:        runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		submitter:              opts.Submitter,
 		reader:                 opts.Reader,
 		memberships:            opts.Memberships,
@@ -87,6 +96,7 @@ func New(opts Options) *App {
 		permissionAuthority:    opts.PermissionStore,
 		personDirectory:        opts.PersonDirectory,
 		sendHook:               opts.SendHook,
+		beforeSendWebhook:      opts.BeforeSendWebhook,
 		systemUIDs:             opts.SystemUIDs,
 		personWhitelistEnabled: opts.PersonWhitelistEnabled,
 		systemDeviceID:         opts.SystemDeviceID,

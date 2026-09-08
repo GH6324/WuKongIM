@@ -63,7 +63,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
   `PageReader` interprets latest intent and the floor together. Command filtering
   remains in the use case. Hidden raw records advance a monotonic scan cursor
   until limit+1 visible records or the range end proves `HasMore`. Reads use
-  at most 64 aligned waves of 1,024 raw records per Channel and a five-second
+  at most 64 aligned waves per Channel, each limited to the remaining visible
+  demand plus lookahead and at most 1,024 raw records, with a five-second
   context; exhausted budgets or invalid progress fail instead of implying end
   of history. Plugin reads retain separate authorization and response contracts.
 - Sync reads committed data only and never mutate membership. A new person

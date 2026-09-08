@@ -9,7 +9,7 @@ The Chat Demo is a browser application included with the `wukongim` package. Aft
 
 | Environment | Chat Demo address | API base URL |
 | --- | --- | --- |
-| Linux single-node cluster | `http://127.0.0.1:5001/demo/` | Same origin as the page |
+| Linux / Docker single-node cluster | `http://127.0.0.1:5001/demo/` | Same origin as the page |
 | Repository three-node Compose | `http://127.0.0.1:15001/demo/` | Same origin as the page |
 
 To connect to another API address, use:
@@ -19,6 +19,14 @@ http://127.0.0.1:5001/demo/?apiurl=http://host:port
 ```
 
 The Demo first calls `/route` to discover a client WebSocket address, then uses the JavaScript SDK to establish a long-lived connection.
+
+## Troubleshoot connection addresses
+
+Inspect the `/route` response in the browser Network panel. With default Docker port mappings and no `api.external_ws_addr`, `ws_addr` should use the API request hostname and Gateway port `5200`. Linux initialization listens on `127.0.0.1:5200`; SSH forwarding for both `5001` and `5200` allows the Demo to work without published-address overrides.
+
+If the response still contains `ws://0.0.0.0:5200`, verify that the version includes automatic host completion and that no explicit published address contains a wildcard. On older versions, set `external_ws_addr = "ws://127.0.0.1:5200"` in the existing `[api]` section and restart; direct remote access requires a client-reachable server address and external port. `WK_EXTERNAL_WSADDR` overrides TOML.
+
+If the page opens but WebSocket fails, check that Docker mappings or SSH forwarding include `5200`. Remapped ports, separate domains, and HTTPS/WSS proxies need explicit published addresses and a working TLS/WebSocket ingress; see [Docker Deployment](/en/server/deployment/docker).
 
 ## Login fields
 

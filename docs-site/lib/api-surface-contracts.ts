@@ -162,6 +162,7 @@ export const managerRouteGroups: readonly ManagerRouteGroup[] = [
     ['GET', '/manager/nodes'],
     ['GET', '/manager/nodes/:node_id'],
     ['GET', '/manager/nodes/:node_id/config'],
+    ['GET', '/manager/nodes/:node_id/config/toml'],
     ['GET', '/manager/runtime/workqueues'],
     ['GET', '/manager/realtime-monitor'],
     ['GET', '/manager/nodes/:node_id/onboarding/status'],
@@ -391,14 +392,16 @@ export const nodeTransportServices: readonly NodeTransportService[] = [
   nodeService(84, 'RPCSlotRuntimeMetadata', 'slot_runtime_metadata'),
   nodeService(85, 'RPCSlotPermissionMetadataBatch', 'slot_permission_metadata_batch'),
   nodeService(86, 'RPCChannelQuorumExchange', 'channel_quorum_exchange'),
+  nodeService(87, 'RPCSlotIdentityMetadata', 'slot_identity_metadata'),
+  nodeService(88, 'RPCManagerNodeConfigDocument', 'manager_node_config_document'),
 ];
 
 export const nodeTransportBoundary =
   'Cluster-internal TCP transport has no per-call bearer or TLS identity. Join alone checks the shared join token; every other service trusts cluster routing and network isolation.';
 
 export const nodeTransportCatalogDebt = [
-  'The default Slot proxy uses promoted catalog IDs 79, 80, 83, 84, and 85.',
-  'The exported generic Slot proxy additionally declares private IDs 4, 47, and 53. ID 4 overlaps RPCChannelPullHint and is deliberately excluded from default composition.',
+  'The default Slot proxy uses promoted catalog IDs 79, 80, 83, 84, 85, and 87.',
+  'The exported generic Slot proxy additionally declares private IDs 47 and 53, excluded from default composition. Identity metadata uses promoted ID 87 instead of colliding with RPCChannelPullHint at ID 4.',
 ] as const;
 
 export const operationsMCPTools = [
@@ -548,7 +551,7 @@ export const pluginHostRPCPaths = [
   '/plugin/httpForward',
 ] as const;
 
-export const webhookEvents = ['msg.notify', 'msg.offline', 'user.onlinestatus'] as const;
+export const webhookEvents = ['msg.notify', 'msg.offline', 'user.onlinestatus', 'msg.before_send'] as const;
 
 export const benchmarkWorkerHTTP = [
   'GET /healthz',

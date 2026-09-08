@@ -16,6 +16,7 @@ import (
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 var (
@@ -43,6 +44,8 @@ type Config struct {
 	DataDir string
 	// StartupConfigSnapshot is a bounded, redacted view of effective startup configuration.
 	StartupConfigSnapshot managementusecase.NodeConfigSnapshot
+	// StartupConfigDocument is the independently versioned, redacted TOML startup view.
+	StartupConfigDocument managementusecase.NodeConfigDocument
 	// Cluster configures the cluster runtime.
 	Cluster cluster.Config
 	// API configures the benchmark HTTP API exposed by the standalone v2 entry.
@@ -79,11 +82,15 @@ type Config struct {
 type APIConfig struct {
 	// ListenAddr is the HTTP API listen address. An empty value disables the API service.
 	ListenAddr string
-	// ExternalTCPAddr is the published WKProto TCP gateway address returned by bench capacity discovery.
+	// ExternalTCPAddr overrides the published WKProto TCP address for routing and capacity discovery.
+	// When empty, listeners supply the address; default external /route requests
+	// replace only a wildcard listener host with the HTTP request host.
 	ExternalTCPAddr string
-	// ExternalWSAddr is the published WebSocket gateway address returned by bench capacity discovery.
+	// ExternalWSAddr overrides the published WebSocket URL, including its public port and path.
+	// Empty uses the same listener/request-host rules as ExternalTCPAddr.
 	ExternalWSAddr string
-	// ExternalWSSAddr is the published secure WebSocket gateway address returned by bench capacity discovery.
+	// ExternalWSSAddr overrides the published secure WebSocket URL.
+	// Empty uses the same listener/request-host rules without inferring TLS from HTTP.
 	ExternalWSSAddr string
 }
 
@@ -292,6 +299,10 @@ func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 
 // MessageConfig contains message usecase settings.
 type MessageConfig struct {
+	// CMDChannelSuffix is reserved for internal command-channel IDs. Empty uses ____cmd.
+	// It must match on every node and remain unchanged for existing data; changing it
+	// does not migrate stored command channels or their UID bindings.
+	CMDChannelSuffix string
 	// PersonWhitelistEnabled enables receiver-side personal allowlist enforcement for sends.
 	// It is disabled by default to match legacy WhitelistOffOfPerson=true compatibility.
 	PersonWhitelistEnabled bool
@@ -372,8 +383,10 @@ type DeliveryConfig struct {
 	RecipientWorkerConcurrency int
 }
 
-// WebhookConfig controls node-local best-effort webhook delivery.
+// WebhookConfig controls synchronous admission and asynchronous webhook delivery.
 type WebhookConfig struct {
+	// BeforeSend is independently enabled synchronous business admission.
+	BeforeSend BeforeSendWebhookConfig
 	// Enabled starts the webhook runtime when at least one endpoint is configured.
 	Enabled bool
 	// HTTPAddr receives JSON webhook POST requests as {HTTPAddr}?event=<event>.
@@ -409,6 +422,7 @@ func NormalizeWebhookConfig(cfg WebhookConfig) (WebhookConfig, error) {
 }
 
 func defaultWebhookConfig(cfg WebhookConfig) WebhookConfig {
+	cfg.BeforeSend = defaultBeforeSendWebhookConfig(cfg.BeforeSend)
 	if cfg.HTTPAddr != "" {
 		cfg.Enabled = true
 	}
@@ -443,6 +457,9 @@ func defaultWebhookConfig(cfg WebhookConfig) WebhookConfig {
 }
 
 func validateWebhookConfig(cfg WebhookConfig) error {
+	if err := validateBeforeSendWebhookConfig(cfg.BeforeSend); err != nil {
+		return err
+	}
 	if cfg.Enabled && cfg.HTTPAddr == "" {
 		return fmt.Errorf("%w: webhook HTTPAddr is required when webhook is enabled", ErrInvalidConfig)
 	}
@@ -527,6 +544,9 @@ func defaultManagerConfig(cfg ManagerConfig) ManagerConfig {
 }
 
 func defaultMessageConfig(cfg MessageConfig) MessageConfig {
+	if cfg.CMDChannelSuffix == "" {
+		cfg.CMDChannelSuffix = runtimechannelid.CommandChannelSuffix
+	}
 	cfg.SystemUID = strings.TrimSpace(cfg.SystemUID)
 	if cfg.SystemUID == "" {
 		cfg.SystemUID = userusecase.DefaultSystemUID
@@ -861,6 +881,12 @@ func validateChannelConfig(cfg ChannelConfig) error {
 }
 
 func validateMessageConfig(cfg MessageConfig) error {
+	// Restrict the reserved suffix to unambiguous ASCII channel-safe characters.
+	for _, ch := range cfg.CMDChannelSuffix {
+		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-') {
+			return fmt.Errorf("%w: message cmd channel suffix must use only ASCII letters, digits, _ or -", ErrInvalidConfig)
+		}
+	}
 	if strings.ContainsAny(cfg.SystemUID, "@#&") {
 		return fmt.Errorf("%w: message system uid must not contain @, #, or &", ErrInvalidConfig)
 	}

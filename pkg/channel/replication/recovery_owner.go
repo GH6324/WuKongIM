@@ -222,7 +222,7 @@ func (d *batchingRecoveryProbeDispatcher) loadLocalRecoveryFetch(request FetchRe
 // recoverQuorumPrefix proves the greatest quorum-identical prefix using one
 // frontier round followed by bounded identity pages. Every voter retained in
 // the final proof must report one unchanged frontier across all pages.
-func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, dispatcher recoveryProbeDispatcher) (recoverySelection, error) {
+func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, dispatcher recoveryProbeDispatcher) (selection recoverySelection, err error) {
 	if ctx == nil || dispatcher == nil || request.ChannelKey == "" || request.ChannelID.ID == "" || request.Leader == 0 || request.Timeout <= 0 {
 		return recoverySelection{}, ch.ErrInvalidConfig
 	}
@@ -246,6 +246,13 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 	if len(frontierReports) < request.Quorum {
 		return recoverySelection{}, errRecoveryQuorumUnavailable
 	}
+	defer func() {
+		if err == nil {
+			for _, report := range frontierReports {
+				selection.NeedsConvergence = selection.NeedsConvergence || report.Result.State.LEO > selection.Index
+			}
+		}
+	}()
 	committed := make([]uint64, 0, len(frontierReports))
 	leos := make([]uint64, 0, len(frontierReports))
 	for _, report := range frontierReports {
@@ -258,8 +265,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		return recoverySelection{}, ch.ErrLogConflict
 	}
 	if quorumLEO == 0 {
-		selected := recoverySelection{CertifiedCommitted: certifiedCommitted}
-		return selected, validateRecoverySuffixEvidence(selected, frontierReports)
+		return recoverySelection{CertifiedCommitted: certifiedCommitted}, nil
 	}
 	selected := recoverySelection{CertifiedCommitted: certifiedCommitted}
 	firstIndex := certifiedCommitted
@@ -355,7 +361,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 			identity, ok := quorumIdentityAt(stableReports, position, index, request.Quorum)
 			if !ok {
 				selected.Continuation = nil
-				return selected, validateRecoverySuffixEvidence(selected, frontierReports)
+				return selected, nil
 			}
 			if selected.Index == 0 {
 				if index != 1 || identity.PreviousIndex != 0 || identity.PreviousTerm != 0 || identity.PreviousDigest != (ch.EntryDigest{}) {
@@ -372,7 +378,7 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		pageEnd := indexes[len(indexes)-1]
 		if pageEnd == quorumLEO {
 			selected.Continuation = nil
-			return selected, validateRecoverySuffixEvidence(selected, frontierReports)
+			return selected, nil
 		}
 		stable = recoveryIdentitySupporters(stableReports, len(indexes)-1, selected.Identity)
 		if len(stable) < request.Quorum {
@@ -381,18 +387,6 @@ func recoverQuorumPrefix(ctx context.Context, request recoveryProbeRequest, disp
 		pageStart = pageEnd + 1
 		selected.Continuation = makeRecoveryContinuation(request, certifiedCommitted, quorumLEO, pageStart, selected, stable)
 	}
-}
-
-// validateRecoverySuffixEvidence preserves every observed suffix. Probe responses
-// are not durable promises: even an apparent minority tail can gain another vote
-// while recovery reads are in flight. Only append-only convergence is permitted.
-func validateRecoverySuffixEvidence(selected recoverySelection, reports []recoveryProbeReport) error {
-	for _, report := range reports {
-		if report.Result.State.LEO > selected.Index {
-			return errRecoveryProbeIncomplete
-		}
-	}
-	return nil
 }
 
 func validRecoveryContinuationShape(request recoveryProbeRequest, configured map[ch.NodeID]struct{}) bool {

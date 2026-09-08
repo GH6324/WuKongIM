@@ -1,5 +1,9 @@
 # WuKongIM v3 Documentation — Phase 15 Specification
 
+> Historical phase specification. Current eight-platform learning order and
+> tutorial versions are maintained in `EASY_SDK_DOCUMENTATION_SPEC.md`. Earlier
+> source and package receipts remain in the linked engineering validation history.
+
 ## Goal
 
 Publish a reader-first WuKongEasySDK path for iOS, Android, Flutter, and Web.
@@ -29,7 +33,7 @@ revisions are recorded below. Physical devices, WSS/proxy deployment, offline
 sync, push, subscriptions, batches, capacity, and production token validation
 remain outside that receipt.
 Logging-security fixes were later merged and released in the four official SDK
-distributions. Current maintained pins are iOS `1.1.1`, Android `1.0.5`,
+distributions. The pins for that acceptance were iOS `1.1.1`, Android `1.0.5`,
 Flutter `1.1.0`, and Web `2.0.4`. They make diagnostics default-off, restrict
 enabled output to sanitized operational metadata, and redact public model
 string output. On 2026-09-01, a separate acceptance resolved these exact
@@ -38,6 +42,13 @@ against WuKongIM PR test merge
 `35f314cc2512f3f0f5d55d9677e817cb64129985`, whose candidate head was
 `1c9430f15fc8844e7025df07d54ab6e80e026414`. That proves bounded platform
 execution of the released packages, but not production readiness.
+
+The C# extension adds `WuKongEasySDK-CSharp` and the bilingual
+`/sdk/easy/csharp/getting-started` route. It targets .NET 8 and installs
+`WuKongEasySDK` `1.0.0` from nuget.org, with pinned source builds as an option.
+Its exact public package installation receipt and original real-server source
+receipt are recorded separately; neither inherits the other four platforms'
+historical package receipts.
 
 ## Audience and completion outcome
 

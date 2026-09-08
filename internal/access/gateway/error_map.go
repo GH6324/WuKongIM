@@ -9,6 +9,10 @@ import (
 )
 
 func mapReason(reason message.Reason) frame.ReasonCode {
+	// Business rejection codes occupy the same reserved range on every entry.
+	if message.IsBusinessReasonCode(uint32(reason)) {
+		return frame.ReasonCode(reason)
+	}
 	switch reason {
 	case message.ReasonSuccess:
 		return frame.ReasonSuccess

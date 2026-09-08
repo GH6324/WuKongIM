@@ -115,6 +115,8 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 
 // ReadOfflineMessage exposes existing durable columns for independent migration
 // verification without changing normal reads, writes, key validation or codecs.
+// Empty-sender client indexes are checked by exact key, never by an unbounded
+// client-number listing or the sender/client idempotency API.
 // The caller must keep the target stopped throughout its verification session.
 func (l *ChannelLog) ReadOfflineMessage(ctx context.Context, seq uint64) (channelcompat.Message, bool, error) {
 	if ctx == nil {
@@ -127,6 +129,22 @@ func (l *ChannelLog) ReadOfflineMessage(ctx context.Context, seq uint64) (channe
 	row, found, err := l.getRowBySeq(ctx, seq)
 	if err != nil || !found {
 		return channelcompat.Message{}, found, err
+	}
+	if row.FromUID == "" && row.ClientMsgNo != "" {
+		value, found, err := l.db.engine.Get(encodeMessageClientMsgNoIndexKey(l.key, row.ClientMsgNo, row.MessageSeq))
+		if err != nil {
+			return channelcompat.Message{}, false, err
+		}
+		if !found {
+			return channelcompat.Message{}, false, dberrors.ErrCorruptState
+		}
+		indexedSeq, err := decodeMessageIDIndexValue(value)
+		if err != nil {
+			return channelcompat.Message{}, false, err
+		}
+		if indexedSeq != row.MessageSeq {
+			return channelcompat.Message{}, false, dberrors.ErrCorruptState
+		}
 	}
 	return channelMessageFromRow(row), true, nil
 }

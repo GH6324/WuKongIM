@@ -64,6 +64,7 @@ import type {
   ManagerNodeOnboardingStartResponse,
   ManagerNodeOnboardingStatusResponse,
   ManagerNodeConfigResponse,
+  ManagerNodeConfigDocument,
   ManagerNodeDetailResponse,
   ManagerNodeScaleInActionInput,
   ManagerNodeScaleInAdvanceResponse,
@@ -1525,4 +1526,10 @@ export async function cancelBackupRestore(jobID: string) {
     method: "POST",
     body: JSON.stringify({}),
   })
+}
+
+export function getNodeConfigDocument(nodeId: number) {
+  return jsonManagerFetch<ManagerNodeConfigDocument>(
+    `/manager/nodes/${encodeURIComponent(String(nodeId))}/config/toml`,
+  )
 }

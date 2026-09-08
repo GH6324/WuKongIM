@@ -18,7 +18,8 @@ _openapi:
       - content: 解析 Gateway 地址
         id: 解析-gateway-地址
     contents:
-      - content: 返回已配置的公网或内网地址；节点别名按 node_id、nodeId、nodeID 顺序读取。
+      - content: 默认公网路由按请求 Host
+          补全通配监听主机名，显式地址优先；详见[地址规则](/zh/server/configuration/reference)。
         heading: 解析-gateway-地址
       - content: >-
           GET /route
@@ -27,7 +28,8 @@ _openapi:
 
           解析 Gateway 地址
 
-          返回已配置的公网或内网地址；节点别名按 node_id、nodeId、nodeID 顺序读取。
+          默认公网路由按请求 Host
+          补全通配监听主机名，显式地址优先；详见[地址规则](/zh/server/configuration/reference)。
 
           node_id query optional `integer:uint64` 1–∞ 首选节点选择参数；填写时必须是已配置且大于 0
           的节点 ID。

@@ -25,7 +25,8 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
   on the actual Slot leader through registered typed RPC.
 - Slot proxy handlers register through the promoted
   `pkg/cluster.Node.RegisterRPC` bridge; they do not construct a second cluster
-  transport or routing table.
+  transport or routing table. Device identity reads use promoted service ID 87; the default runtime handler
+  accepts only device lookups and does not expose user scans.
 - Local reads are valid only for explicitly local contracts. A proxy must not
   answer a cluster-authoritative query from a convenient local replica.
 - FSM command and RPC catalogs live in code and tests, not in this overview.

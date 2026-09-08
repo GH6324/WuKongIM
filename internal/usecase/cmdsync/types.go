@@ -112,6 +112,8 @@ type MessageStore interface {
 
 // Options configures the CMD sync usecase.
 type Options struct {
+	// CommandChannelSuffix selects command IDs; empty retains the legacy default.
+	CommandChannelSuffix string
 	// States supplies CMD directory rows and persists acknowledgement progress.
 	States StateStore
 	// Messages loads command-channel messages.

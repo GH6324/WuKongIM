@@ -292,7 +292,9 @@ func (a *App) wireDeliveryMetadata() {
 		}
 	}
 	if a.cfg.Delivery.Enabled && a.deliverySubscribers == nil {
-		a.deliverySubscribers = a.deliveryMeta
+		if node, ok := a.cluster.(recipientSubscriberNode); ok {
+			a.deliverySubscribers = channelAppendSubscriberSource{node: node}
+		}
 	}
 }
 
@@ -381,21 +383,28 @@ func (a *App) wireConversations(conversationReadStore *clusterinfra.Conversation
 func (a *App) wirePresence() {
 	if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
 		observer := presenceMetricsObserver{metrics: a.metrics}
-		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
+		recoveryNode, canRecover := a.cluster.(clusterinfra.PresenceRecoveryNode)
+		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID(), RequireRecovery: canRecover})
 		a.presenceDirectory = directory
 		authority := clusterinfra.NewPresenceDirectoryAuthority(directory)
 		ownerActions := presenceOwnerActions{local: a.online}
+		ownerBootID := newOwnerBootID()
+		ownerReader := presence.NewOwnerRecovery(a.online, presenceNode.NodeID(), ownerBootID, func(target presence.RouteTarget) error {
+			return clusterinfra.ValidatePresenceTarget(presenceNode, target)
+		})
+		if canRecover {
+			authority.SetRecovery(presence.NewAuthorityRecovery(directory, clusterinfra.NewPresenceRecoveryOwners(recoveryNode, ownerReader)))
+		}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
 		if a.metrics != nil {
 			client.SetEndpointLookupObserver(observer)
 		}
 		a.presenceAuthorityClient = client
-		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, Logger: a.logger.Named("node")})
+		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, OwnerRoutes: ownerReader, Logger: a.logger.Named("node")})
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
 		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
 		if a.presence == nil {
-			ownerBootID := newOwnerBootID()
 			a.presence = presence.New(presence.Options{
 				Local:                a.online,
 				Authority:            client,
@@ -438,7 +447,8 @@ func (a *App) wireManagerConnectionRPC() {
 		return
 	}
 	readService := managementusecase.New(managementusecase.Options{
-		Cluster: clusterinfra.NewManagementSnapshotReader(node),
+		CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+		Cluster:              clusterinfra.NewManagementSnapshotReader(node),
 		RuntimeSummary: managementRuntimeSummaryReader{
 			app:         a,
 			localNodeID: node.NodeID(),
@@ -506,6 +516,7 @@ func (a *App) wireManagerNodeConfigRPC() {
 	}
 	adapter := accessnode.New(accessnode.Options{ManagerNodeConfig: a, Logger: a.logger.Named("node")})
 	registrar.RegisterRPC(accessnode.ManagerNodeConfigRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerNodeConfigRPC))
+	registrar.RegisterRPC(accessnode.ManagerNodeConfigDocumentRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerNodeConfigDocumentRPC))
 }
 
 func (a *App) wireManagerChannelRPC() {
@@ -516,6 +527,7 @@ func (a *App) wireManagerChannelRPC() {
 		return
 	}
 	service := managementusecase.New(managementusecase.Options{
+		CommandChannelSuffix:  a.cfg.Message.CMDChannelSuffix,
 		Cluster:               clusterinfra.NewManagementSnapshotReader(node),
 		ChannelBusinessReader: clusterinfra.NewChannelBusinessReader(channelNode),
 	})
@@ -530,7 +542,8 @@ func (a *App) wireManagerMessageRetentionRPC() {
 		return
 	}
 	service := managementusecase.New(managementusecase.Options{
-		MessageRetention: clusterinfra.NewLocalManagementMessageRetentionOperator(node),
+		CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+		MessageRetention:     clusterinfra.NewLocalManagementMessageRetentionOperator(node),
 	})
 	adapter := accessnode.New(accessnode.Options{ManagerMessageRetention: service, Logger: a.logger.Named("node")})
 	registrar.RegisterRPC(accessnode.ManagerMessageRetentionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerMessageRetentionRPC))
@@ -645,11 +658,13 @@ func (a *App) wireManagerPluginRPC() {
 	if !hasRegistrar || a.plugins == nil {
 		return
 	}
-	service := managementusecase.New(managementusecase.Options{Plugins: a.plugins})
+	service := managementusecase.New(managementusecase.Options{
+		CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix, Plugins: a.plugins})
 	if node, ok := a.cluster.(clusterinfra.ManagementNode); ok {
 		service = managementusecase.New(managementusecase.Options{
-			Cluster: clusterinfra.NewManagementSnapshotReader(node),
-			Plugins: a.plugins,
+			CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+			Cluster:              clusterinfra.NewManagementSnapshotReader(node),
+			Plugins:              a.plugins,
 		})
 	}
 	adapter := accessnode.New(accessnode.Options{
@@ -698,6 +713,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				a.messageIDs = messageIDs
 			}
 			opts := channelappend.Options{
+				CommandChannelSuffix:   a.cfg.Message.CMDChannelSuffix,
 				LocalNodeID:            nodeID,
 				Appender:               clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
 				MessageID:              messageIDs,
@@ -710,9 +726,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			if idempotencyNode, ok := a.cluster.(clusterinfra.ChannelIdempotencyNode); ok {
 				opts.Idempotency = clusterinfra.NewChannelIdempotencyStore(idempotencyNode)
 			}
-			if a.deliveryMeta != nil {
-				opts.Subscribers = a.deliveryMeta
-			} else if a.deliverySubscribers != nil {
+			if a.deliverySubscribers != nil {
 				opts.Subscribers = a.deliverySubscribers
 			} else if subscriberNode, ok := a.cluster.(recipientSubscriberNode); ok {
 				opts.Subscribers = channelAppendSubscriberSource{node: subscriberNode}
@@ -740,14 +754,15 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			}
 			client := clusterinfra.NewChannelAppendClient(authorityNode, remote, metadata)
 			router := channelappend.NewRouter(channelappend.RouterOptions{
-				LocalNodeID:        nodeID,
-				Resolver:           client,
-				Local:              group,
-				Remote:             client,
-				MaxOutboundPerNode: a.cfg.Delivery.EventQueueSize,
-				MaxRouteAttempts:   defaultDeliveryRetryMaxAttempts,
-				Observer:           observer,
-				PressureObserver:   observer,
+				CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+				LocalNodeID:          nodeID,
+				Resolver:             client,
+				Local:                group,
+				Remote:               client,
+				MaxOutboundPerNode:   a.cfg.Delivery.EventQueueSize,
+				MaxRouteAttempts:     defaultDeliveryRetryMaxAttempts,
+				Observer:             observer,
+				PressureObserver:     observer,
 			})
 			a.channelAppends = group
 			a.channelAppendRouter = router
@@ -773,6 +788,8 @@ func (a *App) ensureChannelAppendMetadataCache() *clusterinfra.ChannelAppendMeta
 func (a *App) wireMessages() {
 	if a.messages == nil {
 		messageOpts := message.Options{
+			BeforeSendWebhook:      a.beforeSendWebhook,
+			CommandChannelSuffix:   a.cfg.Message.CMDChannelSuffix,
 			Submitter:              a.channelAppendRouter,
 			SystemUIDs:             a.users,
 			PersonWhitelistEnabled: a.cfg.Message.PersonWhitelistEnabled,
@@ -812,9 +829,11 @@ func (a *App) wireCMDSync() {
 	if a.cmdSync == nil {
 		if node, ok := a.cluster.(clusterinfra.CMDSyncNode); ok {
 			store := clusterinfra.NewCMDSyncStore(node)
+			store.CommandChannelSuffix = a.cfg.Message.CMDChannelSuffix
 			a.cmdSync = cmdsyncusecase.New(cmdsyncusecase.Options{
-				States:   store,
-				Messages: store,
+				CommandChannelSuffix: a.cfg.Message.CMDChannelSuffix,
+				States:               store,
+				Messages:             store,
 			})
 		}
 	}
@@ -866,11 +885,16 @@ func (a *App) wireAPI() {
 			Conversations:            a.conversations,
 			ConversationListObserver: a.conversationListObserver(),
 			LegacyRouteExternal:      legacyRouteExternal,
-			LegacyRouteIntranet:      legacyRouteIntranet,
-			LegacyRouteNodes:         legacyRouteNodes,
-			MetricsHandler:           a.metricsHandler(),
-			DebugAPIEnabled:          a.cfg.Observability.DebugAPIEnabled,
-			DebugConfig:              a.debugConfigSnapshot,
+			LegacyRouteHostFallback: accessapi.LegacyRouteHostFallback{
+				TCP: strings.TrimSpace(a.cfg.API.ExternalTCPAddr) == "",
+				WS:  strings.TrimSpace(a.cfg.API.ExternalWSAddr) == "",
+				WSS: strings.TrimSpace(a.cfg.API.ExternalWSSAddr) == "",
+			},
+			LegacyRouteIntranet: legacyRouteIntranet,
+			LegacyRouteNodes:    legacyRouteNodes,
+			MetricsHandler:      a.metricsHandler(),
+			DebugAPIEnabled:     a.cfg.Observability.DebugAPIEnabled,
+			DebugConfig:         a.debugConfigSnapshot,
 			DebugCluster: func(ctx context.Context) (any, error) {
 				return a.debugClusterSnapshot(ctx)
 			},
@@ -1049,6 +1073,7 @@ func managerPrometheusBaseURL(cfg PrometheusConfig) string {
 func (a *App) newManagerManagement() accessmanager.Management {
 	if node, ok := a.cluster.(clusterinfra.ManagementNode); ok {
 		opts := managementusecase.Options{
+			CommandChannelSuffix:    a.cfg.Message.CMDChannelSuffix,
 			Cluster:                 clusterinfra.NewManagementSnapshotReader(node),
 			Conversations:           a.conversations,
 			ChannelBusinessOperator: newManagerChannelBusinessOperator(a.channels),

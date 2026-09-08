@@ -106,11 +106,11 @@
       "get": {
         "operationId": "getQuickstartGatewayRoute",
         "summary": "Resolve the browser-facing gateway addresses",
-        "description": "Returns configured Gateway addresses; the BFF forwards the WebSocket address required by the browser SDK.",
+        "description": "Returns Gateway addresses for the BFF. Configure explicit client-facing addresses when its API host is unreachable by browsers.",
         "x-i18n": {
           "zh": {
             "summary": "解析面向浏览器的 Gateway 地址",
-            "description": "返回已配置的 Gateway 地址；BFF 只转发浏览器 SDK 所需的 WebSocket 地址。"
+            "description": "返回供 BFF 转发的 Gateway 地址；BFF 使用浏览器不可达的内网 API 地址时，需要显式配置客户端可达的对外地址。"
           }
         },
         "tags": ["Routing"],

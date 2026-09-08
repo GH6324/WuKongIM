@@ -512,8 +512,12 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 				return gnetv2.None
 			}
 			if failure != nil {
-				transport.LogConnectFailure(state.runtime.opts, state.id, state.localAddr, state.remoteAddr, failure.err)
-				state.runtime.reportError(failure.err)
+				// OnError runs before a Session exists, so carry the transport peer
+				// with the cause. Never send internal connection details to the peer.
+				err := fmt.Errorf("websocket handshake rejected: %w (http_status=%d conn_id=%d remote_addr=%q local_addr=%q)",
+					failure.err, failure.statusCode, state.id, state.remoteAddr, state.localAddr)
+				transport.LogConnectFailure(state.runtime.opts, state.id, state.localAddr, state.remoteAddr, err)
+				state.runtime.reportError(err)
 				if len(failure.response) == 0 {
 					_ = c.Close()
 					return gnetv2.None
@@ -544,7 +548,7 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 				}
 			}
 			if len(result.payload) > 0 {
-				if !state.enqueueDataWithOpcode(result.opcode, result.payload) {
+				if !state.enqueueCopiedDataWithOpcode(result.opcode, result.payload) {
 					state.fail(ErrPendingBytesExceeded)
 					_ = c.Close()
 					return gnetv2.None

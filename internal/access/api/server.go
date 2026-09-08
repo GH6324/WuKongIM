@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/access/api/demoui"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
@@ -83,6 +84,17 @@ type LegacyRouteAddresses struct {
 	WSAddr string
 	// WSSAddr is the published secure WebSocket gateway address.
 	WSSAddr string
+}
+
+// LegacyRouteHostFallback permits request-host substitution only for listener-derived
+// default external addresses. Explicit published addresses must leave their flag false.
+type LegacyRouteHostFallback struct {
+	// TCP permits replacing an unspecified TCP listener host.
+	TCP bool
+	// WS permits replacing an unspecified WebSocket listener host.
+	WS bool
+	// WSS permits replacing an unspecified secure WebSocket listener host.
+	WSS bool
 }
 
 // LegacyRouteNodeAddresses stores public and intranet route addresses for one cluster node.
@@ -248,6 +260,9 @@ type Options struct {
 	ConversationListObserver ConversationListObserver
 	// LegacyRouteExternal is the default public gateway address set returned by /route APIs.
 	LegacyRouteExternal LegacyRouteAddresses
+	// LegacyRouteHostFallback selects default external addresses eligible for request-host completion.
+	// It never applies to intranet requests or explicit node selectors.
+	LegacyRouteHostFallback LegacyRouteHostFallback
 	// LegacyRouteIntranet is the default intranet gateway address set returned by /route APIs.
 	LegacyRouteIntranet LegacyRouteAddresses
 	// LegacyRouteNodes maps node_id query parameters to node-specific legacy route addresses.
@@ -296,6 +311,7 @@ type Server struct {
 	conversations        ConversationUsecase
 	conversationObserver ConversationListObserver
 	legacyRouteExternal  LegacyRouteAddresses
+	legacyRouteFallback  LegacyRouteHostFallback
 	legacyRouteIntranet  LegacyRouteAddresses
 	legacyRouteNodes     map[uint64]LegacyRouteNodeAddresses
 	metricsHandler       http.Handler
@@ -344,6 +360,7 @@ func New(opts Options) *Server {
 		conversations:        opts.Conversations,
 		conversationObserver: opts.ConversationListObserver,
 		legacyRouteExternal:  opts.LegacyRouteExternal,
+		legacyRouteFallback:  opts.LegacyRouteHostFallback,
 		legacyRouteIntranet:  opts.LegacyRouteIntranet,
 		legacyRouteNodes:     cloneLegacyRouteNodes(opts.LegacyRouteNodes),
 		metricsHandler:       opts.MetricsHandler,
@@ -680,7 +697,7 @@ func (s *Server) handleBenchCapabilities(c *gin.Context) {
 		Enabled: true,
 		Version: versionV1,
 		Supports: capabilitiesSupports{
-			UsersTokensBatch:               true,
+			UsersTokensBatch:               s.users != nil,
 			ChannelsBatch:                  s.benchData != nil,
 			ChannelSubscribersBatch:        s.benchData != nil,
 			ChannelSubscriberRemovalsBatch: s.benchData != nil,
@@ -775,7 +792,22 @@ func (s *Server) handleBenchTokens(c *gin.Context) {
 		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.addCount("accepted_users", len(items))
+	if s.users == nil {
+		writeBenchError(c, http.StatusNotImplemented, "bench user token writer is not configured")
+		return
+	}
+	// Token preparation uses the same cluster-backed persistence as /user/token.
+	// A failed batch may have a durable prefix; callers can safely upsert it again.
+	for _, item := range items {
+		if err := s.users.UpdateToken(c.Request.Context(), userusecase.UpdateTokenCommand{
+			UID: item.UID, Token: item.Token,
+			DeviceFlag: protocolmeta.DeviceFlag(item.DeviceFlag), DeviceLevel: protocolmeta.DeviceLevel(item.DeviceLevel),
+		}); err != nil {
+			writeBenchError(c, http.StatusInternalServerError, "bench user token update failed")
+			return
+		}
+		s.addCount("accepted_users", 1)
+	}
 	c.JSON(http.StatusOK, mutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: len(items)})
 }
 

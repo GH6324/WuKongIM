@@ -1,11 +1,13 @@
 ---
 title: Webhooks
-description: Configure the three asynchronous callbacks WuKongIM sends to a product endpoint.
+description: Configure synchronous before-send admission and three asynchronous notifications.
 ---
 
 Webhooks POST committed messages, offline-candidate recipients, and presence changes to one product endpoint. This is a server-outbound protocol, not a client inbox and not an inbound Product HTTP `path`.
 
 [Download the OpenAPI 3.1 Webhook contract](/contracts/webhooks.openapi.json)
+
+`msg.before_send` is independently enabled synchronous admission; its response allows, replaces, or rejects the send. Queue and retry semantics below apply only to the three asynchronous notifications. See [Before-send business callback](/en/guide/integration/webhooks#before-send-business-callback) for configuration, requests, and failure policies.
 
 ## Request
 
@@ -18,13 +20,14 @@ Existing query parameters are preserved and `event` is set or replaced. The even
 
 | Event | Top-level JSON |
 | --- | --- |
+| `msg.before_send` | one uncommitted message; synchronous send decision |
 | `msg.notify` | array of committed messages |
 | `msg.offline` | flattened message object with offline UIDs |
 | `user.onlinestatus` | array of compatibility status strings |
 
 ## Configuration
 
-A non-empty `http_addr` enables webhooks. `focus_events=[]` delivers all three events.
+A non-empty `webhook.http_addr` enables asynchronous notifications. `focus_events=[]` delivers all three events.
 
 ```toml
 [webhook]
@@ -42,11 +45,11 @@ retry_max_attempts = 3
 ```
 
 <Cards>
-  <Card title="Event Types" description="The three events and their trigger boundaries." href="/en/api/webhooks/events" />
+  <Card title="Event Types" description="Synchronous decisions and three asynchronous notification triggers." href="/en/api/webhooks/events" />
   <Card title="Payloads" description="Message fields, offline UID compression, and status strings." href="/en/api/webhooks/payloads" />
   <Card title="Reliability & Security" description="Bounded retries, idempotency, loss boundaries, and network trust." href="/en/api/webhooks/reliability-and-security" />
 </Cards>
 
-<Callout type="warn" title="Bounded and best effort">
+<Callout type="warn" title="Asynchronous notifications are bounded and best effort">
   The current runtime uses node-memory queues with no disk outbox or crash replay. Receivers should durably enqueue and deduplicate before returning HTTP 200 promptly.
 </Callout>

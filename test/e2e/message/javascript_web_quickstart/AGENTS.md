@@ -7,14 +7,23 @@ single-node cluster and a real Chromium browser.
 
 - Keep the Go test responsible for the real `cmd/wukongim` lifecycle, the
   256-Hash-Slot topology override, and isolated loopback addresses.
+- Keep Token authentication enabled. Wait for Product HTTP readiness, then let
+  browser sessions prove authenticated Gateway readiness through BFF-issued
+  credentials; do not use the anonymous generic WKProto probe.
 - Keep application-integration assertions in the quickstart sample's
   Playwright spec. The browser must reach Product HTTP only through the
   localhost BFF and must discover its WebSocket URL through `/route`.
 - Cover Alice/Bob bidirectional durable sends, successful SENDACK and receive,
   Bob disconnecting before Alice sends, and Bob reconnecting and recovering
-  the offline message through sync.
+  the offline message in the sync response, displayed once whether reconnect
+  delivery or the history response arrives first.
+- The sample BFF retries empty latest pages within the existing finite directory
+  projection budget. Keep the browser assertion on the recovered history content;
+  do not replace it with a delay or accept an empty successful response.
 - Keep this scenario opt-in with `WK_E2E_DOCS_JAVASCRIPT_WEB=1` so the complete
   Go e2e suite does not require npm or Chromium.
+- Failure summaries may expose only capture bounds and at most four numeric
+  locations from the fixed browser spec, never raw assertion values.
 - Keep command output bounded but never publish its raw tail or the node log
   tail. On failure retain at most three Playwright PNG screenshots under the
   ignored `tmp/docs-site-e2e/` directory, with each image capped at 2 MiB;

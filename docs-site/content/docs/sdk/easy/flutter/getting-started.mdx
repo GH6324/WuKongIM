@@ -1,38 +1,11 @@
 ---
 title: Flutter 快速接入
-description: 精确安装 WuKongEasySDK Flutter 1.1.0，用可连续复制的 Dart 代码完成连接、在线收发与 Widget 清理。
+description: 安装固定版本 1.1.0，通过业务后端提供的连接材料完成在线双向收发和退出清理。
 ---
 
-使用一个 `StatefulWidget` 依次完成安装、初始化、监听、单聊发送和 `dispose` 清理。Alice 与 Bob 运行在两个独立设备、模拟器或浏览器上下文中。
+本教程使用 **1.1.0**，让 Alice 与 Bob 在两个独立客户端中在线收发。连接由 WebSocket JSON-RPC CONNECT 完成鉴权。
 
-<Callout type="info" title="当前 Product Gateway 支持这条连接路径">
-  当前 Product Gateway 支持固定 `v1.1.0` 的 JSON-RPC CONNECT 与在线双向收发：客户端以 Base64 发送，服务端对有效 JSON 输出对象 RECV。设备线路值为 APP `0`、WEB `1`、PC `2`。教程使用 [pub.dev 1.1.0](https://pub.dev/packages/wukong_easy_sdk/versions/1.1.0) 与对应 [Release](https://github.com/WuKongIM/WuKongEasySDK-Flutter/releases/tag/v1.1.0)；同一 revision `98ab8f3d9a1ad53f40c32caef0979845a37ae9a6` 的官方 example 与从 pub.dev 解析的正式包均已在 iOS Simulator 完成双向消息和断开。其他 Flutter 目标、WSS 与生产 Token 校验仍须独立验收。
-</Callout>
-
-## 完成后你会得到什么
-
-- `pubspec.yaml` 中锁定为 `1.1.0` 的依赖；
-- 一个不会在 Widget 重建时重复注册监听器的页面；
-- Alice 的发送结果与 Bob 的实时消息事件；
-- 清晰的退出、去重、Token、WSS 与后续离线能力边界。
-
-## 先运行官方 example（推荐）
-
-```bash
-git clone https://github.com/WuKongIM/WuKongEasySDK-Flutter.git
-cd WuKongEasySDK-Flutter
-git checkout 98ab8f3d9a1ad53f40c32caef0979845a37ae9a6
-flutter pub get
-flutter analyze
-flutter test
-cd example
-flutter pub get
-flutter run -d <device-id>
-```
-
-这个 revision 就是正式 `v1.1.0`；源码 example 和 hosted 正式包的完整服务端准备、设备地址及 Alice/Bob 验收见[运行官方示例](/zh/sdk/easy/examples)。
-
-## 开始前
+## 1. 准备接入
 
 准备以下条件：
 
@@ -43,7 +16,11 @@ flutter run -d <device-id>
 
 先阅读[身份与 Token](/zh/guide/integration/authentication)。如果应用同时构建移动端、桌面端和 Web，请把每个目标分别验收，不能用一个平台的结果推断全部平台。
 
-## 步骤 1：安装精确版本
+想先看到实际收发效果，可按[运行官方示例](/zh/sdk/easy/examples#flutter)准备两端；下文说明如何接入自己的应用。
+
+默认设备类别为 **APP `0`**；业务后端保存 Token 时使用相同的 `device_flag`。APP 为 `0`，WEB 为 `1`，PC 为 `2`。
+
+## 2. 安装 SDK
 
 在 `pubspec.yaml` 中添加精确版本：
 
@@ -62,7 +39,7 @@ flutter pub get
 
 提交更新后的 `pubspec.lock`，确保 CI 与开发机安装同一版本。
 
-## 步骤 2：接收业务后端的连接材料
+## 3. 连接与监听
 
 ```dart
 class IMBootstrap {
@@ -79,8 +56,6 @@ class IMBootstrap {
 ```
 
 业务后端先验证产品登录，再返回这三个字段。客户端不持有 Product HTTP 管理凭据，生产地址使用 `wss://`。
-
-## 步骤 3：初始化并保存监听器引用
 
 以下页面只在 `initState` 触发一次初始化。每个回调都保存为字段，才能在 `dispose` 中传回同一个函数引用。
 
@@ -132,7 +107,12 @@ class _ChatPageState extends State<ChatPage> {
     };
     messageListener = (message) {
       if (!mounted) return;
-      setState(() => messagesById[message.messageId] = message);
+      setState(() {
+        messagesById[message.messageId] = message;
+        if (messagesById.length > 100) {
+          messagesById.remove(messagesById.keys.first);
+        }
+      });
     };
     errorListener = (error) {
       debugPrint('EasySDK operation failed');
@@ -218,7 +198,7 @@ class _ChatPageState extends State<ChatPage> {
 
 页面级 `dispose()` 适合最小示例。`Future.timeout` 把完整连接等待限制为 20 秒，并在超时或其他失败后断开；不要让页面永久停在 Connecting。真实应用如果希望切换页面时连接保持，应让 Provider、Riverpod、Bloc 或其他应用级状态容器拥有 SDK；页面只添加和移除自己的监听器，最终退出账号时再 `disconnect` 与 `dispose`。
 
-## 步骤 4：发送第一条消息
+## 4. 收发第一条消息
 
 在 `_ChatPageState` 中加入：
 
@@ -242,8 +222,6 @@ Future<void> sendText(String targetUid, String text) async {
 
 调用 `sendText('bob', 'Hello from Flutter EasySDK')` 后，Alice 记录 `SendResult`。Bob 必须在自己的 `messageListener` 中独立看到消息；发送结果和实时接收不是同一个事件。
 
-## 步骤 5：用 Alice 和 Bob 验收
-
 1. 在两台设备、两个模拟器或两个独立浏览器上下文中分别启动 Alice 与 Bob；
 2. 两端都等到 `WuKongEvent.connect` 后再启用发送；
 3. Alice 向个人 Channel `bob` 发送消息，记录 ID、序号和 Reason Code；
@@ -251,9 +229,11 @@ Future<void> sendText(String targetUid, String text) async {
 5. Bob 向 Alice 回发，验证反向链路；
 6. 销毁并重新打开页面，确认没有重复监听，再验证退出账号后的资源释放。
 
-上述正式 `v1.1.0` example 已在 iOS Simulator 连接同一版 WuKongIM，完成双向消息；25 个测试和静态分析也通过。从 pub.dev 解析且 package config 标记为 `hosted` 的同版本产物随后在托管 iOS Simulator 再次完成双向消息和断开。该闭环没有证明 Android、Web、桌面目标、应用后台恢复、离线消息同步或多端会话一致性，继续按[消息收发](/zh/guide/integration/messaging)和[上线检查](/zh/guide/integration/acceptance)补齐。
+## 5. 清理连接
 
-## 常见问题
+页面退出会移除监听器、`disconnect()` 并 `dispose()`。若跨页面维持连接，将 SDK 放到应用级状态容器，只在退出账号时释放。示例的消息列表只保留最近 100 条。
+
+## 6. 常见问题
 
 - **初始化或切换 UID 后状态异常**：等待 `easySDK.init(config)` 完成后再连接；切换账号前先移除监听、断开并 `dispose`，同时清空产品本地状态。
 - **Widget 重建后重复收消息**：不要在 `build` 中注册监听器；保存回调引用并在 `dispose` 移除。
@@ -262,14 +242,6 @@ Future<void> sendText(String targetUid, String text) async {
 - **真机连不上本地地址**：`localhost` 指向真机自身，让业务后端返回设备可达的 WSS 地址。
 - **发送成功但 UI 没有对方消息**：把发送结果、实时接收和离线恢复分开检查。
 
-## 上线前检查
-
-- 为 Android、iOS、Web、桌面等每个实际目标分别保存构建与运行结果，不跨平台推断；
-- 使用 `wss://`，验证证书、代理 Upgrade、连接超时、前后台切换与断网恢复；
-- `debugLogging` 默认关闭；生产保持 `false`，若使用 `logHandler`，只能接收 SDK 已脱敏元数据，应用不得追加 Token、Payload 或完整模型；
-- 按 APP `0`、WEB `1`、PC `2` 核对设备值，保存 `pubspec.lock`、Release 产物、设备、网络和服务端 revision；
-- 使用[上线验收](/zh/guide/integration/acceptance)继续验证离线、推送、多设备、容量、升级与回滚。
-
 ## 下一步
 
-回到 [WuKongEasySDK 概览](/zh/sdk/easy)，或继续阅读[消息收发](/zh/guide/integration/messaging)、[会话与未读数](/zh/guide/core-concepts/conversations)和[上线检查](/zh/guide/integration/acceptance)。
+继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#flutter)保留各次验证的完整环境和范围。

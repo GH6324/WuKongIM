@@ -174,7 +174,7 @@ curl -sS http://127.0.0.1:5001/message/sync \
 
 Call `/message/syncack` after processing that response. It advances the server-recorded latest CMD sync generation; the request `last_message_seq` is a required compatibility field, not proof of device execution. When the device permanently loses command access to this source Channel, call `/message/cmd/unbind` with the same binding request shape.
 
-Request-scoped `subscribers` can provide bounded immediate targeting, but they do not automatically create CMD discovery membership and cannot directly promise reconnect recovery. An online-only command must set both `no_persist=1` and `sync_once=1`. It has no durable sequence, offline sync, ordinary conversation, or `msg.offline`. A plain non-command `NoPersist` can return compatibility success without any realtime delivery.
+Request-scoped `subscribers` can provide bounded immediate targeting, but they do not automatically create CMD discovery membership and cannot directly promise reconnect recovery. An online-only command must set both `no_persist=1` and `sync_once=1`. It has no durable sequence, offline sync, ordinary conversation, or `msg.offline`. Ordinary online-only messages can use `no_persist=1, sync_once=0` and retain their source Channel, with the same lack of offline recovery.
 
 ## Close the loop with a business result
 

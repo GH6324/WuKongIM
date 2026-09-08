@@ -117,14 +117,15 @@ type initialNodeConfig struct {
 }
 
 type initialClusterConfig struct {
-	ListenAddr      string               `toml:"listen_addr"`
-	ID              string               `toml:"id"`
-	Nodes           []initialClusterNode `toml:"nodes"`
-	JoinToken       string               `toml:"join_token"`
-	InitialSlots    uint32               `toml:"initial_slot_count"`
-	HashSlots       uint16               `toml:"hash_slot_count"`
-	SlotReplicas    uint16               `toml:"slot_replica_n"`
-	ChannelReplicas uint16               `toml:"channel_replica_n"`
+	ListenAddr string               `toml:"listen_addr"`
+	ID         string               `toml:"id"`
+	Nodes      []initialClusterNode `toml:"nodes"`
+	JoinToken  string               `toml:"join_token"`
+	// InitialSlots seeds the first Controller snapshot; persisted clusters keep their Slot count.
+	InitialSlots    uint32 `toml:"initial_slot_count"`
+	HashSlots       uint16 `toml:"hash_slot_count"`
+	SlotReplicas    uint16 `toml:"slot_replica_n"`
+	ChannelReplicas uint16 `toml:"channel_replica_n"`
 }
 
 type initialClusterNode struct {
@@ -221,7 +222,7 @@ func renderInitialConfig(clusterID, joinToken, jwtSecret, adminPassword string, 
 			ID:              clusterID,
 			Nodes:           []initialClusterNode{{ID: 1, Addr: "127.0.0.1:7001"}},
 			JoinToken:       joinToken,
-			InitialSlots:    10,
+			InitialSlots:    12,
 			HashSlots:       256,
 			SlotReplicas:    1,
 			ChannelReplicas: 1,

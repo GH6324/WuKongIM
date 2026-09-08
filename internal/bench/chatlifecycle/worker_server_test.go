@@ -808,7 +808,7 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	t.Parallel()
 
 	config := LocalConfig()
-	generation, err := NewEngineWorkerGenerationFactory().New(WorkerAssignment{
+	generation, err := NewEngineWorkerGenerationFactory("bench-test-token").New(WorkerAssignment{
 		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "real-engine", Generation: 1},
 		WorkerID:    1, WorkerCount: uint64(config.Workload.Workers), Config: config,
 	})
@@ -947,7 +947,7 @@ func TestEngineWorkerGenerationFormalSnapshotReservesBootstrapRelationshipWork(t
 
 	config := FormalConfig()
 	for workerID, wantWorkCapacity := range []int{152_698, 152_651, 152_651} {
-		generation, err := NewEngineWorkerGenerationFactory().New(WorkerAssignment{
+		generation, err := NewEngineWorkerGenerationFactory("bench-test-token").New(WorkerAssignment{
 			WorkerFence: WorkerFence{
 				RunID: config.RunID, AssignmentID: "formal-relationship-capacity", Generation: 1,
 			},
@@ -1422,7 +1422,7 @@ func TestWorkerEngineGenerationRejectsOverflowAndReportsClockRollbackAsFatalRunt
 		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "fatal", Generation: maxLogicalGeneration + 1},
 		WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), Config: config,
 	}
-	if generation, err := NewEngineWorkerGenerationFactory().New(assignment); !errors.Is(err, errWorkerServerConfig) || generation != nil {
+	if generation, err := NewEngineWorkerGenerationFactory("bench-test-token").New(assignment); !errors.Is(err, errWorkerServerConfig) || generation != nil {
 		t.Fatalf("overflow generation = %#v, %v; want nil, %v", generation, err, errWorkerServerConfig)
 	}
 

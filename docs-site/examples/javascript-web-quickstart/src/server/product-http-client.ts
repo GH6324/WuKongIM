@@ -156,7 +156,20 @@ export class ProductHttpClient {
           `POST /channel/messagesync failed with HTTP ${response.status}`,
         );
       }
-      return parseSyncedMessages(await response.json());
+      const messages = parseSyncedMessages(await response.json());
+      // UID membership is projected after durable SENDACK. A latest-page pull
+      // can therefore return 200 with no messages before the directory is ready.
+      // Reuse the finite projection budget; ordinary cursor pages return at once.
+      if (
+        messages.length === 0 &&
+        input.startMessageSeq === 0 &&
+        input.endMessageSeq === 0 &&
+        attempt < this.#personDirectoryRetry.maxAttempts
+      ) {
+        await this.#personDirectoryRetry.wait(this.#personDirectoryRetry.delayMs);
+        continue;
+      }
+      return messages;
     }
 
     throw new Error("POST /channel/messagesync exhausted its bounded retry");

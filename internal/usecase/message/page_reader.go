@@ -182,9 +182,9 @@ func (s *messagePageScan) consume(rows []SyncedMessage) (bool, error) {
 		}
 		s.next.FromSeq = last + 1
 	}
-	// A small initial page can be entirely controls. Continue in fixed bounded
-	// chunks rather than paying one remote read for each missing visible row.
-	s.next.Limit = messagePageScanChunk
+	// Keep remote responses proportional to the remaining visible demand. A
+	// hidden record must not amplify a small page into a full raw-history chunk.
+	s.next.Limit = min(messagePageScanChunk, s.plan.limit+1-len(s.kept))
 	return false, nil
 }
 

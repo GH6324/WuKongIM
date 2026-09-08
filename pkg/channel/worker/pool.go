@@ -12,6 +12,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
+// DefaultStoreAppendBatchMaxWait bounds cross-channel store-append coalescing when no override is set.
+const DefaultStoreAppendBatchMaxWait = 250 * time.Microsecond
+
 const (
 	// DefaultStoreAppendWorkers is the qualified leader append pool size for
 	// sustained 2,000 SEND/s three-replica workloads.
@@ -26,7 +29,7 @@ const (
 	DefaultRPCBatchMaxItems      = 8
 	rpcBatchMaxWait              = 250 * time.Microsecond
 	storeAppendBatchMaxItems     = 64
-	storeAppendBatchMaxWait      = 250 * time.Microsecond
+	storeAppendBatchMaxWait      = DefaultStoreAppendBatchMaxWait
 	storeApplyBatchMaxItems      = 64
 	storeApplyBatchMaxWait       = 250 * time.Microsecond
 	storeCheckpointBatchMaxItems = 64

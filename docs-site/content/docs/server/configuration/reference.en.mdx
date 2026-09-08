@@ -117,6 +117,8 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 | `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | WebSocket URL override published to capacity discovery and similar callers; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener and is redacted from diagnostic artifacts. |
 | `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | Secure WebSocket URL override published to capacity discovery and similar callers; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener and is redacted from diagnostic artifacts. |
 
+When the corresponding `api.external_*` is omitted, default external `/route` and `/route/batch` complete only wildcard listener hosts from a valid request Host, preserving the Gateway port, scheme, and path. Explicit addresses, concrete listener hosts (including loopback), intranet queries, and explicit node selectors stay unchanged; capacity discovery still returns listener-derived addresses. Completed responses use `Cache-Control: no-store`. Completion ignores forwarded headers and cannot infer NAT ports or TLS ingress; reverse proxies should preserve the original Host. Configure client-reachable overrides for remapped external ports, separate ingress, or a backend calling `/route` through an internal host.
+
 ## Manager
 
 | TOML | Environment | Type | Description |
@@ -203,6 +205,7 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 | TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
 | `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | Enforces receiver-side allowlist checks for person messages; disabled by default for compatibility. |
+| `message.cmd_channel_suffix` | `WK_MESSAGE_CMD_CHANNEL_SUFFIX` | `string` | Reserved command-channel suffix; omitted or empty uses `____cmd`. Only ASCII letters, digits, underscores and hyphens are allowed; reserve it from business channel IDs. Must match on every node and requires restart. Choose before first use: changing it does not migrate stored command channels or UID bindings and can make pending commands inaccessible. |
 | `message.system_uid` | `WK_MESSAGE_SYSTEM_UID` | `string` | Primary system account UID used when trusted sends omit a sender; omitted or empty uses `____system`. Every cluster node must use the same value. |
 | `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | Device ID for trusted system sessions; omitted or empty uses `____device`, so an empty value cannot disable recognition. Such sessions may bypass channel-type send permissions after the send-ban check. |
 | `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | Cache lifetime for permission, membership, and missing-channel reads; `0` disables caching. |
@@ -253,6 +256,12 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 | `webhook.offline_uid_batch_size` | `WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE` | `int` | Maximum offline UIDs in one `msg.offline` request; `0` uses `512`. |
 | `webhook.request_timeout` | `WK_WEBHOOK_REQUEST_TIMEOUT` | `duration` | Timeout for one outbound webhook request attempt; `0` uses `5s`. |
 | `webhook.retry_max_attempts` | `WK_WEBHOOK_RETRY_MAX_ATTEMPTS` | `int` | Maximum attempts for an admitted webhook batch before it is dropped; `0` uses `3`. |
+| `webhook.before_send.enabled` | `WK_WEBHOOK_BEFORE_SEND_ENABLED` | `bool` | Independently enable synchronous admission; defaults to false. |
+| `webhook.before_send.http_addr` | `WK_WEBHOOK_BEFORE_SEND_HTTP_ADDR` | `string` | HTTP(S) callback endpoint, required when enabled and redacted in diagnostics. |
+| `webhook.before_send.timeout` | `WK_WEBHOOK_BEFORE_SEND_TIMEOUT` | `duration` | Callback deadline; zero uses 500ms, capped by the original send deadline. |
+| `webhook.before_send.on_timeout` | `WK_WEBHOOK_BEFORE_SEND_ON_TIMEOUT` | `string` | Callback timeout policy: allow or deny; defaults to deny. |
+| `webhook.before_send.on_error` | `WK_WEBHOOK_BEFORE_SEND_ON_ERROR` | `string` | Callback error policy: allow or deny; defaults to deny and never overrides explicit rejection. |
+| `webhook.before_send.max_in_flight` | `WK_WEBHOOK_BEFORE_SEND_MAX_IN_FLIGHT` | `int` | Per-node concurrency limit; zero uses 256, saturation rejects immediately. |
 
 ## Plugin
 

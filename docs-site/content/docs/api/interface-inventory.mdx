@@ -5,7 +5,7 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 
 本页回答“源码里还有哪些入口”。它是边界清单，不把内部接口升级为公共兼容承诺。
 
-## Manager：108 条私有路由
+## Manager：109 条私有路由
 
 权威注册点是 `internal/access/manager/server.go`、`backups.go` 和 `restore.go`。
 
@@ -15,7 +15,7 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 | Login | 1 | 固定用户登录 | 不注册 |
 | Permissions | 1 | `cluster.permission:r` | 无权限门槛 |
 | MCP read / write | 2 / 5 | `cluster.mcp:r` / `cluster.mcp:w` | 失败关闭 |
-| Node read / write | 8 / 12 | `cluster.node:r` / `cluster.node:w` | 无权限门槛 |
+| Node read / write | 9 / 12 | `cluster.node:r` / `cluster.node:w` | 无权限门槛 |
 | Slot read / write | 3 / 3 | `cluster.slot:r` / `cluster.slot:w` | 无权限门槛 |
 | Controller read / write | 6 / 3 | `cluster.controller:r` / `cluster.controller:w` | 无权限门槛 |
 | Diagnostics read / write | 4 / 2 | `cluster.diagnostics:r` / `cluster.diagnostics:w` | 无权限门槛 |
@@ -30,9 +30,11 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 | Backup read / write | 2 / 7 | `cluster.backup:r` / `cluster.backup:w` | 读无门槛；写失败关闭 |
 | Restore write | 2 | 精确 `cluster.restore:w` | 失败关闭 |
 
-合计 `108`。`POST /manager/slots/leader-transfer-plan` 是只生成计划的读权限路由。`ANY /mcp` 的 MCP Handler 实际只接受 POST，拒绝非空 Origin；其余 Manager 路由使用开放 CORS。完整 method/path 集合由 `lib/api-surface-contracts.ts` 保存并由源码测试校验。
+合计 `109`。`POST /manager/slots/leader-transfer-plan` 是只生成计划的读权限路由。`ANY /mcp` 的 MCP Handler 实际只接受 POST，拒绝非空 Origin；其余 Manager 路由使用开放 CORS。完整 method/path 集合由 `lib/api-surface-contracts.ts` 保存并由源码测试校验。
 
-## Node transport：56 个共享编号
+`GET /manager/nodes/:node_id/config/toml` 返回版本化、脱敏的启动 TOML 文档，使用相同的 `cluster.node:r` 读取权限。
+
+## Node transport：58 个共享编号
 
 受众是 **cluster-internal**。共享 TCP transport 没有逐调用 Bearer 或 TLS 身份；只有加入流程检查 Join Token，其余调用信任集群路由和隔离网络。
 
@@ -41,8 +43,10 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 | `1–31` | `slot_forward_propose`, `channel_pull`, `channel_ack`, `channel_pull_hint`, `channel_notify`, `control_state_sync`, `control_report_node`, `control_report_slots`, `channel_append`, `channel_append_batch`, `control_raft`, `control_task_result`, `presence_authority`, `presence_owner`, `delivery_push`, `delivery_fanout`, `channel_pull_batch`, `channel_pull_hint_batch`, `channel_last_visible`, `reserved_conversation`, `channel_authority_send`, `manager_connection`, `manager_logs`, `manager_controller_raft`, `manager_slot_raft`, `manager_channels`, `manager_db_inspect`, `manager_app_logs`, `manager_diagnostics`, `manager_plugins`, `plugin_binding_scan` |
 | `32–33` | `msg_slot_raft`, `msg_slot_raft_batch` |
 | `64–86` | `control_write`, `manager_message_retention`, `node_lifecycle`, `slot_status`, `manager_task_audit`, `channel_migration_meta`, `message_event_append`, `manager_node_config`, `manager_latest_messages`, `scheduled_backup_messages`, `scheduled_backup_slot`, `scheduled_backup_probe`, `scheduled_backup_restore`, `operations_mcp`, `manager_goroutines`, `slot_subscriber_metadata`, `slot_channel_metadata`, `channel_conversation_heads`, `channel_committed_reads`, `slot_user_membership`, `slot_runtime_metadata`, `slot_permission_metadata_batch`, `channel_quorum_exchange` |
+| `87` | `slot_identity_metadata` |
+| `88` | `manager_node_config_document` |
 
-ID `16` 是退役保留项，ID `20` 是删除功能的保留项，均不得复用。默认 Slot proxy 使用已晋升的 `79/80/83/84/85`；通用但非默认的 Slot Store 仍声明私有 `4/47/53`，其中 `4` 与共享 `channel_pull_hint` 冲突，因此不能视为稳定目录。这些协议只能进入“不稳定内部合同”页，不能生成伪 OpenAPI 路径。
+ID `16` 是退役保留项，ID `20` 是删除功能的保留项，均不得复用。默认 Slot proxy 使用已晋升的 `79/80/83/84/85/87`；默认身份处理器仅接受 `get_device`，不开放用户读取或扫描；身份元数据使用 `87`，避免原来的 `4` 与 `channel_pull_hint` 冲突。通用但非默认的 Slot Store 仍声明私有 `47/53`，这些仍不能视为稳定目录。这些协议只能进入“不稳定内部合同”页，不能生成伪 OpenAPI 路径。
 
 ## MCP
 

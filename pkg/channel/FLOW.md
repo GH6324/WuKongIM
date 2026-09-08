@@ -62,9 +62,10 @@ DTOs, and `worker` bounds blocking I/O.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
   Install preserves every observed suffix, proves compatible voter tails on one
-  exact hash chain, and copies missing proposals in bounded pages. Probe rounds
+  exact hash chain, and copies at most one bounded page before yielding for a fresh proof. Probe rounds
   consume arrived evidence plus the local result, then use a quorum without waiting
-  for outstanding voters; identity pages retain only stable supporters. A fresh
+  for outstanding voters; convergence rechecks require all previously observed
+  tails, while ordinary identity pages retain stable quorum supporters. A fresh
   quorum-identical prefix proof precedes append-only local repair; authority
   recovery completes only after the deterministic current-term barrier. Non-ISR learners receive quorum-proven exact proposals through the
   bounded repair workers without contributing votes; page progress survives

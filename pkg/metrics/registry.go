@@ -16,25 +16,26 @@ import (
 type Registry struct {
 	registry *prometheus.Registry
 
-	Gateway         *GatewayMetrics
-	Channel         *ChannelMetrics
-	ChannelAppend   *ChannelAppendMetrics
-	ChannelRuntime  *ChannelRuntimeMetrics
-	Slot            *SlotMetrics
-	Controller      *ControllerMetrics
-	Transport       *TransportMetrics
-	Storage         *StorageMetrics
-	Message         *MessageMetrics
-	Conversation    *ConversationMetrics
-	Delivery        *DeliveryMetrics
-	Presence        *PresenceMetrics
-	Plugin          *PluginMetrics
-	Diagnostics     *DiagnosticsMetrics
-	RuntimePressure *RuntimePressureMetrics
-	AntsPool        *AntsPoolMetrics
-	NodeResource    *NodeResourceMetrics
-	NodeLifecycle   *NodeLifecycleMetrics
-	OpsMCP          *OpsMCPMetrics
+	Gateway           *GatewayMetrics
+	Channel           *ChannelMetrics
+	ChannelAppend     *ChannelAppendMetrics
+	ChannelRuntime    *ChannelRuntimeMetrics
+	Slot              *SlotMetrics
+	Controller        *ControllerMetrics
+	Transport         *TransportMetrics
+	Storage           *StorageMetrics
+	Message           *MessageMetrics
+	Conversation      *ConversationMetrics
+	Delivery          *DeliveryMetrics
+	Presence          *PresenceMetrics
+	Plugin            *PluginMetrics
+	BeforeSendWebhook *BeforeSendWebhookMetrics
+	Diagnostics       *DiagnosticsMetrics
+	RuntimePressure   *RuntimePressureMetrics
+	AntsPool          *AntsPoolMetrics
+	NodeResource      *NodeResourceMetrics
+	NodeLifecycle     *NodeLifecycleMetrics
+	OpsMCP            *OpsMCPMetrics
 }
 
 func New(nodeID uint64, nodeName string) *Registry {
@@ -48,26 +49,27 @@ func New(nodeID uint64, nodeName string) *Registry {
 	}
 
 	return &Registry{
-		registry:        registry,
-		Gateway:         newGatewayMetrics(registry, labels),
-		Channel:         newChannelMetrics(registry, labels),
-		ChannelAppend:   newChannelAppendMetrics(registry, labels),
-		ChannelRuntime:  newChannelRuntimeMetrics(registry, labels),
-		Slot:            newSlotMetrics(registry, labels),
-		Controller:      newControllerMetrics(registry, labels),
-		Transport:       newTransportMetrics(registry, labels),
-		Storage:         newStorageMetrics(registry, labels),
-		Message:         newMessageMetrics(registry, labels),
-		Conversation:    newConversationMetrics(registry, labels),
-		Delivery:        newDeliveryMetrics(registry, labels),
-		Presence:        newPresenceMetrics(registry, labels),
-		Plugin:          newPluginMetrics(registry, labels),
-		Diagnostics:     newDiagnosticsMetrics(registry, labels),
-		RuntimePressure: newRuntimePressureMetrics(registry, labels),
-		AntsPool:        newAntsPoolMetrics(registry, labels),
-		NodeResource:    newNodeResourceMetrics(registry, labels),
-		NodeLifecycle:   newNodeLifecycleMetrics(registry, labels),
-		OpsMCP:          newOpsMCPMetrics(registry, labels),
+		registry:          registry,
+		Gateway:           newGatewayMetrics(registry, labels),
+		Channel:           newChannelMetrics(registry, labels),
+		ChannelAppend:     newChannelAppendMetrics(registry, labels),
+		ChannelRuntime:    newChannelRuntimeMetrics(registry, labels),
+		Slot:              newSlotMetrics(registry, labels),
+		Controller:        newControllerMetrics(registry, labels),
+		Transport:         newTransportMetrics(registry, labels),
+		Storage:           newStorageMetrics(registry, labels),
+		Message:           newMessageMetrics(registry, labels),
+		Conversation:      newConversationMetrics(registry, labels),
+		Delivery:          newDeliveryMetrics(registry, labels),
+		Presence:          newPresenceMetrics(registry, labels),
+		Plugin:            newPluginMetrics(registry, labels),
+		BeforeSendWebhook: newBeforeSendWebhookMetrics(registry, labels),
+		Diagnostics:       newDiagnosticsMetrics(registry, labels),
+		RuntimePressure:   newRuntimePressureMetrics(registry, labels),
+		AntsPool:          newAntsPoolMetrics(registry, labels),
+		NodeResource:      newNodeResourceMetrics(registry, labels),
+		NodeLifecycle:     newNodeLifecycleMetrics(registry, labels),
+		OpsMCP:            newOpsMCPMetrics(registry, labels),
 	}
 }
 

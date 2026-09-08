@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -33,12 +34,20 @@ func TestJavaScriptWebQuickstartInChromium(t *testing.T) {
 	}
 
 	s := suite.New(t)
-	node := s.StartSingleNodeCluster(
+	cluster := s.StartStaticCluster(1,
 		suite.WithWebSocketGateway(),
 		suite.WithNodeConfigOverrides(1, map[string]string{
 			"WK_CLUSTER_HASH_SLOT_COUNT": "256",
+			"WK_GATEWAY_TOKEN_AUTH_ON":   "true",
 		}),
 	)
+
+	// The browser proves authenticated Gateway readiness after the BFF provisions
+	// each identity. An anonymous WKProto probe would fail with token auth enabled.
+	node := cluster.MustNode(1)
+	readyCtx, cancelReady := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelReady()
+	require.NoError(t, cluster.WaitHTTPReady(readyCtx))
 
 	routeCtx, cancelRoute := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelRoute()
@@ -77,8 +86,9 @@ func TestJavaScriptWebQuickstartInChromium(t *testing.T) {
 	cmd.Stderr = output
 	if err := runBrowserCommand(browserCtx, cmd, docsQuickstartProcessStopTimeout); err != nil {
 		t.Fatalf(
-			"JavaScript web quickstart browser smoke failed: %v; subprocess output withheld; bounded screenshots: %s (%s)",
+			"JavaScript web quickstart browser smoke failed: %v; subprocess output withheld; assertion lines: %v; bounded screenshots: %s (%s)",
 			err,
+			output.AssertionLines(),
 			browserOutputDir,
 			output.Summary(),
 		)
@@ -245,4 +255,25 @@ func (b *boundedTailBuffer) Summary() string {
 	defer b.mu.Unlock()
 
 	return fmt.Sprintf("captured=%d bytes retained-in-memory=%d bytes", b.total, len(b.data))
+}
+
+// AssertionLines extracts at most four numeric locations from the fixed browser
+// spec without exposing paths, identities, payloads, or raw subprocess text.
+func (b *boundedTailBuffer) AssertionLines() []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	matches := regexp.MustCompile(`quickstart\.spec\.ts:([1-9][0-9]{0,3}):[1-9][0-9]{0,3}`).FindAllSubmatch(b.data, 4)
+	lines := make([]string, 0, len(matches))
+	for _, match := range matches {
+		lines = append(lines, string(match[1]))
+	}
+	return lines
+}
+
+func TestBrowserAssertionLocationsNeverExposeCapturedValues(t *testing.T) {
+	buffer := &boundedTailBuffer{limit: 1024}
+	_, err := buffer.Write([]byte("token-secret /private/uid/quickstart.spec.ts:74:6 alice-offline quickstart.spec.ts:secret:2"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"74"}, buffer.AssertionLines())
+	require.NotContains(t, buffer.Summary(), "secret")
 }

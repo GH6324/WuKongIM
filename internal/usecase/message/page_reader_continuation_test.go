@@ -204,3 +204,30 @@ type scanFunction func(context.Context, []CommittedMessageQuery) ([]CommittedMes
 func (f scanFunction) ReadCommittedMessages(ctx context.Context, q []CommittedMessageQuery) ([]CommittedMessageResult, error) {
 	return f(ctx, q)
 }
+
+// A remote frame budget applies before PageReader can discard surplus records.
+// Simulate the default 64 MiB frame with 128 KiB records without allocating it.
+func TestPageReaderDoesNotAmplifySmallPagePastRemoteFrameBudget(t *testing.T) {
+	calls := 0
+	frameTooLarge := errors.New("remote frame body exceeds 64 MiB")
+	reader := scanFunction(func(_ context.Context, qs []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+		calls++
+		q := qs[0]
+		if q.Limit*(128<<10) > 64<<20 {
+			return nil, frameTooLarge
+		}
+		rows := make([]SyncedMessage, q.Limit)
+		for i := range rows {
+			rows[i] = SyncedMessage{MessageSeq: q.FromSeq + uint64(i)}
+		}
+		if calls == 1 {
+			rows[0].Flags.SyncOnce = true
+		}
+		return []CommittedMessageResult{{Messages: rows}}, nil
+	})
+	page, err := NewPageReader(reader).SyncMessages(context.Background(), ChannelMessageQuery{StartSeq: 1, Limit: 15, PullMode: PullModeUp})
+	require.NoError(t, err)
+	require.Len(t, page.Messages, 15)
+	require.True(t, page.HasMore)
+	require.Equal(t, 2, calls)
+}
