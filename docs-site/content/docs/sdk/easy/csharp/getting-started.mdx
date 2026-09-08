@@ -1,12 +1,12 @@
 ---
 title: C# 快速接入
-description: 使用 WuKongEasySDK-CSharp 固定源码接入 .NET 8，完成认证、在线消息、自动重连和异步释放。
+description: 使用 WuKongEasySDK-CSharp NuGet 正式包接入 .NET 8，完成认证、在线消息、自动重连和异步释放。
 ---
 
 [WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) 参考 JavaScript EasySDK 的 WebSocket JSON-RPC 协议，提供符合 C# 习惯的异步 API 和强类型事件。运行时不依赖第三方包。
 
-<Callout type="info" title="当前安装方式：固定源码或本地 NuGet 包">
-  初始源码版本为 `1.0.0`，本页固定到 `d365a354f5e0f25fbd7f83bb59aa365ba43e899f`。尚未发布到 nuget.org，请使用下文的项目引用或自行打包后的本地源。源码测试和本地 `.nupkg` 验证不等于公共 NuGet 发布。
+<Callout type="info" title="NuGet 正式版 1.0.0">
+  [WuKongEasySDK 1.0.0](https://www.nuget.org/packages/WuKongEasySDK/1.0.0) 已发布到 nuget.org，对应源码 `02ea7d60cd94feef1996f41bca35ffc3b8e18ea6`。下文默认使用公共 NuGet 安装；源码引用与本地打包用于需要自行构建的场景。
 </Callout>
 
 ## 开始前
@@ -18,11 +18,18 @@ description: 使用 WuKongEasySDK-CSharp 固定源码接入 .NET 8，完成认�
 
 先阅读 [身份与 Token](/zh/guide/integration/authentication)。生产环境使用 HTTPS/WSS，不关闭证书验证，不把 Token 放入 URL、日志或源码。
 
-## 1. 安装固定源码
+## 1. 安装 NuGet 正式包
+
+```bash
+dotnet new console -n MyChat --framework net8.0
+dotnet add MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source https://api.nuget.org/v3/index.json
+```
+
+### 可选：从固定源码构建
 
 ```bash
 git clone https://github.com/WuKongIM/WuKongEasySDK-CSharp.git
-git -C WuKongEasySDK-CSharp checkout d365a354f5e0f25fbd7f83bb59aa365ba43e899f
+git -C WuKongEasySDK-CSharp checkout 02ea7d60cd94feef1996f41bca35ffc3b8e18ea6
 dotnet new console -n MyChat --framework net8.0
 dotnet add MyChat/MyChat.csproj reference WuKongEasySDK-CSharp/src/WuKongEasySDK/WuKongEasySDK.csproj
 ```
@@ -37,7 +44,7 @@ dotnet pack src/WuKongEasySDK -c Release -o artifacts
 dotnet add ../MyChat/MyChat.csproj package WuKongEasySDK --version 1.0.0 --source ./artifacts
 ```
 
-项目引用和本地包二选一，不要同时引用。此处的 `--source ./artifacts` 指向你刚生成的本地源。
+公共包、项目引用和本地包三选一，不要同时引用。此处的 `--source ./artifacts` 指向你刚生成的本地源。
 
 ## 2. 由业务后端提供连接材料
 
@@ -168,7 +175,9 @@ WUKONGIM_BINARY=/absolute/path/to/wukongim python3 scripts/smoke.py
 
 该脚本只启动和清理自己拥有的回环地址单节点集群，使用 256 Hash Slots 并启用 Token 认证。它自动准备两个测试账号，检查双向 Unicode 消息的 SENDACK/RECV 一致性、重连、心跳和错误 Token 拒绝。
 
-本页源码在 macOS arm64、.NET SDK `8.0.424` / runtime `8.0.30` 通过 35 项测试、Release 构建与本地 NuGet 打包，并对 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 完成上述真实进程验证。自定义事件与故障重连由回环 WebSocket 测试覆盖。此记录不包含公共 NuGet 下载、生产 WSS、离线恢复、多节点容量或长期稳定性验证。
+原始实现 `d365a354f5e0f25fbd7f83bb59aa365ba43e899f` 在 macOS arm64、.NET SDK `8.0.424` / runtime `8.0.30` 通过 35 项测试、Release 构建与本地 NuGet 打包，并对 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 完成上述真实进程验证。自定义事件与故障重连由回环 WebSocket 测试覆盖。此记录不包含公共 NuGet 下载、生产 WSS、离线恢复、多节点容量或长期稳定性验证。
+
+NuGet `1.0.0` 的[独立发布验证](https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34188740990)覆盖 Windows、Linux、macOS 构建、35 项 SDK 测试、7 项发布校验测试与全新项目本地包安装。发布后从 nuget.org 下载精确版本，比较除 NuGet 签名外的全部包内容与测试产物，并在空包缓存、仅公共源的独立项目中完成还原、编译、加载和释放。此公共安装记录与上述真实服务端通信记录分别保留。
 
 ## 下一步
 

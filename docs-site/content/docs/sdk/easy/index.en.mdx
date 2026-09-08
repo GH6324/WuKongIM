@@ -1,6 +1,6 @@
 ---
 title: WuKongEasySDK
-description: Choose an iOS, Android, Flutter, Web, C#, or Rust quickstart and use a pinned package or source revision to complete an online Alice/Bob messaging loop.
+description: Choose an iOS, Android, Flutter, Web, C#, C++, or Rust quickstart with pinned versions or source for Alice/Bob online messaging.
 ---
 
 WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and online-messaging API. It fits applications that already have a product backend and own their UI and product state.
@@ -15,6 +15,7 @@ WuKongEasySDK uses WebSocket JSON-RPC CONNECT for a lightweight connection and o
   <Card title="Web quickstart" description="Install exactly easyjssdk 2.0.4 and obtain connection material through a product BFF." href="/en/sdk/easy/javascript/getting-started" />
   <Card title="Rust quickstart" description="Pin Git source and use Tokio for messaging, bounded reconnect and cleanup." href="/en/sdk/easy/rust/getting-started" />
   <Card title="C# quickstart" description="Use pinned .NET 8 source, async APIs, independent clients, and await using for messaging." href="/en/sdk/easy/csharp/getting-started" />
+  <Card title="C++ quickstart" description="Pinned source and CMake for C++17 connections, online messaging, and thread cleanup." href="/en/sdk/easy/cpp/getting-started" />
 </Cards>
 
 After the platform tutorial, Alice and Bob will connect separately, exchange a text JSON payload in a person Channel, then remove listeners and connections on exit.
@@ -78,6 +79,8 @@ To validate the environment first, follow [Run the Official Examples](/en/sdk/ea
 
 A view may subscribe to connection state, but rebuilding the view must not create a second connection. Each platform's complete minimal example shows the correct owner and cleanup point.
 
+C++ uses an independent `WKIM` instance and I/O thread. Retain `ListenerId` values, remove listeners at exit, and wait for `disconnect()` / `destroy()` to finish. Callbacks must never wait on SDK futures; dispatch UI and slow work to the application executor. See the [C++ quickstart](/en/sdk/easy/cpp/getting-started).
+
 ## Complete before production
 
 - Use WSS and verify certificates, reverse-proxy WebSocket Upgrade, and device-side reachability.
@@ -134,11 +137,15 @@ Application dependencies use only these exact versions—never `latest` or a bro
 
 The task sequence was calibrated from the legacy [EasySDK overview](https://wukong.mintlify.app/en/sdk/easy/overview), [iOS](https://wukong.mintlify.app/en/sdk/easy/ios/getting-started), [Android](https://wukong.mintlify.app/en/sdk/easy/android/getting-started), [Flutter](https://wukong.mintlify.app/en/sdk/easy/flutter/getting-started), and [Web](https://wukong.mintlify.app/en/sdk/easy/javascript/getting-started) pages. The released source and distributions above remain authoritative for APIs, versions, and security boundaries.
 
-## C# source integration
+## C# / NuGet integration
 
-[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) provides an independent .NET 8+ client at source version `1.0.0`. Create it with `new WKIM` / `WKIM.Init`, authenticate with `ConnectAsync`, send with `SendAsync`, manage events with `+=` / `-=`, and await `DisposeAsync` or use `await using` on exit. Its default device category is PC `2`.
+[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) provides an independent .NET 8+ client through the `WuKongEasySDK` `1.0.0` NuGet package. Create it with `new WKIM` / `WKIM.Init`, authenticate with `ConnectAsync`, send with `SendAsync`, manage events with `+=` / `-=`, and await `DisposeAsync` or use `await using` on exit. Its default device category is PC `2`.
 
-C# has not been published to nuget.org. Follow the [C# quickstart](/en/sdk/easy/csharp/getting-started) for a pinned project reference or local NuGet package. Its real-process verification uses WuKongIM `132e46209` and remains separate from the four historical registry-package receipts above.
+C# is available on [nuget.org](https://www.nuget.org/packages/WuKongEasySDK/1.0.0). Follow the [C# quickstart](/en/sdk/easy/csharp/getting-started) to install exact version `1.0.0`, or build a pinned project reference or local NuGet package. Its real-process verification uses WuKongIM `132e46209` and remains separate from the four historical registry-package receipts above.
+
+## C++ pinned source
+
+The [C++ repository](https://github.com/WuKongIM/WuKongEasySDK-CPP) has project version `0.1.0`. This tutorial pins source `3e367a908f42385ab9306f9708b7456399cace7d`, built and installed with CMake; there is no prebuilt package or registry release. It follows JS `v2.0.4` and completed C++/C++ and C++/JS online bidirectional messaging, reconnect, invalid-token rejection, and presence cleanup against WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d`, plus separate WS/WSS protocol tests. See the [C++ validation record](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md) for environment and scope. This source evidence is separate from the historical four-platform released-package acceptance above.
 
 ## Next
 

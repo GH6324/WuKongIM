@@ -1,6 +1,6 @@
 ---
 title: WuKongEasySDK
-description: 选择 iOS、Android、Flutter、Web、C# 或 Rust 快速接入，使用固定版本完成 Alice 与 Bob 的在线双向消息闭环。
+description: 选择 iOS、Android、Flutter、Web、C#、C++ 或 Rust 快速接入，使用固定版本或源码完成 Alice 与 Bob 的在线双向消息闭环。
 ---
 
 WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消息 API。它适合已经拥有业务后端、希望自己维护界面和产品状态的应用。
@@ -15,6 +15,7 @@ WuKongEasySDK 通过 WebSocket JSON-RPC CONNECT 提供轻量连接与在线消�
   <Card title="Web 快速接入" description="精确安装 easyjssdk 2.0.4，通过业务 BFF 获取连接材料。" href="/zh/sdk/easy/javascript/getting-started" />
   <Card title="Rust 快速接入" description="固定 Git 源码，使用 Tokio 管理收发、有限重连与清理。" href="/zh/sdk/easy/rust/getting-started" />
   <Card title="C# 快速接入" description="从固定源码接入 .NET 8，使用异步 API、独立实例和 await using 完成收发。" href="/zh/sdk/easy/csharp/getting-started" />
+  <Card title="C++ 快速接入" description="固定源码 + CMake，以 C++17 完成连接、在线消息和线程清理。" href="/zh/sdk/easy/cpp/getting-started" />
 </Cards>
 
 完成对应教程后，你会让 Alice 与 Bob 分别连接，在个人 Channel 中双向发送一个文本 JSON Payload，并在退出时正确移除监听器和连接。
@@ -76,7 +77,7 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 
 页面可以订阅连接状态，但不应因为页面重建而创建第二条连接。平台教程中的完整最小代码分别展示了正确的 owner 和清理位置。
 
-Rust 使用每个身份一个 `Client`，clone 共享连接；`subscribe()` 返回有界接收器，`disconnect().await` 可再次连接，`destroy().await` 永久关闭。默认设备类别为 PC `2`。安装和完整生命周期见 [Rust 快速接入](/zh/sdk/easy/rust/getting-started)。
+C++ 使用独立 `WKIM` 实例和 I/O 线程，保存 `ListenerId`，退出时移除监听并等待 `disconnect()` / `destroy()` 完成。回调中不能等待 SDK future，UI 和耗时工作应交给应用执行器。详见 [C++ 快速接入](/zh/sdk/easy/cpp/getting-started)。
 
 ## 上线前还要完成
 
@@ -134,11 +135,15 @@ Rust 使用每个身份一个 `Client`，clone 共享连接；`subscribe()` 返�
 
 当前教程的任务顺序校准自旧版 [EasySDK 概览](https://wukong.mintlify.app/zh/sdk/easy/overview)、[iOS](https://wukong.mintlify.app/zh/sdk/easy/ios/getting-started)、[Android](https://wukong.mintlify.app/zh/sdk/easy/android/getting-started)、[Flutter](https://wukong.mintlify.app/zh/sdk/easy/flutter/getting-started)和 [Web](https://wukong.mintlify.app/zh/sdk/easy/javascript/getting-started) 页面；API、版本与安全边界以上表的正式源码和分发产物为准。
 
-## C# 源码接入
+## C# / NuGet 接入
 
-[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) 提供 .NET 8+ 的独立客户端，源码版本为 `1.0.0`。使用 `new WKIM` / `WKIM.Init` 创建实例，`ConnectAsync` 认证后调用 `SendAsync`，通过 `+=` / `-=` 管理事件，退出时等待 `DisposeAsync` 或使用 `await using`。默认设备类别为 PC `2`。
+[WuKongEasySDK-CSharp](https://github.com/WuKongIM/WuKongEasySDK-CSharp) 提供 .NET 8+ 的独立客户端，NuGet 包为 `WuKongEasySDK` `1.0.0`。使用 `new WKIM` / `WKIM.Init` 创建实例，`ConnectAsync` 认证后调用 `SendAsync`，通过 `+=` / `-=` 管理事件，退出时等待 `DisposeAsync` 或使用 `await using`。默认设备类别为 PC `2`。
 
-C# 尚未发布到 nuget.org，请按 [C# 快速接入](/zh/sdk/easy/csharp/getting-started) 使用固定 commit 的项目引用或本地 NuGet 包。它的真实进程验证使用 WuKongIM `132e46209`，与上面的四端历史正式包记录分别保留。
+C# 已发布到 [nuget.org](https://www.nuget.org/packages/WuKongEasySDK/1.0.0)，请按 [C# 快速接入](/zh/sdk/easy/csharp/getting-started) 安装精确版本 `1.0.0`；也可使用固定 commit 的项目引用或本地 NuGet 包。它的真实进程验证使用 WuKongIM `132e46209`，与上面的四端历史正式包记录分别保留。
+
+## C++ 固定源码
+
+[C++ 仓库](https://github.com/WuKongIM/WuKongEasySDK-CPP) 工程版本 `0.1.0`，本文固定源码 `3e367a908f42385ab9306f9708b7456399cace7d`，通过 CMake 编译安装，尚无预编译包或 Registry 发布。它参考 JS `v2.0.4`，已在 WuKongIM `132e46209d98fa0425cc0f88e7a97080cdad044d` 上完成 C++/C++ 和 C++/JS 在线双向消息、重连、错误 Token 拒绝和在线清理，并通过独立的 WS/WSS 协议测试。环境与完整验证范围见 [C++ 验证记录](https://github.com/WuKongIM/WuKongEasySDK-CPP/blob/3e367a908f42385ab9306f9708b7456399cace7d/docs/VALIDATION.md)。该源码证据独立于上面四端的历史正式包验收。
 
 ## 下一步
 

@@ -135,7 +135,7 @@ Route: `/{lang}/sdk`
       - **媒体与历史消息 / Media & History** `/{lang}/sdk/harmonyos/advanced/media-and-history` — 接入图片或语音消息，并在本地数据不足时补齐历史消息。 / Connect image or voice messages and fill history when local data is incomplete.
     - **API 参考 / API Reference** `/{lang}/sdk/harmonyos/api-reference` — 按管理器查找常用入口、监听器、Provider、模型和状态。 / Find common manager entry points, listeners, providers, models, and states.
   - **升级 SDK / Upgrade SDKs** `/{lang}/sdk/wukongim/upgrade` — 用一套简洁流程升级依赖、检查数据兼容并准备回滚。 / Upgrade dependencies, check data compatibility, and prepare rollback with one concise workflow.
-- **WuKongEasySDK / WuKongEasySDK** `/{lang}/sdk/easy` — 选择 iOS、Android、Flutter、Web、C# 或 Rust，通过固定发布包或源码完成在线双向消息。 / Choose iOS, Android, Flutter, Web, C#, or Rust and exchange online messages using pinned packages or source revisions.
+- **WuKongEasySDK / WuKongEasySDK** `/{lang}/sdk/easy` — 选择 iOS、Android、Flutter、Web、C#、C++ 或 Rust 快速接入，使用已验证的正式包或固定源码完成在线双向消息。 / Choose an iOS, Android, Flutter, Web, C#, C++, or Rust quickstart with verified released packages or pinned source for online bidirectional messaging.
   - **运行官方示例 / Run Official Examples** `/{lang}/sdk/easy/examples` — 启动同一版 WuKongIM，复现四端正式包与源码 example 的在线双向消息、断开和清理。 / Start the same WuKongIM revision and reproduce online bidirectional messaging, disconnect, and cleanup with four released packages and source examples.
   - **iOS 快速接入 / iOS quickstart** `/{lang}/sdk/easy/ios/getting-started` — 精确安装 v1.1.1，完成单聊收发、监听清理和已验证的 Alice/Bob 正式包验收。 / Install exactly v1.1.1 for person messaging, listener cleanup, and verified released-package Alice/Bob acceptance.
   - **Android 快速接入 / Android quickstart** `/{lang}/sdk/easy/android/getting-started` — 精确安装 v1.0.5，处理单例、单聊收发、清理和已验证的 Alice/Bob 正式包验收。 / Install exactly v1.0.5 for singleton ownership, person messaging, cleanup, and verified released-package Alice/Bob acceptance.
@@ -143,6 +143,7 @@ Route: `/{lang}/sdk`
   - **Web 快速接入 / Web quickstart** `/{lang}/sdk/easy/javascript/getting-started` — 精确安装 easyjssdk v2.0.4，在真实浏览器与正式包对端中完成 Alice/Bob 在线消息。 / Install exactly easyjssdk v2.0.4 for Alice/Bob online messaging in a real browser and released-package peer runs.
   - **Rust 快速接入 / Rust quickstart** `/{lang}/sdk/easy/rust/getting-started` — 固定 WuKongEasySDK-Rust 源码，使用 Tokio 完成在线消息、有限重连和清理。 / Pin WuKongEasySDK-Rust source for Tokio online messaging, bounded reconnect, and cleanup.
   - **C# 快速接入 / C# quickstart** `/{lang}/sdk/easy/csharp/getting-started` — 使用 1.0.0 固定源码接入 .NET 8，完成异步连接、消息收发、重连和释放。 / Use pinned 1.0.0 source with .NET 8 for async connections, messaging, reconnect, and cleanup.
+  - **C++ 快速接入 / C++ quickstart** `/{lang}/sdk/easy/cpp/getting-started` — 使用固定 C++17 源码与 CMake，完成 WS/WSS、在线收发和线程生命周期管理。 / Use pinned C++17 source and CMake for WS/WSS, online messaging, and thread lifecycle management.
 
 ## API 与协议 / API & Protocols
 

@@ -450,9 +450,9 @@ describe('Rust EasySDK source distribution', () => {
   });
 });
 
-// The new C# source path must never inherit the older platforms' registry receipts.
-describe('C# EasySDK source integration', () => {
-  test('keeps source installation, ownership, and evidence explicit in both locales', async () => {
+// C# public installation and historical server receipts must remain separate.
+describe('C# EasySDK NuGet integration', () => {
+  test('pins public installation while preserving independent source evidence in both locales', async () => {
     for (const [locale, suffix] of [['zh', ''], ['en', '.en']]) {
       const page = await content(`csharp/getting-started${suffix}.mdx`);
       const overview = await content(`index${suffix}.mdx`);
@@ -463,7 +463,11 @@ describe('C# EasySDK source integration', () => {
       }
       expect(overview).toContain(`/${locale}/sdk/easy/csharp/getting-started`);
       expect(examples).toContain(`/${locale}/sdk/easy/csharp/getting-started`);
-      expect(page).toMatch(/尚未发布到 nuget\.org|has not been published to nuget\.org/u);
+      expect(page).not.toMatch(/尚未发布到 nuget\.org|has not been published to nuget\.org/u);
+      expect(page).toContain('https://www.nuget.org/packages/WuKongEasySDK/1.0.0');
+      expect(page).toContain('package WuKongEasySDK --version 1.0.0 --source https://api.nuget.org/v3/index.json');
+      expect(page).toContain('02ea7d60cd94feef1996f41bca35ffc3b8e18ea6');
+      expect(page).toContain('https://github.com/WuKongIM/WuKongEasySDK-CSharp/actions/runs/34188740990');
       expect(page).toContain('d365a354f5e0f25fbd7f83bb59aa365ba43e899f');
       expect(page).toContain('132e46209d98fa0425cc0f88e7a97080cdad044d');
       expect(page).toContain('DeviceFlag.Desktop');

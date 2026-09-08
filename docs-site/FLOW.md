@@ -15,8 +15,7 @@ examples, search, SEO, and machine-readable output. Runtime contracts are define
 - Repository `docs/` is the engineering knowledge base. Legacy docs aid topic
   discovery only; current code and released SDKs decide API facts.
 - `lib/navigation.ts` is the shared bilingual publication registry.
-- `SDK_DOCUMENTATION_SPEC.md` owns maintained WuKongIMSDK versions, learning
-  order, and reader contract. WuKongEasySDK remains a separate path.
+- `SDK_DOCUMENTATION_SPEC.md` owns full-SDK versions and learning order; EasySDK stays separate.
 - `.github/workflows/docs-pages.yml` deploys the export, verifies the direct Pages
   data plane, and may refresh a CDN when `DOCS_CDN_ENABLED=true`. It also accepts
   a successful binary-release `workflow_run` after authenticating the immutable
@@ -38,11 +37,10 @@ examples, search, SEO, and machine-readable output. Runtime contracts are define
    HarmonyOS: quickstart, connection, messages, conversations, channels,
    supported advanced topics, and API lookup. One shared upgrade page replaces
    per-platform upgrade pages.
-4. The separate EasySDK path keeps released package pins distinct from exact
-   repository-example receipts. Its runbook maps reachable endpoints and
-   reproduces four registry examples plus C# and Rust source examples, each
-   with its recorded server revision. Rust adds native Tokio and Rust/JS
-   interoperability evidence; Git source is not a crates.io release.
+4. EasySDK separates Rust and C++ source pins from registry-package receipts.
+   Its runbook maps reachable endpoints and reproduces maintained examples
+   with recorded server revisions. Rust adds Tokio and Rust/JS WSS recovery
+   evidence; Git source is not a crates.io release.
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.

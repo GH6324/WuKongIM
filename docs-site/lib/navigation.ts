@@ -392,8 +392,8 @@ function publishedEasySDKGroup(): NavigationGroup {
     'easy',
     'WuKongEasySDK',
     'WuKongEasySDK',
-    '选择 iOS、Android、Flutter、Web、C# 或 Rust，通过固定发布包或源码完成在线双向消息。',
-    'Choose iOS, Android, Flutter, Web, C#, or Rust and exchange online messages using pinned packages or source revisions.',
+    '选择 iOS、Android、Flutter、Web、C#、C++ 或 Rust 快速接入，使用已验证的正式包或固定源码完成在线双向消息。',
+    'Choose an iOS, Android, Flutter, Web, C#, C++, or Rust quickstart with verified released packages or pinned source for online bidirectional messaging.',
     [
       publishedPage(
         'examples',
@@ -443,6 +443,13 @@ function publishedEasySDKGroup(): NavigationGroup {
         'C# quickstart',
         '使用 1.0.0 固定源码接入 .NET 8，完成异步连接、消息收发、重连和释放。',
         'Use pinned 1.0.0 source with .NET 8 for async connections, messaging, reconnect, and cleanup.',
+      ),
+      publishedPage(
+        'cpp/getting-started',
+        'C++ 快速接入',
+        'C++ quickstart',
+        '使用固定 C++17 源码与 CMake，完成 WS/WSS、在线收发和线程生命周期管理。',
+        'Use pinned C++17 source and CMake for WS/WSS, online messaging, and thread lifecycle management.',
       ),
     ],
   );
