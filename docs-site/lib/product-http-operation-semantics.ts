@@ -179,10 +179,20 @@ export const productHTTPOperationSemantics = {
       'Even with HTTP 200, inspect reason; only a success Reason Code means the message was accepted.',
     ),
   },
+  'POST /message/eventsync': {
+    scope: text(
+      '读取当前持久化 lane 投影，不返回完整事件日志。此入口不检查调用方身份或成员权限；include_private 由调用方直接控制，只能通过受信后端使用。',
+      'Reads current durable lane projections, not complete event history. This entry checks neither caller identity nor membership; include_private is caller-controlled and requires a trusted backend.',
+    ),
+    success: text(
+      '先读取 limit+1 条原始投影，再过滤 private/restricted；过滤后 more=0 或空页不保证更远处没有可见投影。next_msg_event_seq 只随实际返回项前进。',
+      'Reads limit+1 raw projections before filtering private/restricted entries. A filtered empty page or more=0 does not prove there are no visible projections farther ahead. next_msg_event_seq advances only for returned items.',
+    ),
+  },
   'POST /message/event': {
     scope: text(
-      'visibility 作为事件元数据保存；当前 Product HTTP 消息同步不会用它做访问控制过滤。',
-      'visibility is stored as event metadata; current Product HTTP message synchronization does not use it as an access-control filter.',
+      'visibility 作为事件元数据保存；普通消息同步不会用它做访问控制过滤；eventsync 按 include_private 筛选，但不验证调用方权限。',
+      'visibility is stored as event metadata; ordinary message synchronization does not use it as an access-control filter; eventsync filters by include_private without checking caller permissions.',
     ),
   },
   'POST /channel/messagesync': {

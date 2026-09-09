@@ -36,7 +36,7 @@ _openapi:
           event_id `string` minLength: 1; pattern: `\S` 该事件的非空白唯一标识。
           event_type `string` minLength: 1; pattern: `^\s*[sS][tT][rR][eE][aA][mM]\.(?:[oO][pP][eE][nN]|[dD][eE][lL][tT][aA]|[cC][lL][oO][sS][eE]|[eE][rR][rR][oO][rR]|[cC][aA][nN][cC][eE][lL]|[sS][nN][aA][pP][sS][hH][oO][tT]|[fF][iI][nN][iI][sS][hH])\s*$`; examples: `"stream.open"`, `"stream.delta"`, `"stream.close"`, `"stream.error"`, `"stream.cancel"`, `"stream.snapshot"`, `"stream.finish"` 事件类型；会去除首尾空白并转为小写。
           event_key `string` — 事件 lane Key；空值使用默认 lane，stream.finish 强制使用 finish lane。
-          visibility `string` — 调用方提供并去除首尾空白后保存的事件元数据；当前 Product HTTP 消息同步不会用它做访问控制过滤。
+          visibility `string` — 调用方提供并去除首尾空白后保存的事件元数据；普通消息同步不会用它做访问控制过滤；eventsync 会根据 include_private 筛选，但不验证调用方权限。
           occurred_at `integer:int64` — 调用方提供的事件发生时间整数；入口不解释时间单位。
           payload `unknown` — 任意 JSON 事件 Payload；服务端按原始 JSON 字节传给事件存储。
           headers `null` — 预留字段；只能省略或传 null，任何非 null JSON 值都会被拒绝。
@@ -71,7 +71,7 @@ _openapi:
 <Callout type="warn" title="接口边界">
 
 - **调用方**：仅限受信业务后端
-- **作用域**：visibility 作为事件元数据保存；当前 Product HTTP 消息同步不会用它做访问控制过滤。
+- **作用域**：visibility 作为事件元数据保存；普通消息同步不会用它做访问控制过滤；eventsync 按 include_private 筛选，但不验证调用方权限。
 
 </Callout>
 

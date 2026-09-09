@@ -161,7 +161,7 @@ Route: `/{lang}/api`
 
 - **接口清单与信任边界 / Interface Inventory & Trust Boundaries** `/{lang}/api/interface-inventory` — 盘点 Manager、Node transport、MCP、插件与 Agent 私有合同。 / Inventories Manager, node transport, MCP, plugin, and agent-private contracts.
 
-- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 41 条 Product HTTP 操作。 / Browse all 41 Product HTTP operations registered by the current source.
+- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 42 条 Product HTTP 操作。 / Browse all 42 Product HTTP operations registered by the current source.
   - **用户 / Users** `/{lang}/api/product-http/users` — 设备 Token、在线状态与系统身份。 / Device tokens, presence, and system identities.
     - **创建或更新设备 Token / Create or update a device token** **POST** `/{lang}/api/product-http/users/setQuickstartUserToken` — 创建缺失的 UID 元数据并更新一个设备 Token；Gateway Token 鉴权默认启用，后续相同 UID 与设备类别的 CONNECT 凭据必须与它匹配。 / Upserts one UID/device token; default Gateway authentication requires later CONNECT credentials for the same UID and device category to match it.
     - **退出用户设备 / Clear a user device token** **POST** `/{lang}/api/product-http/users/quitUserDevice` — 清空一个已存设备 Token 并调度 owner-local Session 关闭；device_flag=-1 选择 APP、Web 与 PC。 / Clears one stored device token and schedules owner-local Session closure; device_flag -1 selects APP, Web, and PC.
@@ -176,6 +176,7 @@ Route: `/{lang}/api`
     - **批量解析 UID 地址组 / Resolve one address group for UIDs** **POST** `/{lang}/api/product-http/routing/getGatewayRoutesBatch` — 在一个地址组中回显无上限 UID 数组，仅为兼容保留；地址补全规则与 GET /route 相同。 / Echoes an unbounded UID array in one address group; retained for compatibility. Address completion follows GET /route.
   - **消息 / Messages** `/{lang}/api/product-http/messages` — 消息恢复、事件与命令消息兼容接口。 / Message recovery, events, and command-message compatibility.
     - **追加消息事件 / Append a message event** **POST** `/{lang}/api/product-http/messages/appendMessageEvent` — 校验并应用一次消息级事件投影；不支持非 null headers。 / Validates and applies one message-scoped event projection; non-null headers are unsupported.
+    - **同步消息事件当前投影 / Synchronize current message event projections** **POST** `/{lang}/api/product-http/messages/syncMessageEvents` — 按序号游标读取当前持久化事件投影，不重放完整事件日志。在有界读取后过滤私有事件。调用方身份与 include_private 没有鉴权，必须由受信后端保护。 / Reads current durable event projections after a sequence cursor, with filtering after a bounded read; not a replayable event log.
     - **同步命令消息 / Synchronize command messages** **POST** `/{lang}/api/product-http/messages/syncCommandMessages` — 返回最新持久 CMD generation；message_seq 仅兼容接收但会被忽略。 / Returns the latest durable CMD generation; message_seq is accepted but ignored.
     - **确认最新命令消息同步 / Acknowledge the latest command sync** **POST** `/{lang}/api/product-http/messages/ackCommandMessages` — 要求 last_message_seq 为正数，但确认的是服务端最近记录的 generation，而不是该输入值。 / Requires a positive last_message_seq but acknowledges the server's latest recorded generation, not that supplied value.
     - **绑定命令 Channel 发现 / Bind command-channel discovery** **POST** `/{lang}/api/product-http/messages/bindCommandChannel` — 从当前命令 Channel tail 之后开始持久离线发现。 / Starts durable offline discovery after the current command-channel tail.

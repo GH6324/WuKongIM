@@ -501,8 +501,8 @@ function publishedProductHTTPGroup(): NavigationGroup {
     'product-http',
     'Product HTTP API',
     'Product HTTP API',
-    '浏览当前源码注册的全部 41 条 Product HTTP 操作。',
-    'Browse all 41 Product HTTP operations registered by the current source.',
+    '浏览当前源码注册的全部 42 条 Product HTTP 操作。',
+    'Browse all 42 Product HTTP operations registered by the current source.',
     [
       ...productHTTPOpenAPIReferenceGroups.map((group) =>
         publishedGroup(

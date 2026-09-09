@@ -72,7 +72,7 @@ _openapi:
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
-- **Scope**: visibility is stored as event metadata; current Product HTTP message synchronization does not use it as an access-control filter.
+- **Scope**: visibility is stored as event metadata; ordinary message synchronization does not use it as an access-control filter; eventsync filters by include_private without checking caller permissions.
 
 </Callout>
 
