@@ -41,12 +41,12 @@ case "$stage" in
   rehearsal)
     config=/etc/wukongim/chat-lifecycle-rehearsal.yaml
     output_dir=/var/lib/wukongim-cloud/reports/rehearsal
-    command=(/opt/wukongim/bin/wkcli bench soak chat-lifecycle --config "$config" --output-dir "$output_dir")
+    command=(/opt/wukongim/bin/wkbench soak chat-lifecycle --config "$config" --output-dir "$output_dir")
     ;;
   formal)
     config=/etc/wukongim/chat-lifecycle.yaml
     output_dir=/var/lib/wukongim-cloud/reports
-    command=(/opt/wukongim/bin/wkcli bench formal-chain chat-lifecycle --config "$config" --output-dir "$output_dir")
+    command=(/opt/wukongim/bin/wkbench formal-chain chat-lifecycle --config "$config" --output-dir "$output_dir")
     ;;
   *) exit 1 ;;
 esac

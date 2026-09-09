@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP="${WK_BENCH_ACTIVATE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 OUT_DIR="${WK_BENCH_ACTIVATE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-three-node-activate-10kch}"
-WK_CLI_BIN="${WK_CLI_BIN:-$ROOT_DIR/data/wkbench-activate-channels/wkbench}"
+WK_CLI_BIN="${WK_CLI_BIN:-$ROOT_DIR/data/wkbench-activate-channels/wkcli}"
 START_SCRIPT="${WK_BENCH_THREE_NODE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongim-three-nodes.sh}"
 READY_TIMEOUT="${WK_BENCH_THREE_NODE_READY_TIMEOUT:-90}"
 START_CLUSTER=1
@@ -43,7 +43,7 @@ scripts/start-wukongim-three-nodes.sh, then runs:
 
 Options:
   --out-dir DIR               Evidence output directory.
-  --wkcli-bin PATH          wkcli binary path. Default: data/wkbench-activate-channels/wkbench.
+  --wkcli-bin PATH          wkcli binary path. Default: data/wkbench-activate-channels/wkcli.
   --no-start                  Use an already-running cluster.
   --no-clean                  Keep existing node data when starting the cluster.
   --start-script PATH         Three-node startup script.
@@ -249,9 +249,9 @@ ensure_wkbench_binary() {
     if [[ -z "$newer_source" ]]; then
       return
     fi
-    log "rebuilding stale wkbench: $WK_CLI_BIN"
+    log "rebuilding stale wkcli: $WK_CLI_BIN"
   else
-    log "building wkbench: $WK_CLI_BIN"
+    log "building wkcli: $WK_CLI_BIN"
   fi
   mkdir -p "$(dirname "$WK_CLI_BIN")"
   (

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP="${WK_BENCH_PRESENCE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 OUT_DIR="${WK_BENCH_PRESENCE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-three-node-presence}"
-WK_CLI_BIN="${WK_CLI_BIN:-$ROOT_DIR/data/wkbench-presence/wkbench}"
+WK_CLI_BIN="${WK_CLI_BIN:-$ROOT_DIR/data/wkbench-presence/wkcli}"
 WORKER_ADDR="${WK_BENCH_WORKER_ADDR:-http://127.0.0.1:19131}"
 WORKER_LISTEN="${WK_BENCH_WORKER_LISTEN:-127.0.0.1:19131}"
 START_SCRIPT="${WK_BENCH_THREE_NODE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongim-three-nodes.sh}"
@@ -71,7 +71,7 @@ the run is active, then validates the live peak against report.json status.
 
 Options:
   --out-dir DIR             Evidence output directory.
-  --wkcli-bin PATH        wkcli binary path. Default: data/wkbench-presence/wkbench.
+  --wkcli-bin PATH        wkcli binary path. Default: data/wkbench-presence/wkcli.
   --worker-addr URL         Worker control URL. Default: http://127.0.0.1:19131.
   --worker-listen ADDR      Temporary worker listen address. Default: 127.0.0.1:19131.
   --no-worker               Do not start a temporary worker; require --worker-addr to be reachable.
@@ -445,9 +445,9 @@ ensure_wkbench_binary() {
     if [[ -z "$newer_source" ]]; then
       return
     fi
-    log "rebuilding stale wkbench: $WK_CLI_BIN"
+    log "rebuilding stale wkcli: $WK_CLI_BIN"
   else
-    log "building wkbench: $WK_CLI_BIN"
+    log "building wkcli: $WK_CLI_BIN"
   fi
   mkdir -p "$(dirname "$WK_CLI_BIN")"
   (

@@ -7,7 +7,7 @@ TIMESTAMP="${WK_BENCH_DELIVERY_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 SCENARIO="${WK_BENCH_DELIVERY_SCENARIO:-group}"
 QPS_LIST="${WK_BENCH_DELIVERY_QPS:-100,200,500,800,1000}"
 OUT_DIR="${WK_BENCH_DELIVERY_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-delivery-${SCENARIO}}"
-WK_CLI_BIN="${WK_CLI_BIN:-$ROOT_DIR/data/wkbench-delivery/wkbench}"
+WK_CLI_BIN="${WK_CLI_BIN:-$ROOT_DIR/data/wkbench-delivery/wkcli}"
 WORKER_ADDR="${WK_BENCH_WORKER_ADDR:-http://127.0.0.1:19140}"
 WORKER_LISTEN="${WK_BENCH_WORKER_LISTEN:-127.0.0.1:19140}"
 START_WORKER=1
@@ -298,7 +298,7 @@ ensure_wkbench_binary() {
   if [[ -x "$WK_CLI_BIN" ]]; then
     return
   fi
-  log "building wkbench: $WK_CLI_BIN"
+  log "building wkcli: $WK_CLI_BIN"
   mkdir -p "$(dirname "$WK_CLI_BIN")"
   (cd "$ROOT_DIR" && go build -o "$WK_CLI_BIN" ./cmd/wkcli)
 }

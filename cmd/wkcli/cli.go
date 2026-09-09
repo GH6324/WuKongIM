@@ -34,6 +34,11 @@ func runWithIO(args []string, stdout, stderr io.Writer) int {
 	contextDir := contextcmd.DefaultStoreDir()
 	deps := command.Deps{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr, ContextDir: &contextDir}
 	cmd := newRootCommand(deps, defaultCommandFactories())
+	// Only raw parser families need root flags consumed before their argument
+	// vector is forwarded. Cobra families retain leaf flags before subcommands.
+	if selected, _, err := cmd.Find(args); err == nil && selected.DisableFlagParsing {
+		cmd.TraverseChildren = true
+	}
 	cmd.SetArgs(args)
 	return executeCommand(cmd, stderr)
 }
@@ -62,11 +67,10 @@ func executeCommand(cmd *cobra.Command, stderr io.Writer) int {
 
 func newRootCommand(deps command.Deps, factories []command.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:              "wkcli",
-		Short:            "WuKongIM operational command line",
-		TraverseChildren: true,
-		SilenceUsage:     true,
-		SilenceErrors:    true,
+		Use:           "wkcli",
+		Short:         "WuKongIM operational command line",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := cmd.Help(); err != nil {
 				return command.Exit{Code: exitInternal, Message: err.Error()}

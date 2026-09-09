@@ -15,6 +15,9 @@ func TestUnifiedHelpAndFamilyExitCodes(t *testing.T) {
 		code int
 		want string
 	}{
+		{[]string{"bench", "--target", "/missing", "validate", "--help"}, 0, "--target"},
+		{[]string{"--context", "unused", "bench", "send", "--help"}, 0, "--context"},
+		{[]string{"bench", "--target=/missing", "validate", "--help"}, 0, "--target"},
 		{[]string{"bench", "--help"}, 0, "send"},
 		{[]string{"bench", "worker", "--help"}, 0, "wkcli bench worker"},
 		{[]string{"bench", "report", "redact-config", "--help"}, 0, "--input"},

@@ -72,6 +72,7 @@ services:
     entrypoint:
       - /usr/local/bin/wkcli
     command:
+      - bench
       - dev-sim
       - --config
       - /etc/wkbench/dev-sim.yaml

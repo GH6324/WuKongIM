@@ -220,7 +220,7 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     try:
         for phase in phases:
-            if digest(args.output / "plan.json") != plan_hash or digest(args.bundle / "wkmigrate") != args.wkcli_sha256:
+            if digest(args.output / "plan.json") != plan_hash or digest(args.bundle / "wkcli") != args.wkcli_sha256:
                 raise RuntimeError("pinned input changed")
             atomic(args.output / "status.json", {"phase": phase, "updated_at": time.time()})
             result = phase_run(args, phase, owner + "-" + phase)
