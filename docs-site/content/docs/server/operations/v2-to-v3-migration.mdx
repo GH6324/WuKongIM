@@ -106,7 +106,7 @@ macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平
 
 `legacy_stream_storage` **仅排除旧 Stream／StreamMeta 两张表**；`exclude_streams` 才排除消息表中的流主消息及其明确关联的事件投影和游标。与保留消息共享事件身份时仍会阻断。`exclude_cmd` 同时省略旧 CMD 会话和同步位置。被排除的源行完整留在归档中。
 
-“最新”按**同一频道的原 MessageSeq** 判断：MessageID 重复，或频道、发送者、非空 ClientMsgNo 相同，保留较新记录。跨频道 MessageID 冲突或相互矛盾的保留选择仍会阻断。不能按节点数累加物理副本，得到业务删除数量。
+“最新”按**同一频道的原 MessageSeq** 判断：MessageID 重复，或频道相同且非空发送者与非空 ClientMsgNo 均相同，保留较新记录。发送者或 ClientMsgNo 为空时不参与 ClientMsgNo 去重；MessageID 去重独立执行。跨频道 MessageID 冲突或相互矛盾的保留选择仍会阻断。不能按节点数累加物理副本，得到业务删除数量。
 
 重新编号后，保留消息按原顺序成为 `1…N`，新消息从 `N+1` 继续。已读和删除位置映射为旧位置之前（含该位置）仍保留的消息数量。全排除频道尾部为 0，后续从 1 开始；不会创建占位消息或更改 v3 存储格式来补空号。原历史缺洞仍会阻断。
 
@@ -182,7 +182,7 @@ macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平
 
 将每个目标目录完整复制到对应主机，保持计划中的**相同绝对数据路径**和文件权限；不要只复制消息库，Controller 快照和迁移标记也必须保留。复制时所有目标保持停机。
 
-准备各节点的 `wukongim.toml`，保持 `node.id`、`node.data_dir`、`cluster.id`、`cluster.nodes`、`cluster.initial_slot_count`、`cluster.hash_slot_count`、`cluster.slot_replica_n` 和 `cluster.channel_replica_n` 与计划一致。TLS、监听／公布地址、网关认证、Webhook 签名与地址、插件及业务后端配置须另行核对，数据库导入不会替你搬运或验证这些配置。参考[集群配置](/zh/server/configuration/cluster)和[安全配置](/zh/server/configuration/security)。
+准备各节点的 `wukongim.toml`，保持 `node.id`、`node.data_dir`、`cluster.id`、`cluster.nodes`、`cluster.initial_slot_count`、`cluster.hash_slot_count`、`cluster.slot_replica_n` 和 `cluster.channel_replica_n` 与计划一致。TLS、监听／公布地址、网关认证、Webhook 地址与网络保护、插件及业务后端配置须另行核对，数据库导入不会替你搬运或验证这些配置。原生 Webhook 不提供签名；若业务使用外部签名代理，单独迁移并验证代理配置。参考[集群配置](/zh/server/configuration/cluster)和[安全配置](/zh/server/configuration/security)。
 
 使用配套 v3 程序隔离启动全部目标节点，暂不接入生产流量。至少验证：
 

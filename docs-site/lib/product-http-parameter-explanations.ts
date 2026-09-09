@@ -337,7 +337,7 @@ export const productHTTPParameterExplanations = {
         event_id: explanation('该事件的非空白唯一标识。', 'Non-blank unique identifier of this event.'),
         event_type: explanation('事件类型；会去除首尾空白并转为小写。', 'Event type; surrounding whitespace is removed and the value is lowercased.'),
         event_key: explanation('事件 lane Key；空值使用默认 lane，stream.finish 强制使用 finish lane。', 'Event lane key; empty selects the default lane and stream.finish forces the finish lane.'),
-        visibility: explanation('调用方提供并去除首尾空白后保存的事件元数据；普通消息同步不会用它做访问控制过滤；eventsync 会根据 include_private 筛选，但不验证调用方权限。', 'Caller-supplied event metadata stored after trimming; current Product HTTP message synchronization does not use it as an access-control filter.'),
+        visibility: explanation('调用方提供并去除首尾空白后保存的事件元数据；普通消息同步不会用它做访问控制过滤；eventsync 会根据 include_private 筛选，但不验证调用方权限。', 'Caller-supplied event metadata stored after trimming; ordinary message synchronization does not use it as an access-control filter. eventsync filters by include_private without checking caller permissions.'),
         occurred_at: explanation('调用方提供的事件发生时间整数；入口不解释时间单位。', 'Caller-supplied integer event time; the entry does not interpret its unit.'),
         payload: explanation('任意 JSON 事件 Payload；服务端按原始 JSON 字节传给事件存储。', 'Arbitrary JSON event payload passed to event storage as raw JSON bytes.'),
         headers: explanation('预留字段；只能省略或传 null，任何非 null JSON 值都会被拒绝。', 'Reserved field; it must be omitted or null, and every non-null JSON value is rejected.'),

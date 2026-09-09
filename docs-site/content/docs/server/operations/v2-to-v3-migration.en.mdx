@@ -106,7 +106,7 @@ If the business owner decides to omit CMD and entire stream messages, deduplicat
 
 `legacy_stream_storage` **only excludes the old Stream and StreamMeta tables**. `exclude_streams` additionally excludes stream main messages from the message table and their explicitly associated event projections and cursors. Event identities shared with retained messages still block completion. `exclude_cmd` also omits old CMD conversations and sync positions. All excluded source rows remain in the archive.
 
-“Latest” means the greatest **original MessageSeq within the same channel**. Keep the newer record for duplicate MessageIDs or the same channel, sender, and nonempty ClientMsgNo. Cross-channel MessageID conflicts and contradictory retention choices still block completion. Do not add physical replica counts across nodes to calculate business deletions.
+“Latest” means the greatest **original MessageSeq within the same channel**. Keep the newer record for duplicate MessageIDs or the same channel with matching nonempty sender and nonempty ClientMsgNo. Empty senders or ClientMsgNo values skip ClientMsgNo deduplication; MessageID deduplication remains independent. Cross-channel MessageID conflicts and contradictory retention choices still block completion. Do not add physical replica counts across nodes to calculate business deletions.
 
 After renumbering, retained messages become `1…N` in their original order, and new messages continue at `N+1`. Read and deletion positions map to the number of retained messages at or before the old position. A channel with every message excluded has tail 0 and starts new messages at 1. The tool does not create placeholders or change v3 storage to fill gaps. Gaps already present in source history still block completion.
 
@@ -182,7 +182,7 @@ To rehearse the full offline flow in isolated Docker containers, use the reposit
 
 Copy each complete target directory to its corresponding host, preserving the **same absolute data path** specified in the plan and file permissions. Include Controller snapshots and migration markers, not just message databases. Keep all targets stopped during copying.
 
-Prepare each node's `wukongim.toml`. Match `node.id`, `node.data_dir`, `cluster.id`, `cluster.nodes`, `cluster.initial_slot_count`, `cluster.hash_slot_count`, `cluster.slot_replica_n`, and `cluster.channel_replica_n` to the plan. Separately check TLS, listening/advertised addresses, gateway authentication, Webhook signatures and endpoints, plugins, and business backend configuration. Database import does not transfer or validate those settings. See [Cluster Configuration](/en/server/configuration/cluster) and [Security Configuration](/en/server/configuration/security).
+Prepare each node's `wukongim.toml`. Match `node.id`, `node.data_dir`, `cluster.id`, `cluster.nodes`, `cluster.initial_slot_count`, `cluster.hash_slot_count`, `cluster.slot_replica_n`, and `cluster.channel_replica_n` to the plan. Separately check TLS, listening/advertised addresses, gateway authentication, Webhook endpoints and network protections, plugins, and business backend configuration. Database import does not transfer or validate those settings. Native Webhooks do not provide signatures; if your business uses an external signing proxy, migrate and validate that configuration separately. See [Cluster Configuration](/en/server/configuration/cluster) and [Security Configuration](/en/server/configuration/security).
 
 Start all targets in isolation using the matching v3 server, without production traffic. At minimum, check:
 
