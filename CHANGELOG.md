@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.10] - 2026-09-09
+
 ### 🔧 Improvements / 改进
 
 - Consolidate operator tools into `wkcli bench`, `wkcli db`, and `wkcli migrate`; remove the separate `wkbench`, `wkdb`, and `wkmigrate` executables, migrate repository callers, and include version-matched `wkcli` in binary archives and native packages. External scripts must adopt the new subcommands. / 运维工具统一为 `wkcli bench/db/migrate`，移除旧独立程序并迁移仓库调用；二进制归档与原生安装包包含同版本 `wkcli`，外部脚本需切换新子命令。
