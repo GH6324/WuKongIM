@@ -6,7 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-## [v3.0.0-beta.11] - 2026-09-09
+## [v3.0.0-beta.12] - 2026-09-09
 
 ### 🔧 Improvements / 改进
 
@@ -51,6 +51,8 @@ move those entries into a version section named for that exact tag.
 - Improve Manager node-log troubleshooting with explicit keyword search, a navigable details drawer and copy feedback, reliable retry, and live scrolling that preserves the reading position. / 优化管理台节点日志排查：关键字提交查询、可切换事件的详情抽屉与复制反馈、可靠重试，以及保护阅读位置的实时跟随。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Update the embedded Prometheus gRPC dependency to v1.83.2 to address CVE-2026-84445. / 将内嵌 Prometheus 的 gRPC 依赖升级至 v1.83.2，修复 CVE-2026-84445。
 
 - Fix release archive validation to include the unified `wkcli` executable, and use the official Go module proxy in hosted image builds. / 修复发布归档校验遗漏统一 `wkcli` 的问题，并在托管镜像构建中使用官方 Go 模块代理。
 
