@@ -921,6 +921,8 @@
 
 ### Offline migration diagnostics
 
+- Public operator instructions live in the bilingual `docs-site/content/docs/server/operations/v2-to-v3-migration{,.en}.mdx` pages. Keep original-v2 offline preparation, explicit exclusions, independent verification, client sequence reset, and post-write rollback boundaries there; capture-specific decisions and historical acceptance evidence remain in the engineering runbook and reports.
+
 - Dedupe report v5 uses `:dedupe-v5` workspace identity. Its per-node protocol
   impact counts unsupported fields after candidate CMD/stream/duplicate omissions,
   separates omitted fields, and retains at most three payload-free examples per

@@ -62,6 +62,7 @@ Route: `/{lang}/server`
   - **扩容与缩容 / Scaling** `/{lang}/server/operations/scaling` — 逐步增加节点，或安全排空并移除节点。 / Add a node step by step, or safely drain and remove one.
   - **备份与恢复 / Backup & Restore** `/{lang}/server/operations/backup-and-restore` — 创建、测试和验证备份，并在维护窗口中恢复。 / Create, test, and verify backups, then restore during maintenance.
   - **升级与迁移 / Upgrade & Migration** `/{lang}/server/operations/upgrade-and-migration` — 根据发布说明选择滚动升级或停机升级。 / Use release notes to choose a rolling or stopped upgrade.
+  - **v2 → v3 离线迁移 / v2 → v3 Offline Migration** `/{lang}/server/operations/v2-to-v3-migration` — 从原版 v2 冷备迁入全新 v3 集群，校验数据并完成切换。 / Migrate original v2 cold backups into a new v3 cluster, verify data, and complete cutover.
   - **故障排查 / Troubleshooting** `/{lang}/server/operations/troubleshooting` — 从故障现象开始，用低风险检查逐步定位问题。 / Start from the symptom and narrow the problem with low-risk checks.
 - **工具 / Tools** `/{lang}/server/tools` — 使用官方工具观察、验证和评估集群。 / Use official tools to inspect, verify, and evaluate clusters.
   - **wkcli / wkcli** `/{lang}/server/tools/wkcli` — 查看集群状态并执行受控运维操作。 / Inspects cluster state and performs controlled operations.

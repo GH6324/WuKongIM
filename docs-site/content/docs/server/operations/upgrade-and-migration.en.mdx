@@ -51,7 +51,7 @@ Use this when the release notes do not explicitly allow mixed versions:
 2. Stop product traffic and wait for writes and downstream delivery to drain.
 3. Stop nodes in the order required by the target release. Do not stop every Controller voter together while coordination is still needed.
 4. Replace the program and configuration on every node. Start them according to the release instructions only after versions are consistent.
-5. Wait for all nodes, Controller, and all 256 Slots to stabilize and for `/readyz` to return 200 on every node.
+5. Wait for all nodes, Controller, and all logical Slots to stabilize and for `/readyz` to return 200 on every node.
 6. Run product tests and then restore traffic gradually. Stop the cutover on unknown state or new errors.
 
 ## When rollback is safe
@@ -62,6 +62,6 @@ After that boundary, do not blindly install the old version. Keep traffic closed
 
 ## Moving from v2 to v3
 
-There is currently no general in-place v2-to-v3 storage conversion tool. Do not copy a v2 data directory into v3, and do not use v3 backup restore as a new-cluster import API.
+`wkmigrate` converts complete stopped backups of original v2 into a new, empty v3 cluster offline. It does not require modifying or upgrading old v2. It is not an in-place upgrade, and v3 must never open the old data directories directly.
 
-Plan a separate export, transformation, validation, cutover, and rollback for users, Channels, membership, messages, device tokens, and external integrations. Rehearse it with representative data. Without a verified release-specific plan, keep the existing system running instead of experimenting in production.
+Follow [v2 → v3 Offline Migration](/en/server/operations/v2-to-v3-migration) to fix versions and the plan, run `prepare`, `export`, `import`, and independent `verify`, then complete runtime, client, and external integration acceptance. Renumbering requires handling client caches and cursors; after new production writes begin, a direct switch back to old v2 is unsafe.
