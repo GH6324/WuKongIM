@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes / 问题修复
+
+- Fix dual-architecture Docker release verification and recovery by pulling each platform through its immutable child manifest. / 修复 Docker 双架构发布校验与恢复流程，按不可变子清单分别拉取各架构镜像。
+
 ## [v3.0.0-beta.12] - 2026-09-09
 
 ### 🔧 Improvements / 改进

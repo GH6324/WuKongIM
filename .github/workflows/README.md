@@ -212,7 +212,9 @@ missing mirror. Each candidate must also pass the bounded
 `scripts/verify-docker-prometheus.sh` probe: offline non-root startup with
 managed Prometheus enabled, an actual scrape, historical queries after container
 recreation on the same volume, and graceful stop. The canonical digest passes
-that probe again before mirroring, including recovery runs. Extracted Prometheus
+that probe again before mirroring, including recovery runs. Each platform is
+pulled by its unique child manifest from the verified canonical index, so classic
+Docker stores never load both architectures under one index reference. Extracted Prometheus
 executables pass a separate Trivy `rootfs` scan that requires exactly one
 `gobinary` result, preventing an empty scan from passing. Their components and
 dependency edges are included in the corresponding platform SBOM. After the

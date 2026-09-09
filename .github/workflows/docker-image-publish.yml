@@ -482,8 +482,16 @@ jobs:
         run: |
           set -euo pipefail
           for arch in amd64 arm64; do
-            docker pull --platform "linux/$arch" "$CANONICAL_IMAGE@$CANONICAL_DIGEST"
-            bash scripts/verify-docker-prometheus.sh "$CANONICAL_IMAGE@$CANONICAL_DIGEST" "linux/$arch"
+            # Classic Docker stores cannot load two platforms at one index ref.
+            # Select a unique child from the index verified in the previous step.
+            platform_digest="$(jq -er --arg arch "$arch" '
+              [.manifest.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch)]
+              | if length == 1 then .[0].digest else error("expected one platform manifest") end
+            ' canonical-manifest.json)"
+            [[ "$platform_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            platform_image="$CANONICAL_IMAGE@$platform_digest"
+            docker pull --platform "linux/$arch" "$platform_image"
+            bash scripts/verify-docker-prometheus.sh "$platform_image" "linux/$arch"
             scan="${{ runner.temp }}/prometheus-canonical-$arch.scan.json"
             trivy rootfs --scanners vuln --severity CRITICAL,HIGH --exit-code 1 --no-progress \
               --format json --output "$scan" "$WK_DOCKER_PROMETHEUS_ARTIFACT_DIR/$arch"
