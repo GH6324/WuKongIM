@@ -54,8 +54,9 @@ python3 scripts/migration/rehearse-offline.py \
   --dry-run
 ```
 
-The dry run checks paths and binary hashes, prints the exact commands, and
-creates nothing. Remove `--dry-run` to run. Add `--expected-retained-messages N`
+The dry run checks paths and binary hashes, prints each exact container-creation
+command, and creates nothing. During execution, the wrapper records the created
+container ID and verifies its ownership before attaching to `docker start`. Remove `--dry-run` to run. Add `--expected-retained-messages N`
 when an approved authoritative retained count is known; verification must then
 report `N × channel_replicas` message replicas. Do not confuse physical source
 rows or pre-exclusion counts with retained business messages.
@@ -65,7 +66,13 @@ container at 1.5 GiB memory/4 CPUs. These limits are functional rehearsal bounds
 not a sizing recommendation for production data. Scratch storage, the archive
 and target replicas all consume disk. Provision their combined requirements
 plus reserve. A guard stops only the exact container owned by that phase and
-preserves directories/logs. Inspect a stopped run before creating another fresh
+preserves directories/logs. Cleanup settles the attached start client and checks
+container state again before removal, covering a delayed start. Creation is
+bounded to 30 seconds and cannot execute migration work. If Docker becomes
+unreachable during creation or cleanup, the execution record keeps
+`cleanup: not_confirmed`; inspect the exact recorded owner before retrying.
+An uncertain creation may leave a stopped container, never an automatically
+started migration workload. Inspect a stopped run before creating another fresh
 run; the wrapper deliberately does not resume or delete an interrupted output.
 Use the documented CLI recovery procedure when a resume is appropriate. Before
 retrying a stopped verification, preserve its execution record and logs, confirm

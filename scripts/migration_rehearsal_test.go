@@ -71,7 +71,7 @@ func TestMigrationRehearsalDryRunIsolation(t *testing.T) {
 	}
 	for phase, command := range commands {
 		joined := strings.Join(command, " ")
-		for _, required := range []string{"--network none", "--pull=never", "--read-only", "--workspace /scratch/workspace"} {
+		for _, required := range []string{"docker create", "--network none", "--pull=never", "--read-only", "--workspace /scratch/workspace"} {
 			if !strings.Contains(joined, required) {
 				t.Fatalf("%s missing %q", phase, required)
 			}

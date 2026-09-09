@@ -81,7 +81,7 @@ def mount(host, guest, readonly=False):
 def command(args, phase, owner):
     """Import and verification cannot access sources or producer scratch state."""
     workspace = {"prepare": "prepare-work", "export": "prepare-work", "import": "import-work", "retry": "import-work", "verify": "verify-work"}[phase]
-    cmd = ["docker", "run", "--name", owner, "--label", "wkmigrate.rehearsal=" + owner,
+    cmd = ["docker", "create", "--name", owner, "--label", "wkmigrate.rehearsal=" + owner,
            "--pull=never", "--platform", "linux/amd64", "--network", "none", "--read-only",
            "--memory", "1536m", "--memory-swap", "1536m", "--cpus", "4", "--pids-limit", "256",
            "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m", "-e", "GOMAXPROCS=4", "-e", "GOMEMLIMIT=512MiB"]
@@ -117,9 +117,21 @@ def phase_run(args, phase, owner):
     cmd = command(args, phase, owner)
     started = time.monotonic()
     guard = None
+    process = None
+    container_id = None
+    cleanup = "not_confirmed"
     with (args.output / (phase + ".stdout.json")).open("wb") as out, (args.output / (phase + ".stderr.log")).open("wb") as err:
-        process = subprocess.Popen(cmd, stdout=out, stderr=err)
         try:
+            # Creation cannot execute migration work. Capture ownership before start.
+            created = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=err, text=True, timeout=30)
+            container_id = created.stdout.strip()
+            if not re.fullmatch(r"[0-9a-f]{64}", container_id):
+                raise RuntimeError("Docker did not return a container ID")
+            item = owned(owner)
+            if item["Id"] != container_id:
+                raise RuntimeError("created container identity differs")
+            atomic(args.output / (phase + ".created.json"), item)
+            process = subprocess.Popen(["docker", "start", "--attach", container_id], stdout=out, stderr=err)
             while process.poll() is None:
                 if shutil.disk_usage(args.output).free < args.disk_reserve_gib * 1024**3:
                     guard = "free disk fell below reserve"
@@ -131,22 +143,37 @@ def phase_run(args, phase, owner):
             if process.returncode:
                 raise RuntimeError("phase failed; inspect " + phase + ".stderr.log")
         finally:
-            # The exact per-phase name and label fence all stop/remove actions.
             try:
+                if process is not None:
+                    # Settle a pending start, then inspect again: it may have become
+                    # running after the first stop check. A CLI exit is not cleanup.
+                    try:
+                        item = owned(owner)
+                        if item["Id"] != container_id:
+                            raise RuntimeError("container identity differs during cleanup")
+                        if item["State"]["Running"]:
+                            docker("stop", "--time", "15", container_id)
+                    finally:
+                        try:
+                            process.wait(timeout=30)
+                        except subprocess.TimeoutExpired:
+                            process.terminate()
+                            process.wait(timeout=10)
                 item = owned(owner)
+                if container_id is not None and item["Id"] != container_id:
+                    raise RuntimeError("container identity differs during cleanup")
                 if item["State"]["Running"]:
-                    docker("stop", "--time", "15", owner)
+                    docker("stop", "--time", "15", item["Id"])
                 item = owned(owner)
                 atomic(args.output / (phase + ".container.json"), item)
-                docker("rm", owner)
+                docker("rm", item["Id"])
+                cleanup = "removed"
             finally:
-                try:
-                    process.wait(timeout=30)
-                except subprocess.TimeoutExpired:
-                    process.terminate()
-                    process.wait(timeout=10)
                 atomic(args.output / (phase + ".execution.json"), {
-                    "phase": phase, "command": cmd, "exit_code": process.returncode,
+                    "phase": phase, "command": cmd,
+                    "start_command": ["docker", "start", "--attach", container_id] if process is not None else None,
+                    "exit_code": process.returncode if process is not None else None,
+                    "container_id": container_id, "cleanup": cleanup,
                     "seconds": time.monotonic() - started, "guard": guard,
                     "free_disk_bytes": shutil.disk_usage(args.output).free,
                     "source_mounted": phase in ("prepare", "export"),
