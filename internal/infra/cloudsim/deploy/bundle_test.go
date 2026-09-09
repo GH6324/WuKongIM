@@ -24,7 +24,7 @@ func TestRenderSealVerifyAndTamperDetection(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
+	for _, name := range []string{"wukongim", "wkcli", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
 		if err := os.WriteFile(filepath.Join(root, "bin", name), []byte("static-"+name), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestRenderSealVerifyAndTamperDetection(t *testing.T) {
 	if !strings.Contains(string(renderedScenario), "id: run-1") || !strings.Contains(string(renderedScenario), "duration: 30m0s") || !strings.Contains(string(renderedScenario), "report_dir: /var/lib/wukongim-cloud/reports/run-1") {
 		t.Fatalf("scenario does not bind requested duration and run report directory:\n%s", renderedScenario)
 	}
-	if err := os.WriteFile(filepath.Join(root, "bin", "wkbench"), []byte("tampered"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "bin", "wkcli"), []byte("tampered"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Verify(root); !errors.Is(err, ErrInvalidBundle) {
@@ -82,7 +82,7 @@ func TestRenderOmitsCloudViewWhenPublicObservationDisabled(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "prometheus", "node_exporter"} {
+	for _, name := range []string{"wukongim", "wkcli", "wkanalysis", "prometheus", "node_exporter"} {
 		if err := os.WriteFile(filepath.Join(root, "bin", name), []byte(name), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -244,7 +244,7 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
+			for _, name := range []string{"wukongim", "wkcli", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
 				if err := os.WriteFile(filepath.Join(root, "bin", name), []byte(name), 0o755); err != nil {
 					t.Fatal(err)
 				}

@@ -243,9 +243,9 @@ func offlineRole(role string) bool {
 
 func offlineBinaries(role string) []string {
 	if strings.HasPrefix(role, "service-") {
-		return []string{"wukongim", "wkbench", "node_exporter", "wkcloudbundle", "wkcloudhost"}
+		return []string{"wukongim", "wkcli", "node_exporter", "wkcloudbundle", "wkcloudhost"}
 	}
-	return []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkcloudbundle", "wkcloudgate", "wkcloudhost"}
+	return []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkcli", "wkcloudbundle", "wkcloudgate", "wkcloudhost"}
 }
 
 func offlineUnits(role string) []string {

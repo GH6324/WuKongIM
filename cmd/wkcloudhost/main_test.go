@@ -136,7 +136,7 @@ func buildTestBundle(t *testing.T) string {
 	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"wukongim", "wkbench", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
+	for _, name := range []string{"wukongim", "wkcli", "wkanalysis", "wkcloudview", "prometheus", "node_exporter"} {
 		if err := os.WriteFile(filepath.Join(root, "bin", name), []byte(name), 0o755); err != nil {
 			t.Fatal(err)
 		}

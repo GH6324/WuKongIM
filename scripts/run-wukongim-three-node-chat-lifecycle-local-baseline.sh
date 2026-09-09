@@ -186,7 +186,7 @@ overlap="$(ps -axo pid=,comm= | awk -v self="$$" '
   {
     command = $2
     sub(/^.*\//, "", command)
-    if ($1 != self && (command == "wukongim" || command == "wkbench")) print $0
+    if ($1 != self && (command == "wukongim" || command == "wkcli")) print $0
   }
 ')"
 if [[ -n "$overlap" ]]; then
@@ -291,7 +291,7 @@ verify_step_artifact_checksums() {
     "$timeline_tsv_covered" == true && "$storage_overlap_covered" == true && "$raw_cuts_covered" == true && "$profile_status_covered" == true &&
     "$graceful_stop_status_covered" == true ]] || return 1
   for required in \
-    chat-lifecycle.yaml bin/wukongim bin/wkbench \
+    chat-lifecycle.yaml bin/wukongim bin/wkcli \
     config/node1.toml config/node2.toml config/node3.toml \
     logs/coordinator.log logs/service-1.log logs/service-2.log logs/service-3.log \
     logs/worker-1.log logs/worker-2.log logs/worker-3.log \
@@ -310,7 +310,7 @@ verify_step_artifact_checksums() {
   wkbench_sha="$(awk -F '\t' '$1 == "wkbench_binary_sha256" { print $2 }' "$identity")"
   sealed_config_sha="$(awk '$2 == "chat-lifecycle.yaml" { print $1 }' "$manifest")"
   sealed_wukongim_sha="$(awk '$2 == "bin/wukongim" { print $1 }' "$manifest")"
-  sealed_wkbench_sha="$(awk '$2 == "bin/wkbench" { print $1 }' "$manifest")"
+  sealed_wkbench_sha="$(awk '$2 == "bin/wkcli" { print $1 }' "$manifest")"
   [[ "$schema" == wukongim/chat-lifecycle-local-evidence/v1 && -n "$source_revision" ]] || return 1
   case "$source_dirty:$source_rebuildable:$source_capture" in
     false:true:git_revision) STEP_SOURCE_REBUILDABLE=true ;;

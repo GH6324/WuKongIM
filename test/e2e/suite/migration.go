@@ -19,8 +19,8 @@ import (
 // BuildMigrationCLI builds the actual offline operator entrypoint for the test.
 func BuildMigrationCLI(t testing.TB) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "wkmigrate")
-	cmd := exec.Command("go", "build", "-o", path, "./cmd/wkmigrate")
+	path := filepath.Join(t.TempDir(), "wkcli")
+	cmd := exec.Command("go", "build", "-o", path, "./cmd/wkcli")
 	cmd.Dir = repoRoot()
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	output, err := cmd.CombinedOutput()
@@ -31,9 +31,9 @@ func BuildMigrationCLI(t testing.TB) string {
 // RunMigrationCLI executes one bounded migration phase and returns combined output for diagnostics.
 func RunMigrationCLI(t testing.TB, ctx context.Context, path string, args ...string) []byte {
 	t.Helper()
-	cmd := exec.CommandContext(ctx, path, args...)
+	cmd := exec.CommandContext(ctx, path, append([]string{"migrate"}, args...)...)
 	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, "wkmigrate %s: %s", args[0], boundedTail(output))
+	require.NoError(t, err, "wkcli migrate %s: %s", args[0], boundedTail(output))
 	return output
 }
 
@@ -41,9 +41,9 @@ func RunMigrationCLI(t testing.TB, ctx context.Context, path string, args ...str
 // exit and bounded output, without opening any source or target database.
 func RunMigrationCLIExpectFailure(t testing.TB, ctx context.Context, path string, args ...string) []byte {
 	t.Helper()
-	cmd := exec.CommandContext(ctx, path, args...)
+	cmd := exec.CommandContext(ctx, path, append([]string{"migrate"}, args...)...)
 	output, err := cmd.CombinedOutput()
-	require.Error(t, err, "wkmigrate must reject unsupported input")
+	require.Error(t, err, "wkcli migrate must reject unsupported input")
 	require.NoError(t, ctx.Err(), "a timeout is not a successful refusal")
 	return boundedTail(output)
 }

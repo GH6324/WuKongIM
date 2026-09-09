@@ -21,7 +21,8 @@ non-secret Lease inventory and has no provider lifecycle authority.
 
 ## Main Flows
 
-1. Build and seal linux/amd64 product/control artifacts; validate ELF, required
+1. Build and seal linux/amd64 product/control artifacts, including `wkcli` for
+   all benchmark processes while retaining existing systemd unit names; validate ELF, required
    files, modes, topology, secret paths, symlinks, and container independence;
    hash ordered records into one bundle digest verified on each host.
 2. `BuildPlan` binds Lease, source, control, bundle, four roles, addresses,

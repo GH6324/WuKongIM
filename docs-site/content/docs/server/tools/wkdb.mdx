@@ -1,9 +1,9 @@
 ---
-title: wkdb
+title: wkcli db
 description: 离线查询、导出、导入和比较单个节点的本地 WKDB 数据。
 ---
 
-`wkdb` 是面向一个 WuKongIM 节点数据目录的本地离线工具。它不会连接集群节点，也不会读取 Controller、Raft 或运行时全局状态。默认从只读查询开始；只有 `import` 会写 WKDB 存储。
+`wkcli db` 是面向一个 WuKongIM 节点数据目录的本地离线工具。它不会连接集群节点，也不会读取 Controller、Raft 或运行时全局状态。默认从只读查询开始；只有 `import` 会写 WKDB 存储。
 
 <Callout type="error" title="不要操作在线数据目录">
   精确检查应针对已停止节点、文件系统快照或复制出的数据目录。在线文件可能持续变化，不能形成一致证据；`import` 必须使用明确的离线目标，并在写入前完成 dry run 与备份。
@@ -23,8 +23,8 @@ description: 离线查询、导出、导入和比较单个节点的本地 WKDB �
 ## 定位存储
 
 ```bash
-wkdb --data-dir ./node-1 --hash-slot-count 256 query "show tables"
-wkdb --config ./wukongim.toml query "select * from meta.user limit 20"
+wkcli db --data-dir ./node-1 --hash-slot-count 256 query "show tables"
+wkcli db --config ./wukongim.toml query "select * from meta.user limit 20"
 ```
 
 - `--data-dir` 按当前节点布局推导 `slotmeta` 与 `messages`；
@@ -37,20 +37,20 @@ wkdb --config ./wukongim.toml query "select * from meta.user limit 20"
 ## 只读查询
 
 ```bash
-wkdb --data-dir ./node-1 --hash-slot-count 256 \
+wkcli db --data-dir ./node-1 --hash-slot-count 256 \
   query "select * from meta.user where uid='u1'"
 
-wkdb --data-dir ./node-1 \
+wkcli db --data-dir ./node-1 \
   query "select * from message.channels limit 20"
 
-wkdb --data-dir ./node-1 \
+wkcli db --data-dir ./node-1 \
   query "select * from message.message where channel_key='g1:2' limit 50"
 ```
 
 包含 `uid` 或 `channel_id` 等分区键时，工具会推导对应哈希槽；没有分区键的查询会在本节点文件上进行有界扫描。`limit` 是整次查询总行数，不会对每个哈希槽重复应用。大结果使用返回的游标继续分页，不支持 `offset`：
 
 ```bash
-wkdb --data-dir ./node-1 --hash-slot-count 256 \
+wkcli db --data-dir ./node-1 --hash-slot-count 256 \
   query "select * from meta.user limit 100 cursor '<next_cursor>'"
 ```
 
@@ -59,7 +59,7 @@ wkdb --data-dir ./node-1 --hash-slot-count 256 \
 ## 导出 bundle
 
 ```bash
-wkdb --data-dir ./node-1 --hash-slot-count 256 \
+wkcli db --data-dir ./node-1 --hash-slot-count 256 \
   export --output ./wkdb-dump
 ```
 
@@ -72,14 +72,14 @@ wkdb --data-dir ./node-1 --hash-slot-count 256 \
 先只验证 bundle，不打开可写目标：
 
 ```bash
-wkdb --data-dir ./node-new --hash-slot-count 256 \
+wkcli db --data-dir ./node-new --hash-slot-count 256 \
   import --input ./wkdb-dump --dry-run
 ```
 
 通过校验后，针对新建或明确清空的离线目标执行：
 
 ```bash
-wkdb --data-dir ./node-new --hash-slot-count 256 \
+wkcli db --data-dir ./node-new --hash-slot-count 256 \
   import --input ./wkdb-dump --require-empty
 ```
 
@@ -88,11 +88,11 @@ wkdb --data-dir ./node-new --hash-slot-count 256 \
 ## 比较两个离线目录
 
 ```bash
-wkdb --hash-slot-count 256 diff \
+wkcli db --hash-slot-count 256 diff \
   --source-data-dir ./node-old \
   --target-data-dir ./node-new
 
-wkdb --hash-slot-count 256 diff \
+wkcli db --hash-slot-count 256 diff \
   --source-data-dir ./node-old \
   --target-data-dir ./node-new \
   --mode full
@@ -102,4 +102,4 @@ wkdb --hash-slot-count 256 diff \
 
 ## 与集群恢复的边界
 
-`wkdb` bundle 适合节点本地的离线检查和受控数据转移，不替代 [Manager 备份与恢复](/zh/server/operations/backup-and-restore)。集群恢复还必须验证集群身份、归档、任务以及全部 256 个物理哈希槽，并通过维护状态下的原子切换或回滚流程。
+`wkcli db` bundle 适合节点本地的离线检查和受控数据转移，不替代 [Manager 备份与恢复](/zh/server/operations/backup-and-restore)。集群恢复还必须验证集群身份、归档、任务以及全部 256 个物理哈希槽，并通过维护状态下的原子切换或回滚流程。

@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Consolidate operator tools into `wkcli bench`, `wkcli db`, and `wkcli migrate`; remove the separate `wkbench`, `wkdb`, and `wkmigrate` executables, migrate repository callers, and include version-matched `wkcli` in binary archives and native packages. External scripts must adopt the new subcommands. / 运维工具统一为 `wkcli bench/db/migrate`，移除旧独立程序并迁移仓库调用；二进制归档与原生安装包包含同版本 `wkcli`，外部脚本需切换新子命令。
+
 - Align the complete Product HTTP reference with all 42 runtime routes, including event projection sync and the native send `header.red_dot` flag. / 将完整 Product HTTP 文档对齐全部 42 个运行时接口，补齐事件投影同步和发送请求的原生 `header.red_dot` 字段。
 
 - Add a bilingual v2 → v3 offline migration guide covering plans, data policies, independent verification, client cutover, and rollback boundaries. / 新增中英文 v2 → v3 离线迁移指南，覆盖迁移计划、数据处理、独立校验、客户端切换与回退边界。

@@ -1,9 +1,9 @@
 ---
 title: v2 → v3 离线迁移
-description: 使用 wkmigrate 从未修改的 v2 停机备份生成全新 v3 集群，完成数据校验、客户端切换与回退准备。
+description: 使用 wkcli migrate 从未修改的 v2 停机备份生成全新 v3 集群，完成数据校验、客户端切换与回退准备。
 ---
 
-`wkmigrate` 将原版 v2 的停机数据转换为原生 v3 数据目录。**不需要修改或升级已部署的 v2**：`prepare` 在迁移机上离线读取备份，不是需要安装到 v2 的接口。
+`wkcli migrate` 将原版 v2 的停机数据转换为原生 v3 数据目录。**不需要修改或升级已部署的 v2**：`prepare` 在迁移机上离线读取备份，不是需要安装到 v2 的接口。
 
 API 和 SDK 接口兼容不代表磁盘格式兼容。不要让 v3 直接打开 v2 数据目录，也不要用普通滚动升级替代迁移。
 
@@ -35,14 +35,14 @@ API 和 SDK 接口兼容不代表磁盘格式兼容。不要让 v3 直接打开 
 ```sh
 umask 077
 mkdir -p /srv/tools /srv/wkmigrate/reports /srv/wkmigrate/work /srv/wkmigrate/targets
-GOWORK=off go build -o /srv/tools/wkmigrate ./cmd/wkmigrate
+GOWORK=off go build -o /srv/tools/wkcli ./cmd/wkcli
 GOWORK=off go build -o /srv/tools/wukongim-v3 ./cmd/wukongim
 git rev-parse HEAD > /srv/wkmigrate/reports/tool-source.txt
-sha256sum /srv/tools/wkmigrate /srv/tools/wukongim-v3 > /srv/wkmigrate/reports/binaries.sha256
-/srv/tools/wkmigrate --help
+sha256sum /srv/tools/wkcli /srv/tools/wukongim-v3 > /srv/wkmigrate/reports/binaries.sha256
+/srv/tools/wkcli migrate --help
 ```
 
-macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平台。使用交付包时，先与独立交付记录比对压缩包摘要，再校验包内文件；普通服务端安装包不保证包含 `wkmigrate`。
+macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平台。使用交付包时，先与独立交付记录比对压缩包摘要，再校验包内文件；统一 CLI 的版本会在官方归档和原生安装包中同时提供 `wkcli` 与 `wukongim`；可用 `wkcli version --output json` 核对版本。
 
 ## 2. 固定迁移计划
 
@@ -115,7 +115,7 @@ macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平
 先诊断冷备，使用单独的诊断工作空间：
 
 ```sh
-/srv/tools/wkmigrate diagnose --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate diagnose --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/diagnose \
   > /srv/wkmigrate/reports/diagnose.json
 ```
@@ -125,7 +125,7 @@ macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平
 解决阻塞并确定计划后执行：
 
 ```sh
-/srv/tools/wkmigrate prepare --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate prepare --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/prepare \
   > /srv/wkmigrate/reports/prepare.json
 ```
@@ -137,7 +137,7 @@ macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平
 ## 4. export：封存原始归档
 
 ```sh
-/srv/tools/wkmigrate export --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate export --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/prepare \
   --archive /srv/wkmigrate/source-archive \
   > /srv/wkmigrate/reports/export.json
@@ -150,12 +150,12 @@ macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平
 导入和独立校验仅依赖计划及完整归档。下面分别使用全新的工作空间，使校验不依赖导入过程的临时结果：
 
 ```sh
-/srv/tools/wkmigrate import --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate import --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/import \
   --archive /srv/wkmigrate/source-archive \
   > /srv/wkmigrate/reports/import.json
 
-/srv/tools/wkmigrate verify --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate verify --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/verify \
   --archive /srv/wkmigrate/source-archive \
   > /srv/wkmigrate/reports/verify.json
@@ -202,7 +202,7 @@ macOS 可用 `shasum -a 256` 代替 `sha256sum`。构建应面向实际运行平
 若客户端采用映射方案，必须处理完整 `sequence_mapping`：被排除行的 `target_seq` 为 0，旧游标映射应使用 `boundary_seq`，不能当成仍存在的消息。可用 `export-map` 从归档重建映射：
 
 ```sh
-/srv/tools/wkmigrate export-map --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate export-map --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/map \
   --archive /srv/wkmigrate/source-archive
 ```

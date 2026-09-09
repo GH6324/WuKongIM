@@ -8,7 +8,7 @@
 
 2026-09-08 测试集群最终候选为 HA78；源码提交、构建参数和二进制摘要由交付包的
 `manifest.json` 固定。先在解压目录运行 `sha256sum -c SHA256SUMS`，再使用包内
-配套的 `wkmigrate` 与 `wukongim`。不要把本次测试数据或私有计划用于其他部署。
+配套的 `wkcli migrate` 与 `wukongim`。不要把本次测试数据或私有计划用于其他部署。
 
 实际三节点迁移测试、故障恢复、Demo 全历史分页和重新同步结果，以及本次回退路径，
 见 [最终分页验收报告](../reports/2026-09-08-v2-migration-history-pagination.md)。
@@ -27,7 +27,7 @@
 完整保留配置命令。源行全部留档，归档重建重新核验；元数据仍严格比较。
 当前 Leader 缺失历史、同任期换主、成员变更、删除、内容冲突或中间缺洞均不能
 通过这个选项。它证明持久历史一致性，不证明历史客户端 ACK。详细条件见
-[CLI 说明](../../../cmd/wkmigrate/README.md#正式消息副本的严格前缀差异)。
+[CLI 说明](../../../cmd/wkcli/internal/migrate/README.md#正式消息副本的严格前缀差异)。
 
 已确认恢复的空 Leader 频道使用单独的 `history.recoveries`，不能仅开启前缀选项。
 每个决定必须填写 `owner_hash`、`identity_sha256`、`capture_digest`、`proof_digest`、
@@ -150,7 +150,7 @@ ACK、历史多数派确认或外部 Webhook 送达证据，工具不会补造�
 原 v2 已停机时，可先运行：
 
 ```sh
-/srv/tools/wkmigrate diagnose --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate diagnose --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/diagnostic-workspace > /srv/wkmigrate/diagnostic.json
 ```
 
@@ -181,7 +181,7 @@ ACK、历史多数派确认或外部 Webhook 送达证据，工具不会补造�
 对于已停机且无法升级的 v2，可独立核验当前 `MigrateFrom/MigrateTo` 非零的频道：
 
 ```sh
-/srv/tools/wkmigrate authority --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate authority --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/authority-workspace > /srv/wkmigrate/authority.json
 ```
 
@@ -211,9 +211,9 @@ ACK、历史多数派确认或外部 Webhook 送达证据，工具不会补造�
 迁移工具当前支持 Linux 和 macOS 的文件锁。在本实现所在的仓库工作目录构建：
 
 ```sh
-GOWORK=off go build -o /srv/tools/wkmigrate ./cmd/wkmigrate
+GOWORK=off go build -o /srv/tools/wkcli ./cmd/wkcli
 GOWORK=off go build -o /srv/tools/wukongim-v3 ./cmd/wukongim
-/srv/tools/wkmigrate --help
+/srv/tools/wkcli migrate --help
 ```
 
 停机前记录原部署的版本凭据、所有节点 ID、数据目录、业务 DB 分片数和有效配置
@@ -303,7 +303,7 @@ GOWORK=off go build -o /srv/tools/wukongim-v3 ./cmd/wukongim
 
 ```sh
 mkdir -p /srv/wkmigrate/reports
-/srv/tools/wkmigrate prepare \
+/srv/tools/wkcli migrate prepare \
   --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/scratch \
   > /srv/wkmigrate/reports/prepare.json
@@ -370,7 +370,7 @@ v2 数据增加特殊目标记录或放宽校验。空 ID、重复 ID 等无法�
 ## 4. export：封存源归档
 
 ```sh
-/srv/tools/wkmigrate export \
+/srv/tools/wkcli migrate export \
   --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/scratch \
   --archive /srv/wkmigrate/archive \
@@ -386,7 +386,7 @@ v2 数据增加特殊目标记录或放宽校验。空 ID、重复 ID 等无法�
 ## 5. import：生成全新 v3 数据目录
 
 ```sh
-/srv/tools/wkmigrate import \
+/srv/tools/wkcli migrate import \
   --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/scratch \
   --archive /srv/wkmigrate/archive \
@@ -409,7 +409,7 @@ v2 数据增加特殊目标记录或放宽校验。空 ID、重复 ID 等无法�
 **在首次启动 v3 之前**执行：
 
 ```sh
-/srv/tools/wkmigrate verify \
+/srv/tools/wkcli migrate verify \
   --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/scratch \
   --archive /srv/wkmigrate/archive \
@@ -469,7 +469,7 @@ HTTP 和仓库 Go WKProto 客户端，覆盖 1→1、1→3、3→1、3→3、3�
 
 ### 重复消息的删除与序号影响
 
-已授权的业务策略是 MessageID 或频道、发送者、非空 ClientMsgNo 重复时保留最新一条，最新按同频道原 MessageSeq 判断。先以独立工作空间运行 `wkmigrate dedupe-plan --plan /absolute/plan.json --workspace /absolute/dedupe-workspace`，核对候选删除清单、保留摘要、流主消息影响及 `survivors_requiring_renumbering`。物理副本逐节点核对，数量不可直接当作去重后的业务总数。明细有 SHA-256，源文件摘要由停机读取器前后核对；不能以该报告代替源权威性确认。
+已授权的业务策略是 MessageID 或频道、发送者、非空 ClientMsgNo 重复时保留最新一条，最新按同频道原 MessageSeq 判断。先以独立工作空间运行 `wkcli migrate dedupe-plan --plan /absolute/plan.json --workspace /absolute/dedupe-workspace`，核对候选删除清单、保留摘要、流主消息影响及 `survivors_requiring_renumbering`。物理副本逐节点核对，数量不可直接当作去重后的业务总数。明细有 SHA-256，源文件摘要由停机读取器前后核对；不能以该报告代替源权威性确认。
 
 dedupe-plan 不会删源数据、改写序号或导入目标。用户随后已授权重排及 CMD 排除，prepare/import 的新显式策略见下文。跨频道 MessageID、保留候选相互淘汰和原序号缺口仍阻止完成。
 
@@ -481,7 +481,7 @@ dedupe-plan 不会删源数据、改写序号或导入目标。用户随后已�
 
 转换先省略 CMD 历史，再保留剩余重复消息的最新记录，连续编号。普通已读和删除位置按“旧位置之前（含）仍保留的消息数量”映射；旧 CMD 会话及同步位置省略。所有原记录都留在归档，保留消息 ID、正文和事件投影不作额外删改，源本来存在的缺口仍拒绝。
 
-prepare 输出带校验和的 `sequence_mapping`。从归档可运行 `wkmigrate export-map --plan /absolute/plan.json --workspace /absolute/map-workspace --archive /absolute/archive` 重建同一映射。本次已批准按迁移代次清空旧消息缓存和序号游标，保留登录凭据，再从 v3 重新同步。清理只作用于客户端消息副本与派生同步位置，不删除服务端历史或凭据；不能只迁移服务端数据库便宣布客户端旧序号问题已处理。在落实客户端方式之前，不切换业务。本次先按 docs-site 固定的 Web SDK 1.3.5 验收；它自身不持久化消息，会话也保存在内存，业务 Provider 的历史翻页、会话同步和外部缓存仍须处理迁移代次。
+prepare 输出带校验和的 `sequence_mapping`。从归档可运行 `wkcli migrate export-map --plan /absolute/plan.json --workspace /absolute/map-workspace --archive /absolute/archive` 重建同一映射。本次已批准按迁移代次清空旧消息缓存和序号游标，保留登录凭据，再从 v3 重新同步。清理只作用于客户端消息副本与派生同步位置，不删除服务端历史或凭据；不能只迁移服务端数据库便宣布客户端旧序号问题已处理。在落实客户端方式之前，不切换业务。本次先按 docs-site 固定的 Web SDK 1.3.5 验收；它自身不持久化消息，会话也保存在内存，业务 Provider 的历史翻页、会话同步和外部缓存仍须处理迁移代次。
 
 客户端执行顺序已确定：先停止发送并关闭旧连接，记录本次计划/选择摘要作为新的
 迁移代次；保留 UID、token、设备标识和业务登录状态，删除旧消息缓存、会话列表

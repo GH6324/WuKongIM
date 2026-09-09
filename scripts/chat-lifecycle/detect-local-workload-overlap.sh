@@ -45,7 +45,7 @@ LC_ALL=C ps -axo pid=,ppid=,stat=,comm= | awk -v owned="$owned" '
       pid = process[row]
       command = command_by_pid[pid]
       if (state_by_pid[pid] !~ /[EZ]/ && !(pid in owned_pid) &&
-          (command == "wukongim" || command == "wkbench" || command == "wkbench-test")) {
+          (command == "wukongim" || command == "wkcli" || command == "wkcli-test")) {
         printf "%s\t%s\n", pid, command
       }
     }

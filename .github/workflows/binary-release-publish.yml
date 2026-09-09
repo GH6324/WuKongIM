@@ -230,10 +230,20 @@ jobs:
             go build -trimpath -buildvcs=false -ldflags "$ldflags" \
               -o "$binary_dir/wukongim" ./cmd/wukongim
 
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" GOAMD64="$goamd64" \
+            go build -trimpath -buildvcs=false -ldflags "$ldflags" \
+              -o "$binary_dir/wkcli" ./cmd/wkcli
+
             install -m 0755 "$binary_dir/wukongim" "$stage_dir/wukongim"
+            install -m 0755 "$binary_dir/wkcli" "$stage_dir/wkcli"
             install -m 0644 README.md "$stage_dir/README.md"
             install -m 0644 README_CN.md "$stage_dir/README_CN.md"
             install -m 0644 wukongim.toml.example "$stage_dir/wukongim.toml.example"
+
+            go version -m "$binary_dir/wkcli" >"$binary_dir/wkcli-go-version.txt"
+            grep -F $'\tpath\tgithub.com/WuKongIM/WuKongIM/cmd/wkcli' "$binary_dir/wkcli-go-version.txt"
+            grep -F $'\tbuild\tGOOS='"$goos" "$binary_dir/wkcli-go-version.txt"
+            grep -F $'\tbuild\tGOARCH='"$goarch" "$binary_dir/wkcli-go-version.txt"
 
             go version -m "$binary_dir/wukongim" >"$binary_dir/go-version.txt"
             grep -F $'\tpath\tgithub.com/WuKongIM/WuKongIM/cmd/wukongim' "$binary_dir/go-version.txt"
@@ -374,6 +384,17 @@ jobs:
           file "$RELEASE_DIR/.build/linux_arm64/wukongim" | grep -F 'ARM aarch64'
           file "$RELEASE_DIR/.build/darwin_amd64/wukongim" | grep -F 'x86_64'
           file "$RELEASE_DIR/.build/darwin_arm64/wukongim" | grep -F 'arm64'
+
+          for platform in linux_amd64 linux_arm64; do
+            "$RELEASE_DIR/.build/$platform/wkcli" version --output json \
+              >"$RELEASE_DIR/.build/$platform/wkcli-version.json"
+            jq -e --arg version "$BINARY_VERSION" --arg commit "$SOURCE_SHA" \
+              '.version == $version and .commit == $commit and .build_source == "release"' \
+              "$RELEASE_DIR/.build/$platform/wkcli-version.json" >/dev/null
+            for family in bench db migrate; do
+              "$RELEASE_DIR/.build/$platform/wkcli" "$family" --help >/dev/null
+            done
+          done
 
           if [[ "$EMBEDDED_VERSION" == true ]]; then
             for platform in linux_amd64 linux_arm64; do

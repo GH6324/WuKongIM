@@ -148,7 +148,7 @@ jobs:
           mkdir -p bundle/bin downloads
           targets=(
             wukongim:./cmd/wukongim
-            wkbench:./cmd/wkbench
+            wkcli:./cmd/wkcli
             wkanalysis:./cmd/wkanalysis
             wkcloudsim:./cmd/wkcloudsim
             wkcloudbundle:./cmd/wkcloudbundle

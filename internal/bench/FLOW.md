@@ -7,7 +7,7 @@ summary: Implements deterministic black-box benchmark planning, workers, traffic
 
 ## Responsibility
 
-`internal/bench` is the reusable runtime behind `cmd/wkbench`. It validates
+`internal/bench` is the reusable runtime behind `cmd/wkcli`. It validates
 inputs, builds deterministic worker plans, drives black-box target setup and
 WKProto traffic, evaluates bounded evidence, writes reports, and owns strict
 local-baseline gates. It does not provision targets or bypass public APIs.
@@ -21,7 +21,7 @@ or orchestrate containers. `pkg/client` owns protocol pumps and bounded queues.
 ## Main Flows
 
 ```text
-wkbench run
+wkcli bench run
   -> strict target/worker/scenario validation
   -> deterministic plan and immutable worker assignments
   -> preflight

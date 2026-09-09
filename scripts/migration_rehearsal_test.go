@@ -43,7 +43,7 @@ func TestMigrationRehearsalDryRunIsolation(t *testing.T) {
 	}
 	payload := []byte("dry-run fixture; never executed")
 	sum := sha256.Sum256(payload)
-	for _, name := range []string{"wkmigrate", "wukongim"} {
+	for _, name := range []string{"wkcli", "wukongim"} {
 		if err := os.WriteFile(filepath.Join(root, "bundle", name), payload, 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -57,7 +57,7 @@ func TestMigrationRehearsalDryRunIsolation(t *testing.T) {
 	args := []string{filepath.Join(repoRoot(t), "scripts/migration/rehearse-offline.py"), "--dry-run",
 		"--plan", planPath, "--bundle", filepath.Join(root, "bundle"), "--source-root", filepath.Join(root, "source"),
 		"--output", output, "--image", "sha256:" + strings.Repeat("a", 64),
-		"--wkmigrate-sha256", hex.EncodeToString(sum[:]), "--wukongim-sha256", hex.EncodeToString(sum[:])}
+		"--wkcli-sha256", hex.EncodeToString(sum[:]), "--wukongim-sha256", hex.EncodeToString(sum[:])}
 	body, err := exec.Command(python, args...).CombinedOutput()
 	if err != nil {
 		t.Fatalf("dry run: %v: %s", err, body)
@@ -71,7 +71,7 @@ func TestMigrationRehearsalDryRunIsolation(t *testing.T) {
 	}
 	for phase, command := range commands {
 		joined := strings.Join(command, " ")
-		for _, required := range []string{"docker create", "--network none", "--pull=never", "--read-only", "--workspace /scratch/workspace"} {
+		for _, required := range []string{"docker create", "--entrypoint /bundle/wkcli", "migrate ", "--network none", "--pull=never", "--read-only", "--workspace /scratch/workspace"} {
 			if !strings.Contains(joined, required) {
 				t.Fatalf("%s missing %q", phase, required)
 			}
@@ -104,7 +104,7 @@ func TestMigrationRehearsalDryRunIsolation(t *testing.T) {
 		{"nested-target", strings.ReplaceAll(plan, "/targets/1", "/targets/nested/1"), "", "", "immediate children"},
 		{"source-overlap", plan, "--output", filepath.Join(root, "source", "new"), "overlaps an input"},
 		{"mutable-image", plan, "--image", "runtime:latest", "immutable image ID"},
-		{"wrong-binary", plan, "--wkmigrate-sha256", strings.Repeat("0", 64), "approved package digest"},
+		{"wrong-binary", plan, "--wkcli-sha256", strings.Repeat("0", 64), "approved package digest"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := os.WriteFile(planPath, []byte(tc.plan), 0o600); err != nil {

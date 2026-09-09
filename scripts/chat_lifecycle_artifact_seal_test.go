@@ -16,7 +16,7 @@ func TestChatLifecycleShakeoutSealsStoppedLogsEffectiveConfigAndBinaries(t *test
 		`"$LIFECYCLE_CONFIG"`,
 		`"$LOG_DIR"`,
 		`"$WUKONGIM_BIN"`,
-		`"$WKBENCH_BIN"`,
+		`"$WK_CLI_BIN"`,
 		`stop_recorded_processes`,
 	} {
 		if !strings.Contains(script, want) {

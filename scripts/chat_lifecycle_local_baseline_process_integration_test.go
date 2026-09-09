@@ -159,7 +159,7 @@ done
 	fi
 	mkdir -p "$run_dir/bin" "$run_dir/config" "$run_dir/data" "$run_dir/workers" "$run_dir/evidence" "$run_dir/logs"
 printf 'binary\n' >"$run_dir/bin/wukongim"
-printf 'benchmark binary\n' >"$run_dir/bin/wkbench"
+printf 'benchmark binary\n' >"$run_dir/bin/wkcli"
 printf 'database\n' >"$run_dir/data/node.db"
 printf 'worker\n' >"$run_dir/workers/state"
 	local_step_json="$FAKE_LOCAL_STEP_JSON"
@@ -218,7 +218,7 @@ printf 'worker\n' >"$run_dir/workers/state"
 	}
 	config_digest="$(sha256_file "$run_dir/chat-lifecycle.yaml")"
 	wukongim_digest="$(sha256_file "$run_dir/bin/wukongim")"
-	wkbench_digest="$(sha256_file "$run_dir/bin/wkbench")"
+	wkbench_digest="$(sha256_file "$run_dir/bin/wkcli")"
 	source_dirty=false
 	source_rebuildable=true
 	source_capture=git_revision
@@ -242,7 +242,7 @@ case "$FAKE_CHECKSUM_MODE" in
 	    : >"$run_dir/evidence/checksums.sha256"
 	    for relative in \
 	      local-step.json chat-lifecycle.yaml \
-	      bin/wukongim bin/wkbench \
+	      bin/wukongim bin/wkcli \
 	      config/node1.toml config/node2.toml config/node3.toml \
 	      logs/coordinator.log logs/service-1.log logs/service-2.log logs/service-3.log \
 	      logs/worker-1.log logs/worker-2.log logs/worker-3.log \

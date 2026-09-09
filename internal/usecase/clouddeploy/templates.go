@@ -216,12 +216,12 @@ case "$stage" in
   coordinator)
     config=/etc/wukongim/chat-lifecycle.yaml
     stage_unit=wkbench-coordinator.service
-    command=(/opt/wukongim/bin/wkbench soak chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports)
+    command=(/opt/wukongim/bin/wkcli bench soak chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports)
     ;;
   rehearsal)
     config=/etc/wukongim/chat-lifecycle-rehearsal.yaml
     stage_unit=wkbench-rehearsal.service
-    command=(/opt/wukongim/bin/wkbench soak chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports/rehearsal)
+    command=(/opt/wukongim/bin/wkcli bench soak chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports/rehearsal)
     if [[ -n "${WK_CHAT_LAB_MAX_DURATION_SECONDS:-}" ]]; then
       [[ "$WK_CHAT_LAB_MAX_DURATION_SECONDS" =~ ^[1-9][0-9]*$ ]]
       (( WK_CHAT_LAB_MAX_DURATION_SECONDS >= 960 && WK_CHAT_LAB_MAX_DURATION_SECONDS <= 260100 ))
@@ -231,7 +231,7 @@ case "$stage" in
   formal)
     config=/etc/wukongim/chat-lifecycle.yaml
     stage_unit=wkbench-formal.service
-    command=(/opt/wukongim/bin/wkbench formal-chain chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports)
+    command=(/opt/wukongim/bin/wkcli bench formal-chain chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports)
     ;;
   *) exit 1 ;;
 esac
@@ -344,8 +344,8 @@ while true; do
 done
 `,
 		"systemd/wukongim.service":             serviceUnit("node.env", "/opt/wukongim/bin/wukongim -config /etc/wukongim/wukongim.toml"),
-		"systemd/wkbench-host-metrics.service": serviceUnit("", "/opt/wukongim/bin/wkbench host-metrics --listen 0.0.0.0:19101 --path /var/lib/wukongim-cloud --mountpoint /var/lib/wukongim-cloud --device /dev/wukongim-data --system-path / --watch-path /var/lib/wukongim-cloud/prometheus --process-metrics-path /var/lib/wukongim/textfile/processes.prom"),
-		"systemd/wkbench-worker@.service":      serviceUnit("load.env", "/opt/wukongim/bin/wkbench worker --mode chat-lifecycle --listen 127.0.0.1:1909%i --work-dir /var/lib/wukongim-cloud/workers/%i"),
+		"systemd/wkbench-host-metrics.service": serviceUnit("", "/opt/wukongim/bin/wkcli bench host-metrics --listen 0.0.0.0:19101 --path /var/lib/wukongim-cloud --mountpoint /var/lib/wukongim-cloud --device /dev/wukongim-data --system-path / --watch-path /var/lib/wukongim-cloud/prometheus --process-metrics-path /var/lib/wukongim/textfile/processes.prom"),
+		"systemd/wkbench-worker@.service":      serviceUnit("load.env", "/opt/wukongim/bin/wkcli bench worker --mode chat-lifecycle --listen 127.0.0.1:1909%i --work-dir /var/lib/wukongim-cloud/workers/%i"),
 		"systemd/wkbench-coordinator.service":  coordinatorServiceUnit(),
 		"systemd/wkbench-formal.service":       formalServiceUnit(),
 		"systemd/wkbench-rehearsal.service":    rehearsalServiceUnit(),

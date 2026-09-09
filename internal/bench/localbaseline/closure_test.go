@@ -54,7 +54,7 @@ func TestValidateStepClosureManifestRequiresCanonicalExecutionPayloadPaths(t *te
 	for name, mutate := range map[string]func(*StepClosureManifest){
 		"config":  func(value *StepClosureManifest) { value.Inputs.EffectiveConfig = "config/copy.toml" },
 		"server":  func(value *StepClosureManifest) { value.Inputs.WukongIMBinary = "bin/server-copy" },
-		"wkbench": func(value *StepClosureManifest) { value.Inputs.WkbenchBinary = "bin/wkbench-copy" },
+		"wkbench": func(value *StepClosureManifest) { value.Inputs.WkbenchBinary = "bin/wkcli-copy" },
 		"product executable": func(value *StepClosureManifest) {
 			value.Inputs.ProductExecutable = "reports/000500-qps/evidence/product-executable.tsv"
 		},
@@ -75,7 +75,7 @@ func completeStepClosureManifestFixture() StepClosureManifest {
 		Schema: StepClosureManifestSchema, PayloadManifest: "reports/000250-qps/evidence/step-checksums.sha256", PayloadSHA256: digest,
 		Inputs: StepClosureInputs{
 			Scenario: "reports/000250-qps/scenario.yaml", Plan: "reports/000250-qps/plan.json", Report: "reports/000250-qps/report.json",
-			EffectiveConfig: "config/effective-wukongim.toml", WukongIMBinary: "bin/wukongim", WkbenchBinary: "bin/wkbench",
+			EffectiveConfig: "config/effective-wukongim.toml", WukongIMBinary: "bin/wukongim", WkbenchBinary: "bin/wkcli",
 			ProductExecutable: "reports/000250-qps/evidence/product-executable.tsv",
 			DiagnosticSummary: "reports/000250-qps/diagnostic-summary.json", Lifecycle: "reports/000250-qps/evidence/lifecycle.jsonl",
 			PostWarmupMetrics: "metrics/000250/127_0_0_1_5001-post-warmup.prom", TerminalMetrics: "metrics/000250/terminal.prom",

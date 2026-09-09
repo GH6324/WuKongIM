@@ -16,6 +16,8 @@ const (
 
 // Deps carries process dependencies that every subcommand can reuse.
 type Deps struct {
+	// Stdin supplies interactive database queries.
+	Stdin io.Reader
 	// Stdout receives normal command output and help text.
 	Stdout io.Writer
 	// Stderr receives diagnostics and command errors.

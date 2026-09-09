@@ -1,9 +1,9 @@
 ---
-title: wkbench
+title: wkcli bench
 description: Run black-box validation, real workloads, capacity searches, and regression gates against a controlled cluster.
 ---
 
-`wkbench` is WuKongIM's black-box benchmark driver. It talks to a running cluster through public HTTP, Benchmark HTTP, and WKProto gateway endpoints without importing server internals or bypassing cluster semantics. A one-node target is still a single-node cluster.
+`wkcli bench` is WuKongIM's black-box benchmark driver. It talks to a running cluster through public HTTP, Benchmark HTTP, and WKProto gateway endpoints without importing server internals or bypassing cluster semantics. A one-node target is still a single-node cluster.
 
 <Callout type="error" title="Do not use production as a load target">
   wkbench creates real users, Channels, connections, and messages and may drive a target into backpressure or unavailability. Use only an isolated, rebuildable, authorized benchmark cluster, with hard limits for rate, concurrency, duration, disk, and stopping.
@@ -23,7 +23,7 @@ description: Run black-box validation, real workloads, capacity searches, and re
 | `capacity activate-channels` | Activate and hold a fixed number of real Channel runtimes |
 | `capacity message-event` | Apply fixed-shape `/message/event` pressure and write a report |
 | `metrics classify` | Compare before/after Prometheus snapshots and emit low-cardinality attribution hints |
-| `report` | Reserved standalone report command; not implemented yet |
+| `report` | Render benchmark evidence and diagnostic reports |
 
 ## Target prerequisites
 
@@ -47,7 +47,7 @@ api_enable = true
 
 Download [target.yaml](/examples/wkbench/target.yaml), [workers.yaml](/examples/wkbench/workers.yaml), and [scenario.yaml](/examples/wkbench/scenario.yaml). This smoke workload has 20 online users and two 10-member groups sending 5 messages/second each. It measures 60 seconds, plus 10 seconds each for warmup and cooldown; it is not a production capacity claim.
 
-Run these commands from the repository root with the Go version required by `go.mod`. If you have an installed binary, replace `go run ./cmd/wkbench` with `wkbench`. Copy the configurations first:
+Run these commands from the repository root with the Go version required by `go.mod`. If you have an installed binary, replace `go run ./cmd/wkcli bench` with `wkcli bench`. Copy the configurations first:
 
 ```bash
 mkdir -p ./tmp/docs-wkbench
@@ -62,7 +62,7 @@ Terminal A, start the worker:
 
 ```bash
 export WK_BENCH_WORKER_TOKEN='replace-with-test-worker-secret'
-go run ./cmd/wkbench worker \
+go run ./cmd/wkcli bench worker \
   --listen 127.0.0.1:19090 \
   --work-dir ./tmp/docs-wkbench/worker
 ```
@@ -73,7 +73,7 @@ Terminal B, configure this run. Change `WK_BENCH_RUN_ID` for every run; do not r
 export WK_BENCH_WORKER_TOKEN='replace-with-test-worker-secret'
 export WK_BENCH_API_TOKEN='replace-with-test-api-secret'
 export WK_BENCH_RUN_ID="docs-smoke-$(date -u +%Y%m%dT%H%M%SZ)"
-go run ./cmd/wkbench validate \
+go run ./cmd/wkcli bench validate \
   --target ./tmp/docs-wkbench/target.yaml \
   --workers ./tmp/docs-wkbench/workers.yaml \
   --scenario ./tmp/docs-wkbench/scenario.yaml
@@ -82,7 +82,7 @@ go run ./cmd/wkbench validate \
 `validate` does not access the network. After it passes, run preflight. If preflight fails, fix the target, tokens, or endpoints before running traffic:
 
 ```bash
-go run ./cmd/wkbench doctor \
+go run ./cmd/wkcli bench doctor \
   --target ./tmp/docs-wkbench/target.yaml \
   --workers ./tmp/docs-wkbench/workers.yaml \
   --scenario ./tmp/docs-wkbench/scenario.yaml
@@ -91,7 +91,7 @@ go run ./cmd/wkbench doctor \
 Once preflight passes, execute the bounded workload:
 
 ```bash
-go run ./cmd/wkbench run \
+go run ./cmd/wkcli bench run \
   --target ./tmp/docs-wkbench/target.yaml \
   --workers ./tmp/docs-wkbench/workers.yaml \
   --scenario ./tmp/docs-wkbench/scenario.yaml
@@ -110,7 +110,7 @@ The example fails on any connection, send-acknowledgement, receive-verification,
 ## Capacity search
 
 ```bash
-wkbench capacity send \
+wkcli bench capacity send \
   --api http://127.0.0.1:5001 \
   --profile mixed \
   --start-qps 100 \

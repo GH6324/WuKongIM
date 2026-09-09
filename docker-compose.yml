@@ -70,8 +70,9 @@ services:
       - wk-node2
       - wk-node3
     entrypoint:
-      - /usr/local/bin/wkbench
+      - /usr/local/bin/wkcli
     command:
+      - bench
       - dev-sim
       - --config
       - /etc/wkbench/dev-sim.yaml

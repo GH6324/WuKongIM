@@ -281,7 +281,7 @@ func TestOfflineHostRoleContract(t *testing.T) {
 }
 
 func TestOfflineRolePayloadContract(t *testing.T) {
-	serviceBinaries := []string{"wukongim", "wkbench", "node_exporter", "wkcloudbundle", "wkcloudhost"}
+	serviceBinaries := []string{"wukongim", "wkcli", "node_exporter", "wkcloudbundle", "wkcloudhost"}
 	loadSecrets := []string{"load.env", "analysis.env", "analysis-cert.pem", "analysis-key.pem"}
 	if got := offlineBinaries("service-1"); !reflect.DeepEqual(got, serviceBinaries) {
 		t.Fatalf("offlineBinaries(service-1) = %v", got)

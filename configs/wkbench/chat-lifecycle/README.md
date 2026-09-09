@@ -43,7 +43,7 @@ export WK_CHAT_LIFECYCLE_WORKER_TOKEN_FILE=/secure/worker.token
 Run fixed pressure with:
 
 ```bash
-wkbench soak chat-lifecycle \
+wkcli bench soak chat-lifecycle \
   --config configs/wkbench/chat-lifecycle/formal.yaml \
   --output-dir /secure/reports/chat-lifecycle
 ```
@@ -59,7 +59,7 @@ with `completed: true`, `passed: true`, and `duration: 72h`. Keep the three
 service processes and their data directories running, then invoke:
 
 ```bash
-wkbench capacity chat-lifecycle \
+wkcli bench capacity chat-lifecycle \
   --config /secure/config/chat-lifecycle-capacity.yaml \
   --checkpoint /secure/reports/chat-lifecycle/final.json \
   --output-dir /secure/reports/chat-lifecycle-capacity

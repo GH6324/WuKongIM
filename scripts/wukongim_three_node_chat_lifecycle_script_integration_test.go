@@ -131,7 +131,7 @@ cat "$FAKE_PS_FIXTURE"
 	command.Dir = root
 	command.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_PS_FIXTURE="+fixture)
 	output, err := command.CombinedOutput()
-	if err != nil || string(output) != "202\twkbench\n303\twkbench-test\n" {
+	if err != nil || string(output) != "202\twkcli\n303\twkcli-test\n" {
 		t.Fatalf("detector did not isolate the foreign workload: err=%v output=%q", err, output)
 	}
 
@@ -250,7 +250,7 @@ done
 [[ -n "$output" ]]
 printf '#!/usr/bin/env bash\nexit 1\n' >"$output"
 chmod 0700 "$output"
-if [[ " $* " == *" ./cmd/wkbench "* ]]; then
+if [[ " $* " == *" ./cmd/wkcli "* ]]; then
   printf 'dirty\n' >"$FAKE_GIT_STATE"
 fi
 `

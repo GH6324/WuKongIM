@@ -449,7 +449,7 @@ cluster_transport_peak_summary() { return 0; }
 fake_wkbench() {
   printf '{"status":"passed","summary":{"send_success":1,"connect_error_rate":0,"sendack_error_rate":0,"connect_success":1},"metrics":{"counters":{},"histograms":{}}}\n' >"$OUT_DIR/reports/000100-qps/report.json"
 }
-WK_BENCH_BIN=fake_wkbench
+WK_CLI_BIN=fake_wkbench
 run_attempt 100
 awk -F '\t' 'NR == 2 { exit !($4 == 6) }' "$OUT_DIR/summary.tsv"
 jq -e 'select(.error == "lifecycle_sampler_failed")' "$OUT_DIR/reports/000100-qps/lifecycle-status.jsonl" >/dev/null

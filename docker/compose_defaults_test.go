@@ -187,3 +187,24 @@ func dockerRepoRoot(t *testing.T) string {
 	}
 	return filepath.Dir(filepath.Dir(filename))
 }
+
+func TestComposeSimulatorRoutesThroughUnifiedBenchmarkCLI(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(dockerRepoRoot(t), "docker-compose.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var compose struct {
+		Services map[string]struct {
+			Entrypoint []string `yaml:"entrypoint"`
+			Command    []string `yaml:"command"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(body, &compose); err != nil {
+		t.Fatal(err)
+	}
+	sim := compose.Services["wk-sim"]
+	invocation := strings.Join(append(sim.Entrypoint, sim.Command...), " ")
+	if invocation != "/usr/local/bin/wkcli bench dev-sim --config /etc/wkbench/dev-sim.yaml" {
+		t.Fatalf("simulator invocation = %q", invocation)
+	}
+}

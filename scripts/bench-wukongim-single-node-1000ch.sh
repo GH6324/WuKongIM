@@ -10,7 +10,7 @@ TIMESTAMP="${WK_BENCH_SINGLE_NODE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 
 QPS_LIST="${WK_BENCH_SINGLE_NODE_QPS:-250,500,750,1000}"
 OUT_DIR="${WK_BENCH_SINGLE_NODE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-single-node-1000ch}"
-WK_BENCH_BIN="${WK_BENCH_BIN:-$ROOT_DIR/data/wkbench-test}"
+WK_CLI_BIN="${WK_CLI_BIN:-$ROOT_DIR/data/wkcli-test}"
 WORKER_ADDR="${WK_BENCH_WORKER_ADDR:-http://127.0.0.1:19130}"
 WORKER_LISTEN="${WK_BENCH_WORKER_LISTEN:-127.0.0.1:19130}"
 START_WORKER=1
@@ -32,7 +32,7 @@ ACTIVE_CLUSTER_TAG=""
 ACTIVE_CLUSTER_START_LOG=""
 CLUSTER_GENERATION_INDEX=0
 SEALED_WUKONGIM_RELATIVE=bin/wukongim
-SEALED_WKBENCH_RELATIVE=bin/wkbench
+SEALED_WKBENCH_RELATIVE=bin/wkcli
 
 CHANNELS="${WK_BENCH_CHANNELS:-1000}"
 USERS="${WK_BENCH_USERS:-2500}"
@@ -104,7 +104,7 @@ wkbench traffic against it.
 Options:
   --qps LIST             Comma-separated offered SEND/s list. Default: 250,500,750,1000.
   --out-dir DIR          Evidence output directory.
-  --wkbench-bin PATH     wkbench binary path. Default: data/wkbench-test.
+  --wkcli-bin PATH     wkcli binary path. Default: data/wkcli-test.
   --worker-addr URL      Worker control URL. Default: http://127.0.0.1:19130.
   --worker-listen ADDR   Temporary worker listen address. Default: 127.0.0.1:19130.
   --no-worker            Do not start a temporary worker; require --worker-addr to be reachable.
@@ -263,9 +263,9 @@ while [[ $# -gt 0 ]]; do
       OUT_DIR="$2"
       shift 2
       ;;
-    --wkbench-bin)
-      [[ $# -ge 2 ]] || die '--wkbench-bin requires a value'
-      WK_BENCH_BIN="$2"
+    --wkcli-bin)
+      [[ $# -ge 2 ]] || die '--wkcli-bin requires a value'
+      WK_CLI_BIN="$2"
       shift 2
       ;;
     --worker-addr)
@@ -805,7 +805,7 @@ stop_cluster_generation() {
 start_host_metrics() {
   [[ -d "$SINGLE_NODE_DATA_DIR" ]] || die "single-node data directory is missing: $SINGLE_NODE_DATA_DIR"
   mkdir -p "$OUT_DIR/logs"
-  "$WK_BENCH_BIN" host-metrics --listen "$HOST_METRICS_LISTEN" \
+  "$WK_CLI_BIN" bench host-metrics --listen "$HOST_METRICS_LISTEN" \
     --path "$SINGLE_NODE_DATA_DIR" --mountpoint /var/lib/wukongim-local \
     --device /dev/wukongim-local --physical-io=true \
     >"$OUT_DIR/logs/host-metrics.log" 2>&1 &
@@ -825,17 +825,17 @@ ensure_wkbench_binary() {
   if [[ "$START_WORKER" -eq 1 ]]; then
     WK_BENCH_BUILD_DIR="$(mktemp -d "$OUT_DIR/.wkbench-build.XXXXXX")" || \
       die 'cannot create dedicated wkbench build directory'
-    WK_BENCH_BIN="$WK_BENCH_BUILD_DIR/wkbench"
+    WK_CLI_BIN="$WK_BENCH_BUILD_DIR/wkcli"
     log "building owned wkbench from current source into dedicated OUT_DIR"
     (
       cd "$ROOT_DIR"
-      GOWORK="${GOWORK:-off}" go build -o "$WK_BENCH_BIN" ./cmd/wkbench
+      GOWORK="${GOWORK:-off}" go build -o "$WK_CLI_BIN" ./cmd/wkcli
     )
     WKBENCH_BUILT_FROM_CURRENT_SOURCE=true
     return
   fi
-  [[ -f "$WK_BENCH_BIN" && ! -L "$WK_BENCH_BIN" && -x "$WK_BENCH_BIN" ]] || \
-    die "external wkbench binary is not a regular executable: $WK_BENCH_BIN"
+  [[ -f "$WK_CLI_BIN" && ! -L "$WK_CLI_BIN" && -x "$WK_CLI_BIN" ]] || \
+    die "external wkbench binary is not a regular executable: $WK_CLI_BIN"
 }
 
 worker_ready() {
@@ -867,7 +867,7 @@ ensure_worker() {
   local worker_dir="$OUT_DIR/worker-state"
   mkdir -p "$worker_dir"
   log "starting temporary worker: $WORKER_LISTEN"
-  "$WK_BENCH_BIN" worker --listen "$WORKER_LISTEN" --work-dir "$worker_dir" --insecure-control \
+  "$WK_CLI_BIN" bench worker --listen "$WORKER_LISTEN" --work-dir "$worker_dir" --insecure-control \
     >"$OUT_DIR/logs/worker.log" 2>&1 &
   WORKER_PID="$!"
   OWNED_WORKER_STARTED=1
@@ -1763,7 +1763,7 @@ threshold_profile_watcher_loop() {
 
   while true; do
     child_status=0
-    "$WK_BENCH_BIN" report local-single-node-profile-threshold \
+    "$WK_CLI_BIN" bench report local-single-node-profile-threshold \
       --lifecycle "$OUT_DIR/reports/${tag}-qps/lifecycle-status.jsonl" \
       --run-id "$run_id" \
       --offered-qps "$offered_qps" \
@@ -2032,7 +2032,7 @@ classify_metrics() {
   local addr id
   for addr in "${METRICS_VALUES[@]}"; do
     id="$(metric_file_id "$addr")"
-    "$WK_BENCH_BIN" metrics classify \
+    "$WK_CLI_BIN" bench metrics classify \
       --before "$metrics_dir/${id}-before.prom" \
       --after "$metrics_dir/${id}-after.prom" \
       >"$metrics_dir/${id}-classify.txt" 2>&1 || true
@@ -2360,7 +2360,7 @@ terminal_cut_observer_loop() {
       continue
     fi
     query_status=0
-    "$WK_BENCH_BIN" report local-single-node-queue-convergence \
+    "$WK_CLI_BIN" bench report local-single-node-queue-convergence \
       --post-warmup "$baseline" \
       --candidate "$candidate" \
       --run-id "$run_id" \
@@ -2715,7 +2715,7 @@ run_attempt() {
   start_runtime_pool_sampler "$tag"
   start_terminal_cut_observer "$tag" "$run_id"
   wkbench_status=0
-  "$WK_BENCH_BIN" run \
+  "$WK_CLI_BIN" bench run \
     --target "$OUT_DIR/target.yaml" \
     --scenario "$OUT_DIR/scenario-${tag}.yaml" \
     --workers "$OUT_DIR/workers.yaml" \
@@ -2880,7 +2880,7 @@ write_redacted_effective_config() {
   rm -f "$temporary"
   # wkbench delegates to internal/config.RedactDiagnosticTOML, which parses
   # TOML and applies SchemaFields().DiagnosticSensitive fail-closed.
-  "$WK_BENCH_BIN" report redact-config --input "$source" --output "$temporary" || {
+  "$WK_CLI_BIN" bench report redact-config --input "$source" --output "$temporary" || {
     rm -f "$temporary"
     return 1
   }
@@ -2904,7 +2904,7 @@ EOF
 
 discard_owned_wkbench_build() {
   [[ -n "$WK_BENCH_BUILD_DIR" ]] || return 0
-  rm -f "$WK_BENCH_BUILD_DIR/wkbench" || return 1
+  rm -f "$WK_BENCH_BUILD_DIR/wkcli" || return 1
   rmdir "$WK_BENCH_BUILD_DIR" || return 1
   WK_BENCH_BUILD_DIR=""
 }
@@ -2913,7 +2913,7 @@ prepare_preflight_verifier_binary() {
   local destination="$OUT_DIR/bin" temporary
   [[ ! -e "$destination" && ! -L "$destination" ]] || return 1
   temporary="$(mktemp -d "$OUT_DIR/.preflight-bin.next.XXXXXX")" || return 1
-  if ! copy_regular_binary "$WK_BENCH_BIN" "$temporary/wkbench"; then
+  if ! copy_regular_binary "$WK_CLI_BIN" "$temporary/wkcli"; then
     rm -rf "$temporary"
     return 1
   fi
@@ -2921,7 +2921,7 @@ prepare_preflight_verifier_binary() {
     rm -rf "$temporary"
     return 1
   fi
-  WK_BENCH_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"
+  WK_CLI_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"
   discard_owned_wkbench_build
 }
 
@@ -3082,7 +3082,7 @@ finalize_local_preflight_result() {
   fi
   write_local_baseline_result "$PREFLIGHT_OUTCOME" "$PREFLIGHT_REASON" 0 0 false true || published_status=$?
   [[ -f "$OUT_DIR/local-baseline.json" && ! -L "$OUT_DIR/local-baseline.json" ]] || return 6
-  "$WK_BENCH_BIN" report local-single-node-completion \
+  "$WK_CLI_BIN" bench report local-single-node-completion \
     --root "$OUT_DIR" --marker "$OUT_DIR/local-baseline.json" >/dev/null 2>&1 || published_status=$?
   [[ "$published_status" -eq "$requested_status" || "$published_status" -eq 6 ]] || return 6
   return "$published_status"
@@ -3277,7 +3277,7 @@ prepare_sealed_test_binaries() {
   local destination="$OUT_DIR/bin" temporary
   [[ ! -e "$destination" && ! -L "$destination" ]] || return 1
   temporary="$(mktemp -d "$OUT_DIR/.bin.next.XXXXXX")" || return 1
-  if ! copy_regular_binary "$WK_BENCH_BIN" "$temporary/wkbench"; then
+  if ! copy_regular_binary "$WK_CLI_BIN" "$temporary/wkcli"; then
     rm -rf "$temporary"
     return 1
   fi
@@ -3285,7 +3285,7 @@ prepare_sealed_test_binaries() {
     rm -rf "$temporary"
     return 1
   fi
-  WK_BENCH_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"
+  WK_CLI_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"
   discard_owned_wkbench_build || return 1
   if [[ "$START_CLUSTER" -eq 1 ]]; then
     WUKONGIM_BIN="$OUT_DIR/$SEALED_WUKONGIM_RELATIVE"
@@ -3427,7 +3427,7 @@ write_typed_local_step_evidence() {
   closure_output="$report_dir/evidence/step-closure.json"
   step_manifest="$report_dir/evidence/step-checksums.sha256"
   [[ -d "$report_dir" ]] || return 1
-  "$WK_BENCH_BIN" report local-single-node-step \
+  "$WK_CLI_BIN" bench report local-single-node-step \
     --offered-qps "$qps" \
     --required-active-connections "$USERS" \
     --group-members "$GROUP_MEMBERS" \
@@ -3523,7 +3523,7 @@ read_typed_local_step_result() {
   closure="$OUT_DIR/reports/${tag}-qps/evidence/step-closure.json"
   consumer="$OUT_DIR/reports/${tag}-qps/evidence/typed-step-consumer.json"
   [[ -f "$closure" && ! -L "$closure" ]] || return 1
-  "$WK_BENCH_BIN" report local-single-node-step-closure \
+  "$WK_CLI_BIN" bench report local-single-node-step-closure \
     --root "$OUT_DIR" --closure "$closure" --output "$consumer" >/dev/null 2>&1 || consumer_status=$?
   [[ -f "$consumer" && ! -L "$consumer" ]] || return 1
   jq -e --argjson qps "$qps" '
@@ -3653,7 +3653,7 @@ derive_typed_local_baseline_authorization() {
       args+=(--step-closure "$closure")
     fi
   done
-  "$WK_BENCH_BIN" "${args[@]}" >/dev/null 2>&1 || exit_status=$?
+  "$WK_CLI_BIN" bench "${args[@]}" >/dev/null 2>&1 || exit_status=$?
   [[ -f "$OUT_DIR/reports/local-baseline-evidence.json" && ! -L "$OUT_DIR/reports/local-baseline-evidence.json" &&
     -f "$OUT_DIR/reports/local-baseline-authorization.json" && ! -L "$OUT_DIR/reports/local-baseline-authorization.json" ]] || return 6
   return "$exit_status"
@@ -3741,7 +3741,7 @@ verify_local_artifact_checksums() {
   actual="$(sha256_file "$OUT_DIR/config/effective-wukongim.toml")" || return 1
   [[ "$expected" == "$actual" ]] || return 1
   if [[ "$seal_scope" == measured ]]; then
-    for relative in logs/after/node1.log bin/wukongim bin/wkbench; do
+    for relative in logs/after/node1.log bin/wukongim bin/wkcli; do
       awk -v expected="$relative" '$2 == expected { found = 1 } END { exit !found }' "$manifest" || return 1
     done
     [[ "$(awk -F '\t' '$1 == "wukongim_binary" { print $2 }' "$identity")" == "$SEALED_WUKONGIM_RELATIVE" ]] || return 1
@@ -3862,7 +3862,7 @@ write_local_baseline_result() {
     printf '  "artifact_checksums": "checksums.sha256"\n'
     printf '}\n'
   } >"$temporary"
-  "$WK_BENCH_BIN" report local-single-node-publish \
+  "$WK_CLI_BIN" bench report local-single-node-publish \
     --root "$OUT_DIR" --draft "$temporary" --output "$OUT_DIR/local-baseline.json" >/dev/null 2>&1 || publish_status=$?
   rm -f "$temporary"
   return "$publish_status"
@@ -4921,7 +4921,7 @@ EOF
   write_local_baseline_result "$final_outcome" "$final_reason" "$highest_clean_rate" "$first_failing_rate" \
     "$source_seal_valid" "$artifact_seal_valid" || publication_status=$?
   [[ -f "$OUT_DIR/local-baseline.json" && ! -L "$OUT_DIR/local-baseline.json" ]] || return 6
-  "$WK_BENCH_BIN" report local-single-node-completion \
+  "$WK_CLI_BIN" bench report local-single-node-completion \
     --root "$OUT_DIR" --marker "$OUT_DIR/local-baseline.json" >/dev/null 2>&1 || consumer_status=$?
   [[ "$consumer_status" -eq "$publication_status" ]] || return 6
   return "$consumer_status"

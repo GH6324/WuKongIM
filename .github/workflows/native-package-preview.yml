@@ -7,6 +7,7 @@ on:
       - "go.mod"
       - "go.sum"
       - "cmd/wukongim/**"
+      - "cmd/wkcli/**"
       - "internal/**"
       - "pkg/**"
       - "packaging/**"
@@ -57,7 +58,7 @@ jobs:
 
       - name: Run package and CLI contracts
         run: |
-          go test ./cmd/wukongim ./internal/config ./internal/app -count=1
+          go test ./cmd/wukongim ./cmd/wkcli/... ./internal/config ./internal/app -count=1
           go test ./scripts -run 'TestNativePackage' -count=1
 
       - name: Build deb and rpm preview

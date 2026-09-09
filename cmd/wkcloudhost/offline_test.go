@@ -48,7 +48,7 @@ func TestInstallOfflineHostRendersRoleSpecificNativePayload(t *testing.T) {
 		!strings.Contains(nodeConfig, "hash_slot_count = 256") || !strings.Contains(nodeConfig, "initial_slot_count = 12") {
 		t.Fatalf("node config = %s", nodeConfig)
 	}
-	for _, path := range []string{"opt/wukongim/bin/wkbench", "etc/systemd/system/wkbench-host-metrics.service"} {
+	for _, path := range []string{"opt/wukongim/bin/wkcli", "etc/systemd/system/wkbench-host-metrics.service"} {
 		if _, err := os.Stat(filepath.Join(nodeRoot, path)); err != nil {
 			t.Fatalf("service observation file %s: %v", path, err)
 		}
@@ -67,7 +67,7 @@ func TestInstallOfflineHostRendersRoleSpecificNativePayload(t *testing.T) {
 		t.Fatalf("installOfflineHost(load) error = %v", err)
 	}
 	for _, path := range []string{
-		"opt/wukongim/bin/wkbench", "opt/wukongim/bin/prometheus", "opt/wukongim/bin/caddy",
+		"opt/wukongim/bin/wkcli", "opt/wukongim/bin/prometheus", "opt/wukongim/bin/caddy",
 		"opt/wukongim/scripts/run-chat-lifecycle-stage.sh",
 		"opt/wukongim/assets/manager/index.html", "opt/wukongim/assets/demo/index.html",
 		"etc/systemd/system/wkbench-worker@.service", "etc/systemd/system/wkbench-coordinator.service",

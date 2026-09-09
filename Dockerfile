@@ -49,7 +49,7 @@ RUN go mod download
 COPY . .
 COPY --from=prometheus /out/bin/ ./internal/app/prometheus_embedded/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wukongim ./cmd/wukongim \
- && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkbench ./cmd/wkbench \
+ && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkcli ./cmd/wkcli \
  && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkanalysis ./cmd/wkanalysis \
  && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkcloudsim ./cmd/wkcloudsim
 
@@ -61,7 +61,7 @@ RUN apk upgrade --no-cache \
  && install -d -o root -g wukongim -m 0750 /etc/wukongim
 WORKDIR /app
 COPY --from=builder --chown=root:root --chmod=0755 /out/wukongim /usr/local/bin/wukongim
-COPY --from=builder --chown=root:root --chmod=0755 /out/wkbench /usr/local/bin/wkbench
+COPY --from=builder --chown=root:root --chmod=0755 /out/wkcli /usr/local/bin/wkcli
 COPY --from=builder --chown=root:root --chmod=0755 /out/wkanalysis /usr/local/bin/wkanalysis
 COPY --from=builder --chown=root:root --chmod=0755 /out/wkcloudsim /usr/local/bin/wkcloudsim
 COPY --from=prometheus --chown=root:root /out/licenses/ /usr/share/licenses/prometheus/

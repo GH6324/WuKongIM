@@ -83,6 +83,12 @@ apt-cache madison wukongim
 sudo apt install -y wukongim
 ```
 
+For releases containing the unified operator CLI, each clean native client
+also checks that `wkcli version --output json` matches
+`wukongim version --output json` in version, full commit, and build source.
+Verify `wkcli bench --help`, `wkcli db --help`, and `wkcli migrate --help`
+from the installed package. Official Linux/macOS archives contain both binaries.
+
 The repository bootstrap keyring has its own version. It is not the server
 version. Package upgrades do not restart the running server; service restart
 remains an explicit deployment operation under the Linux deployment runbook.

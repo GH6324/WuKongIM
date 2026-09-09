@@ -5,14 +5,14 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/wkdb-import-smoke.sh [--work-dir DIR] [--hash-slot-count N] [--keep]
 
-Builds a minimal WKDB Import Bundle v1, validates it with wkdb import
+Builds a minimal WKDB Import Bundle v1, validates it with wkcli db import
 --dry-run, imports it into a fresh node data directory, and verifies the
-imported rows with wkdb query.
+imported rows with wkcli db query.
 
 Environment:
-  WKDB_BIN  Path to a prebuilt wkdb binary. If unset, the script runs
-            "go run ./cmd/wkdb" with GOWORK=off.
-  GO        Go executable used when WKDB_BIN is unset. Defaults to "go".
+  WK_CLI_BIN  Path to a prebuilt wkcli binary. If unset, the script runs
+            "go run ./cmd/wkcli db" with GOWORK=off.
+  GO        Go executable used when WK_CLI_BIN is unset. Defaults to "go".
   WKDB_SMOKE_VERBOSE=1 prints wkdb stderr from successful commands.
 USAGE
 }
@@ -61,8 +61,8 @@ if [[ "$hash_slot_count" != "256" ]]; then
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-if [[ ! -d "$repo_root/cmd/wkdb" ]]; then
-  echo "must run from a WuKongIM checkout with cmd/wkdb" >&2
+if [[ ! -d "$repo_root/cmd/wkcli" ]]; then
+  echo "must run from a WuKongIM checkout with cmd/wkcli" >&2
   exit 2
 fi
 
@@ -87,10 +87,10 @@ summary_file="$work_dir/summary.md"
 rm -rf "$bundle_dir" "$target_dir"
 mkdir -p "$bundle_dir/meta" "$bundle_dir/message" "$target_dir"
 
-if [[ -n "${WKDB_BIN:-}" ]]; then
-  wkdb_cmd=("$WKDB_BIN")
+if [[ -n "${WK_CLI_BIN:-}" ]]; then
+  wkdb_cmd=("$WK_CLI_BIN" db)
 else
-  wkdb_cmd=("${GO:-go}" run ./cmd/wkdb)
+  wkdb_cmd=("${GO:-go}" run ./cmd/wkcli db)
 fi
 
 run_wkdb() {

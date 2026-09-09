@@ -67,7 +67,7 @@ go run ./cmd/wkcli node diagnose 4 --context production --json
 
 先记录磁盘空间、IO 延迟、错误、节点 ID、数据路径和配置。不要通过删除数据文件或未知日志来腾空间。
 
-`wkdb` 只能查看已停止节点、文件系统快照或复制出的数据目录。先使用只读的 `query`、`diff` 或 `export`。`import` 会写入数据，只能指向明确离线的目标，也不能替代 Manager 的备份恢复。
+`wkcli db` 只能查看已停止节点、文件系统快照或复制出的数据目录。先使用只读的 `query`、`diff` 或 `export`。`import` 会写入数据，只能指向明确离线的目标，也不能替代 Manager 的备份恢复。
 
 ### 备份、恢复或升级失败
 
@@ -80,7 +80,7 @@ go run ./cmd/wkcli node diagnose 4 --context production --json
 3. 用 Top 或 `wkcli top` 查看一个节点的当前资源和短期历史。
 4. 只有问题已经缩小到精确节点、Slot、Channel 或任务时，才使用[诊断能力](/zh/server/tools/diagnostics)。
 5. pprof 必须限时、限目标，完成后关闭 Debug 能力。
-6. `wkbench` 会产生真实流量和数据，只能在隔离的测试集群复现问题，不能对生产环境做无界压测。
+6. `wkcli bench` 会产生真实流量和数据，只能在隔离的测试集群复现问题，不能对生产环境做无界压测。
 
 前一步已经能解释问题时，就不要继续使用成本更高的工具。
 
