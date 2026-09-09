@@ -9,6 +9,10 @@ and [final acceptance report](../../docs/superpowers/reports/2026-09-08-v2-migra
 for the tested source, explicit policies, cache reset procedure, and validation limits.
 Offline verification does not switch production traffic.
 
+For a fresh rehearsal using delivered Linux binaries, see the
+[isolated package rehearsal](../../scripts/migration/README.md). Its dry run
+validates inputs and mount isolation before starting the full offline pipeline.
+
 Optional `plugin_nodes` in the plan explicitly chooses one source for every
 target node, for example `[{"source_node":1001,"target_node":1},
 {"source_node":1002,"target_node":2},{"source_node":1003,"target_node":3}]`.
