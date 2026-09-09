@@ -1,14 +1,17 @@
 ---
 title: wkcli
-description: Use named contexts, Top, controlled node operations, and lightweight traffic tools against a live cluster.
+description: Use one operator binary for live operations, benchmarks, offline database transfer, and v2-to-v3 migration.
 ---
 
-`wkcli` is WuKongIM's online operations CLI. It works through public HTTP, Manager, Benchmark, and WKProto entry points without importing server internals. It contains read-only commands as well as commands that generate traffic or call Manager write APIs, so classify risk before use.
+`wkcli` is WuKongIM's unified operator CLI. Online operations use HTTP and WKProto entry points; `db` and `migrate` operate on offline data. Official binary archives and native packages containing this CLI provide it alongside the same-version `wukongim`. Check `wkcli version --output json` to identify the build.
 
 ## Command boundaries
 
 | Command | Purpose | Risk class |
 | --- | --- | --- |
+| `bench` | [Distributed workloads, workers, capacity and reports](/en/server/tools/wkbench) | Generates real traffic |
+| `db` | [Offline query, REPL, import, export and diff](/en/server/tools/wkdb) | Import writes the target store |
+| `migrate` | [Original v2-to-v3 migration](/en/server/operations/v2-to-v3-migration) | Creates new offline v3 data |
 | `context` | Save and select a set of WuKongIM HTTP API addresses | Writes only the local user configuration directory |
 | `top` | Read and aggregate `/top/v1/snapshot` from one or more nodes | Online read-only |
 | `node ls` / `node diagnose` | Read dynamic-node state and bounded root-cause evidence | Manager read-only |
@@ -17,6 +20,8 @@ description: Use named contexts, Top, controlled node operations, and lightweigh
 | `sim` | Prepare test metadata and sustain real group-message traffic | Controlled simulation environments only |
 
 `wkcli node` neither starts nor stops server processes and never writes Controller or Slot state directly. Manager permissions, audit, and safety gates still apply.
+
+Replace old invocations `wkbench …`, `wkdb …`, and `wkmigrate …` with `wkcli bench …`, `wkcli db …`, and `wkcli migrate …`. Old executable entrypoints are removed. Command arguments, output formats and family-specific exit codes remain unchanged. Database global flags must precede its verb.
 
 ## Configure named contexts
 
@@ -81,7 +86,7 @@ go run ./cmd/wkcli bench send \
   --size 128B
 ```
 
-`bench send` is a quick WKProto SEND-throughput and SENDACK-latency check, not a replacement for a complete `wkbench` scenario. It creates real sessions and messages. Bound clients, messages, channels, and runtime, and use dedicated test identities and channels.
+`bench send` is a quick WKProto SEND-throughput and SENDACK-latency check, not a replacement for a complete `wkcli bench` scenario. It creates real sessions and messages. Bound clients, messages, channels, and runtime, and use dedicated test identities and channels.
 
 ## Long-running simulation
 
@@ -97,7 +102,7 @@ go run ./cmd/wkcli sim \
   --max-runtime 30s
 ```
 
-`--rate` is per group, so aggregate offered traffic grows with group count. Run only against an isolated development or benchmark cluster, then disable the Benchmark API and remove generated data. Use [wkbench](/en/server/tools/wkbench) for full validation, capacity search, and reports.
+`--rate` is per group, so aggregate offered traffic grows with group count. Run only against an isolated development or benchmark cluster, then disable the Benchmark API and remove generated data. Use [wkcli bench](/en/server/tools/wkbench) for full validation, capacity search, and reports.
 
 ## Stop safely
 

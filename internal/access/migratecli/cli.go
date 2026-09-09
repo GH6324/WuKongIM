@@ -16,7 +16,7 @@ type Execute func(context.Context, Command) (any, error)
 // Run emits machine-readable results on stdout and diagnostics on stderr.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer, execute Execute) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
-		fmt.Fprintln(stdout, "Usage: wkmigrate <dedupe-plan|authority|diagnose|prepare|export|export-map|import|verify> --plan /path/plan.json --workspace /path/workspace [--archive /path/archive]\n\ndedupe-plan Plan latest-message duplicate omissions and sequence impact without modifying source or target.\nauthority Audit migration-marked channel configurations and cross-replica histories without selecting or importing.\ndiagnose Census all readable sources and emit all compatibility findings without preparing a target.\nprepare  Inspect stopped original v2 nodes; select authoritative data and validate conversion.\nexport   Recheck unchanged stopped sources and publish a checksummed source archive.\nexport-map Rebuild a checksummed sequence mapping from the complete source archive.\nimport   Install a new native v3 cluster generation from the complete archive.\nverify   Independently compare stopped v3 databases with archived original data.\n\nNo command modifies or upgrades deployed v2. A prepared or exported result is not cutover approval.")
+		fmt.Fprintln(stdout, "Usage: wkcli migrate <dedupe-plan|authority|diagnose|prepare|export|export-map|import|verify> --plan /path/plan.json --workspace /path/workspace [--archive /path/archive]\n\ndedupe-plan Plan latest-message duplicate omissions and sequence impact without modifying source or target.\nauthority Audit migration-marked channel configurations and cross-replica histories without selecting or importing.\ndiagnose Census all readable sources and emit all compatibility findings without preparing a target.\nprepare  Inspect stopped original v2 nodes; select authoritative data and validate conversion.\nexport   Recheck unchanged stopped sources and publish a checksummed source archive.\nexport-map Rebuild a checksummed sequence mapping from the complete source archive.\nimport   Install a new native v3 cluster generation from the complete archive.\nverify   Independently compare stopped v3 databases with archived original data.\n\nNo command modifies or upgrades deployed v2. A prepared or exported result is not cutover approval.")
 		if len(args) == 0 {
 			return 2
 		}
@@ -27,7 +27,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, execute E
 		fmt.Fprintf(stderr, "unknown migration command %q\n", cmd.Verb)
 		return 2
 	}
-	flags := flag.NewFlagSet("wkmigrate "+cmd.Verb, flag.ContinueOnError)
+	flags := flag.NewFlagSet("wkcli migrate "+cmd.Verb, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.StringVar(&cmd.PlanPath, "plan", "", "immutable migration plan JSON")
 	flags.StringVar(&cmd.WorkspacePath, "workspace", "", "exclusive migration scratch directory")

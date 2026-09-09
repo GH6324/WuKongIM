@@ -221,7 +221,7 @@ func TestSingleNodeBaselineRejectsUsersBeyondTerminalFenceCapacityBeforeBuildOrP
 
 func TestSingleNodeBaselineRejectsTopologyEnvironmentOverrideWithoutSideEffects(t *testing.T) {
 	root := repoRoot(t)
-	fakeBench := filepath.Join(t.TempDir(), "wkbench")
+	fakeBench := filepath.Join(t.TempDir(), "wkcli")
 	if err := os.WriteFile(fakeBench, []byte("#!/usr/bin/env bash\nexit 97\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ func TestSingleNodeBaselineRejectsTopologyEnvironmentOverrideWithoutSideEffects(
 		t.Run(name, func(t *testing.T) {
 			outDir := filepath.Join(t.TempDir(), "must-not-be-created")
 			command := exec.Command("bash", "scripts/bench-wukongim-single-node-1000ch.sh",
-				"--no-worker", "--no-start", "--qps", "250", "--wkbench-bin", fakeBench, "--out-dir", outDir)
+				"--no-worker", "--no-start", "--qps", "250", "--wkcli-bin", fakeBench, "--out-dir", outDir)
 			command.Dir = root
 			command.Env = append(envWithout(
 				"WK_NODE_ID", "WK_CLUSTER_ID", "WK_CLUSTER_LISTEN_ADDR", "WK_CLUSTER_ADVERTISE_ADDR",
@@ -253,7 +253,7 @@ func TestSingleNodeBaselineRejectsTopologyEnvironmentOverrideWithoutSideEffects(
 				"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", "WK_CHANNEL_APPEND_SHARD_COUNT",
 				"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS",
 				"WK_WUKONGIM_SINGLE_NODE_READY_URL",
-				"WK_BENCH_SINGLE_NODE_OUT_DIR", "WK_BENCH_BIN",
+				"WK_BENCH_SINGLE_NODE_OUT_DIR", "WK_CLI_BIN",
 			), name+"="+value)
 			output, err := command.CombinedOutput()
 			if err == nil {
@@ -447,7 +447,7 @@ func TestSingleNodeBaselineBindsQueueAndStorageCutsToWorkerTimeline(t *testing.T
 	}
 	body := script[runStart : runStart+runEnd]
 	startObserver := strings.Index(body, "start_terminal_cut_observer")
-	run := strings.Index(body, `"$WK_BENCH_BIN" run`)
+	run := strings.Index(body, `"$WK_CLI_BIN" bench run`)
 	joinObserver := strings.Index(body, "stop_terminal_cut_observer")
 	stopSampler := strings.Index(body, "stop_runtime_pool_sampler")
 	terminalMetrics := strings.Index(body, "scrape_metrics \"$tag\" after")
@@ -463,7 +463,7 @@ func TestSingleNodeBaselineSealRequiresConfigLogsAndBinaryIdentity(t *testing.T)
 		`config/effective-wukongim.toml`,
 		`logs/after/node1.log`,
 		`bin/wukongim`,
-		`bin/wkbench`,
+		`bin/wkcli`,
 		`artifact-identity.tsv`,
 		`wukongim_binary_sha256`,
 		`wkbench_binary_sha256`,
@@ -480,7 +480,7 @@ func TestSingleNodeBaselineSealRequiresConfigLogsAndBinaryIdentity(t *testing.T)
 		t.Fatal("tested binaries must be prepared under OUT_DIR/bin before any cluster or worker process starts")
 	}
 	for _, want := range []string{
-		`WK_BENCH_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"`,
+		`WK_CLI_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"`,
 		`WUKONGIM_BIN="$OUT_DIR/$SEALED_WUKONGIM_RELATIVE"`,
 		`WK_WUKONGIM_SINGLE_NODE_BIN="$WUKONGIM_BIN"`,
 	} {
@@ -534,7 +534,7 @@ func TestSingleNodeBaselineUsesOnlyTypedFirstThresholdProfileCapture(t *testing.
 		t.Fatal("run_attempt function missing")
 	}
 	body := script[runStart : runStart+runEnd]
-	run := strings.Index(body, `"$WK_BENCH_BIN" run`)
+	run := strings.Index(body, `"$WK_CLI_BIN" bench run`)
 	drain := strings.Index(body, `write_threshold_profile_phase "$tag" drain`)
 	join := strings.Index(body, `stop_threshold_profile_watcher "$tag"`)
 	if run < 0 || drain < 0 || join < 0 || !(run < drain && drain < join) {
@@ -774,7 +774,7 @@ func TestSingleNodeBaselineBuildsOwnedWorkerFromCurrentSourceUnconditionally(t *
 		t.Fatal("ensure_wkbench_binary function missing")
 	}
 	body := script[start : start+end]
-	for _, forbidden := range []string{"find ", "-newer", `if [[ -x "$WK_BENCH_BIN" ]]`} {
+	for _, forbidden := range []string{"find ", "-newer", `if [[ -x "$WK_CLI_BIN" ]]`} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("owned worker build still relies on incomplete stale-binary detection %q", forbidden)
 		}
@@ -799,8 +799,8 @@ func TestSingleNodeBaselineStartsWorkerFromTheSealedOwnedBinary(t *testing.T) {
 	}
 	for _, want := range []string{
 		`prepare_sealed_test_binaries || die`,
-		`WK_BENCH_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"`,
-		`"$WK_BENCH_BIN" worker`,
+		`WK_CLI_BIN="$OUT_DIR/$SEALED_WKBENCH_RELATIVE"`,
+		`"$WK_CLI_BIN" bench worker`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("sealed owned worker binary contract missing %q", want)

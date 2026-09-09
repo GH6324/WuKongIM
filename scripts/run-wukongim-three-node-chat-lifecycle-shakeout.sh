@@ -168,7 +168,7 @@ require_uint '--hot-sendack-p99-ms' "$HOT_SENDACK_P99_MS"
 validate_run_dir
 
 WUKONGIM_BIN="$RUN_DIR/bin/wukongim"
-WKBENCH_BIN="$RUN_DIR/bin/wkbench"
+WK_CLI_BIN="$RUN_DIR/bin/wkcli"
 CONFIG_DIR="$RUN_DIR/config"
 DATA_DIR="$RUN_DIR/data"
 LOG_DIR="$RUN_DIR/logs"
@@ -197,7 +197,7 @@ STORAGE_METRICS_CUT_VALIDATOR="$ROOT_DIR/scripts/storage-metrics-cut-consistent.
 print_plan() {
   printf 'run_dir=%s\n' "$RUN_DIR"
   printf 'build_wukongim=GOWORK=off go build -o %s ./cmd/wukongim\n' "$WUKONGIM_BIN"
-  printf 'build_wkbench=GOWORK=off go build -o %s ./cmd/wkbench\n' "$WKBENCH_BIN"
+  printf 'build_wkbench=GOWORK=off go build -o %s ./cmd/wkcli\n' "$WK_CLI_BIN"
   printf 'logical_slot_groups=12\n'
   printf 'hash_slots=256\n'
   printf 'replicas=3/3\n'
@@ -319,7 +319,7 @@ done
 
 log 'building service and benchmark binaries'
 (cd "$ROOT_DIR" && GOWORK=off go build -o "$WUKONGIM_BIN" ./cmd/wukongim)
-(cd "$ROOT_DIR" && GOWORK=off go build -o "$WKBENCH_BIN" ./cmd/wkbench)
+(cd "$ROOT_DIR" && GOWORK=off go build -o "$WK_CLI_BIN" ./cmd/wkcli)
 finalize_source_rebuildability_after_builds
 
 sed \
@@ -366,7 +366,7 @@ record_evidence_identity() {
   local config_sha wukongim_sha wkbench_sha
   config_sha="$(sha256_file "$LIFECYCLE_CONFIG")"
   wukongim_sha="$(sha256_file "$WUKONGIM_BIN")"
-  wkbench_sha="$(sha256_file "$WKBENCH_BIN")"
+  wkbench_sha="$(sha256_file "$WK_CLI_BIN")"
   {
     printf 'schema\twukongim/chat-lifecycle-local-evidence/v1\n'
     printf 'source_revision\t%s\n' "$SOURCE_REVISION"
@@ -695,7 +695,7 @@ start_service() {
 
 start_worker() {
   local node="$1" pid
-  "$WKBENCH_BIN" worker --mode chat-lifecycle --listen "127.0.0.1:$(worker_port "$node")" \
+  "$WK_CLI_BIN" bench worker --mode chat-lifecycle --listen "127.0.0.1:$(worker_port "$node")" \
     --work-dir "$WORKER_DIR/node$node" >"$LOG_DIR/worker-$node.log" 2>&1 &
   pid=$!
   record_pid "worker-$node" "$pid"
@@ -807,7 +807,7 @@ start_host_metrics() {
     physical_io_args=(--physical-io=false)
   fi
   write_process_metrics_for_host "$node" "$EVIDENCE_DIR/processes-node-$node.prom" || die "node $node process metrics initialization failed"
-  "$WKBENCH_BIN" host-metrics --listen "127.0.0.1:$(host_metrics_port "$node")" \
+  "$WK_CLI_BIN" bench host-metrics --listen "127.0.0.1:$(host_metrics_port "$node")" \
     --path "$DATA_DIR/node$node" --mountpoint "/var/lib/wukongim-$node" --device "/dev/local-data-$node" \
     --process-metrics-path "$EVIDENCE_DIR/processes-node-$node.prom" \
     "${physical_io_args[@]}" \
@@ -820,7 +820,7 @@ start_host_metrics() {
 start_load_host_metrics() {
   local pid
   write_process_metrics_for_host load "$EVIDENCE_DIR/processes-load.prom" || die 'load process metrics initialization failed'
-  "$WKBENCH_BIN" host-metrics --listen "127.0.0.1:$(load_host_metrics_port)" \
+  "$WK_CLI_BIN" bench host-metrics --listen "127.0.0.1:$(load_host_metrics_port)" \
     --path "$DATA_DIR/load" --mountpoint "/var/lib/wukongim-load" --device "/dev/local-load-data" \
     --watch-path "$REPORT_DIR" --process-metrics-path "$EVIDENCE_DIR/processes-load.prom" \
     --physical-io=false \
@@ -959,7 +959,7 @@ start_threshold_pprof_capture() {
 refresh_live_cut_query() {
   local next_cursor phase trigger
   local -a query=(
-    "$WKBENCH_BIN" report chat-lifecycle-cut-query
+    "$WK_CLI_BIN" bench report chat-lifecycle-cut-query
     --worker-log "$LOG_DIR/coordinator.log"
     --run-id "$RUN_ID"
     --cursor "$CUT_CURSOR"
@@ -1171,7 +1171,7 @@ write_threshold_pprof_status() {
 
 build_unified_timeline() {
   cp "$LOG_DIR/coordinator.log" "$FROZEN_WORKER_LOG"
-  "$WKBENCH_BIN" report chat-lifecycle-timeline \
+  "$WK_CLI_BIN" bench report chat-lifecycle-timeline \
     --worker-log "$FROZEN_WORKER_LOG" \
     --boundary-timeline "$EVIDENCE_DIR/timeline.tsv" \
     --storage-overlap "$STORAGE_OVERLAP_FILE" \
@@ -1539,7 +1539,7 @@ record_process_continuity() {
 write_artifact_checksums() {
   local output="$EVIDENCE_DIR/checksums.sha256" path digest
   local -a artifact_roots=(
-    "$WUKONGIM_BIN" "$WKBENCH_BIN" "$LIFECYCLE_CONFIG" "$CONFIG_DIR" "$LOG_DIR"
+    "$WUKONGIM_BIN" "$WK_CLI_BIN" "$LIFECYCLE_CONFIG" "$CONFIG_DIR" "$LOG_DIR"
     "$REPORT_DIR" "$EVIDENCE_DIR" "$METRICS_DIR"
   )
   for path in \
@@ -1576,7 +1576,7 @@ log 'starting coordinator'
 write_phase_state warmup
 record_timeline_boundary warmup_start
 capture_service_metrics warmup-before
-"$WKBENCH_BIN" soak chat-lifecycle --config "$LIFECYCLE_CONFIG" --output-dir "$REPORT_DIR" \
+"$WK_CLI_BIN" bench soak chat-lifecycle --config "$LIFECYCLE_CONFIG" --output-dir "$REPORT_DIR" \
   >"$LOG_DIR/coordinator.log" 2>&1 &
 COORDINATOR_PID=$!
 record_pid coordinator "$COORDINATOR_PID"
@@ -1728,7 +1728,7 @@ if (( MEASURE_SECONDS > 0 )); then
   if (( HOST_CONFOUNDED != 0 )); then
     classifier_args+=(--host-confounded)
   fi
-  "$WKBENCH_BIN" "${classifier_args[@]}" || classifier_status=$?
+  "$WK_CLI_BIN" bench "${classifier_args[@]}" || classifier_status=$?
   # The coordinator, service, worker, and sampler processes all own files under
   # logs/. Join every writer before computing the immutable step seal.
   stop_recorded_processes

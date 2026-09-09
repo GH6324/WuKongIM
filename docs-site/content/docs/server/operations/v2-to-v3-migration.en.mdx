@@ -1,9 +1,9 @@
 ---
 title: v2 → v3 Offline Migration
-description: Use wkmigrate to build a new v3 cluster from unmodified, stopped v2 backups, verify the data, and prepare client cutover and rollback.
+description: Use wkcli migrate to build a new v3 cluster from unmodified, stopped v2 backups, verify the data, and prepare client cutover and rollback.
 ---
 
-`wkmigrate` converts stopped original v2 data into native v3 data directories. **You do not need to modify or upgrade the deployed v2**: `prepare` reads backups offline on the migration machine; it is not an endpoint installed in v2.
+`wkcli migrate` converts stopped original v2 data into native v3 data directories. **You do not need to modify or upgrade the deployed v2**: `prepare` reads backups offline on the migration machine; it is not an endpoint installed in v2.
 
 API and SDK compatibility does not imply disk-format compatibility. Do not let v3 open a v2 data directory or replace this migration with a rolling upgrade.
 
@@ -35,14 +35,14 @@ Build inside the fixed v3 source checkout. Use the Go version required by its `g
 ```sh
 umask 077
 mkdir -p /srv/tools /srv/wkmigrate/reports /srv/wkmigrate/work /srv/wkmigrate/targets
-GOWORK=off go build -o /srv/tools/wkmigrate ./cmd/wkmigrate
+GOWORK=off go build -o /srv/tools/wkcli ./cmd/wkcli
 GOWORK=off go build -o /srv/tools/wukongim-v3 ./cmd/wukongim
 git rev-parse HEAD > /srv/wkmigrate/reports/tool-source.txt
-sha256sum /srv/tools/wkmigrate /srv/tools/wukongim-v3 > /srv/wkmigrate/reports/binaries.sha256
-/srv/tools/wkmigrate --help
+sha256sum /srv/tools/wkcli /srv/tools/wukongim-v3 > /srv/wkmigrate/reports/binaries.sha256
+/srv/tools/wkcli migrate --help
 ```
 
-On macOS, use `shasum -a 256` instead of `sha256sum`. Build for the actual runtime platform. For a delivery package, compare its archive digest with an independent delivery record before checking the enclosed files. Ordinary server packages are not guaranteed to include `wkmigrate`.
+On macOS, use `shasum -a 256` instead of `sha256sum`. Build for the actual runtime platform. For a delivery package, compare its archive digest with an independent delivery record before checking the enclosed files. Releases containing the unified CLI include `wkcli` beside `wukongim` in official archives and native packages. Check `wkcli version --output json` against the server identity.
 
 ## 2. Freeze the migration plan
 
@@ -115,7 +115,7 @@ After renumbering, retained messages become `1…N` in their original order, and
 Diagnose the cold backups in a separate workspace:
 
 ```sh
-/srv/tools/wkmigrate diagnose --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate diagnose --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/diagnose \
   > /srv/wkmigrate/reports/diagnose.json
 ```
@@ -125,7 +125,7 @@ Exit code 1 can indicate business blockers or an incomplete scan. Read the repor
 After resolving blockers and fixing the plan, run:
 
 ```sh
-/srv/tools/wkmigrate prepare --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate prepare --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/prepare \
   > /srv/wkmigrate/reports/prepare.json
 ```
@@ -137,7 +137,7 @@ Success requires exit code 0 and `status: "prepared"`. Save the capture and sele
 ## 4. Export the original archive
 
 ```sh
-/srv/tools/wkmigrate export --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate export --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/prepare \
   --archive /srv/wkmigrate/source-archive \
   > /srv/wkmigrate/reports/export.json
@@ -150,12 +150,12 @@ Reuse the successful `prepare` workspace. Export rechecks that sources are uncha
 Import and independent verification require only the plan and complete archive. Use separate new workspaces so verification does not depend on temporary import results:
 
 ```sh
-/srv/tools/wkmigrate import --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate import --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/import \
   --archive /srv/wkmigrate/source-archive \
   > /srv/wkmigrate/reports/import.json
 
-/srv/tools/wkmigrate verify --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate verify --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/verify \
   --archive /srv/wkmigrate/source-archive \
   > /srv/wkmigrate/reports/verify.json
@@ -202,7 +202,7 @@ Renumbering invalidates old message caches and sequence cursors. For a cache-res
 If clients use a mapping instead, they must handle the complete `sequence_mapping`. Excluded rows have `target_seq` 0; use `boundary_seq` for old cursors rather than treating excluded rows as existing messages. Rebuild the mapping from the archive with:
 
 ```sh
-/srv/tools/wkmigrate export-map --plan /srv/wkmigrate/plan.json \
+/srv/tools/wkcli migrate export-map --plan /srv/wkmigrate/plan.json \
   --workspace /srv/wkmigrate/work/map \
   --archive /srv/wkmigrate/source-archive
 ```

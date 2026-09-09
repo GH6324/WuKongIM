@@ -34,7 +34,7 @@ temporary public EIP:
 | Hosts | Count | Responsibility |
 | --- | ---: | --- |
 | Service/data | 3 | WuKongIM API, Gateway, Manager/debug, metrics, and one filesystem metrics endpoint per host. |
-| Load/coordinator/monitor | 1 | Three isolated `wkbench worker --mode chat-lifecycle` processes, one coordinator, Prometheus, Analysis, proxy, and the durable report directory. |
+| Load/coordinator/monitor | 1 | Three isolated `wkcli bench worker --mode chat-lifecycle` processes, one coordinator, Prometheus, Analysis, proxy, and the durable report directory. |
 
 The product topology is fixed for the complete run:
 
@@ -91,8 +91,8 @@ Build both binaries from one reviewed commit and record their SHA-256 digests:
 
 ```bash
 GOWORK=off go build -o /opt/wukongim/bin/wukongim ./cmd/wukongim
-GOWORK=off go build -o /opt/wukongim/bin/wkbench ./cmd/wkbench
-sha256sum /opt/wukongim/bin/wukongim /opt/wukongim/bin/wkbench
+GOWORK=off go build -o /opt/wukongim/bin/wkcli ./cmd/wkcli
+sha256sum /opt/wukongim/bin/wukongim /opt/wukongim/bin/wkcli
 ```
 
 Copy `configs/wkbench/chat-lifecycle/formal.yaml` to an owner-only operations
@@ -143,7 +143,7 @@ coordinator dormant; the top-level rehearsal workflow starts its remote
 systemd unit only after cluster and worker readiness:
 
 ```bash
-wkbench soak chat-lifecycle \
+wkcli bench soak chat-lifecycle \
   --config /etc/wukongim-cloud/chat-lifecycle-rehearsal.yaml \
   --output-dir /secure/reports/chat-lifecycle-rehearsal
 ```
@@ -189,7 +189,7 @@ the coordinator last. Record all PIDs and UTC timestamps in the operations
 journal.
 
 ```bash
-wkbench soak chat-lifecycle \
+wkcli bench soak chat-lifecycle \
   --config /secure/config/chat-lifecycle-formal.yaml \
   --output-dir /secure/reports/chat-lifecycle-formal
 ```
@@ -245,7 +245,7 @@ resize, migrate, or substitute a copied dataset. Create a capacity YAML with
 `mode: capacity` and the exact final report reference, then run:
 
 ```bash
-wkbench capacity chat-lifecycle \
+wkcli bench capacity chat-lifecycle \
   --config /secure/config/chat-lifecycle-capacity.yaml \
   --checkpoint /secure/reports/chat-lifecycle-formal/final.json \
   --output-dir /secure/reports/chat-lifecycle-capacity

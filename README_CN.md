@@ -184,14 +184,14 @@ flowchart TB
 - **准备生产环境：** 替换示例凭据，配置[安全与网络访问控制](https://docs.githubim.com/zh/server/configuration/security/)，并演练[备份与恢复](https://docs.githubim.com/zh/server/operations/backup-and-restore/)。
 - **理解系统：** [架构说明](https://docs.githubim.com/zh/server/architecture/)与[运维工具](https://docs.githubim.com/zh/server/tools/)。
 
-评估性能时，从[会话与消息性能报告](./docs/superpowers/reports/2026-08-06-membership-conversation-performance-acceptance.md)开始，查看负载、代码版本、延迟与限制。结果适用于报告记录的历史版本及单台主机、三个进程的测试环境。请使用 [`wkbench`](./cmd/wkbench/README.md) 和[性能排查手册](./docs/development/PERF_TRIAGE.md)测量自己的版本和业务负载。
+评估性能时，从[会话与消息性能报告](./docs/superpowers/reports/2026-08-06-membership-conversation-performance-acceptance.md)开始，查看负载、代码版本、延迟与限制。结果适用于报告记录的历史版本及单台主机、三个进程的测试环境。请使用 [`wkcli bench`](./cmd/wkcli/internal/benchmark/README.md) 和[性能排查手册](./docs/development/PERF_TRIAGE.md)测量自己的版本和业务负载。
 
 ## 开发与社区
 
 从源码开发时，克隆本仓库后参照[配置与启动指南](https://docs.githubim.com/zh/server/configuration/)。仓库使用 Go `1.25.11`。
 
 ```bash
-GOWORK=off go build ./cmd/wukongim ./cmd/wkcli ./cmd/wkbench ./cmd/wkdb
+GOWORK=off go build ./cmd/wukongim ./cmd/wkcli
 GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1
 ```
 请阅读[仓库约定](./AGENTS.md)和 [CI 说明](./docs/development/CI.md)。修改前端时，按 [Manager](./web/README.md) 和[聊天 Demo](./demo/chatdemo/README.md) 的指南构建；生成的静态资源会嵌入 Go 二进制，变更后需要重新构建并提交。

@@ -57,7 +57,7 @@ runs its fast unit tests from the documentation-site root and is part of `verify
 Downloadable operator examples live under `public/examples/monitoring/` and
 `public/examples/wkbench/`. Keep both language guides aligned with these files.
 Validate monitoring files with `promtool check config` and `promtool check rules`.
-Validate benchmark inputs with the current `wkbench validate` command before
+Validate benchmark inputs with the current `wkcli bench validate` command before
 publishing; validation does not start traffic. Report illustrations must remain
 explicitly separate from measured capacity results.
 

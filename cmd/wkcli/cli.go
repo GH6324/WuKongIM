@@ -7,8 +7,12 @@ import (
 	"os"
 
 	benchcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench"
+	fullbenchcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/benchmark"
 	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command"
 	contextcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context"
+	dbcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/database"
+	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/diagnostics"
+	migratecmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/migrate"
 	nodeopscmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/nodeops"
 	simcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim"
 	topcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top"
@@ -28,7 +32,7 @@ func run(args []string) int {
 
 func runWithIO(args []string, stdout, stderr io.Writer) int {
 	contextDir := contextcmd.DefaultStoreDir()
-	deps := command.Deps{Stdout: stdout, Stderr: stderr, ContextDir: &contextDir}
+	deps := command.Deps{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr, ContextDir: &contextDir}
 	cmd := newRootCommand(deps, defaultCommandFactories())
 	cmd.SetArgs(args)
 	return executeCommand(cmd, stderr)
@@ -43,6 +47,13 @@ func executeCommand(cmd *cobra.Command, stderr io.Writer) int {
 			}
 			return exit.Code
 		}
+		var classified interface{ ExitCode() int }
+		if errors.As(err, &classified) {
+			if err.Error() != "" {
+				fmt.Fprintln(stderr, err)
+			}
+			return classified.ExitCode()
+		}
 		fmt.Fprintln(stderr, err)
 		return exitConfig
 	}
@@ -51,10 +62,11 @@ func executeCommand(cmd *cobra.Command, stderr io.Writer) int {
 
 func newRootCommand(deps command.Deps, factories []command.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "wkcli",
-		Short:         "WuKongIM operational command line",
-		SilenceUsage:  true,
-		SilenceErrors: true,
+		Use:              "wkcli",
+		Short:            "WuKongIM operational command line",
+		TraverseChildren: true,
+		SilenceUsage:     true,
+		SilenceErrors:    true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := cmd.Help(); err != nil {
 				return command.Exit{Code: exitInternal, Message: err.Error()}
@@ -75,10 +87,26 @@ func newRootCommand(deps command.Deps, factories []command.Factory) *cobra.Comma
 
 func defaultCommandFactories() []command.Factory {
 	return []command.Factory{
+		newVersionCommand,
 		contextcmd.NewCommand,
 		topcmd.NewCommand,
-		benchcmd.NewCommand,
+		newBenchCommand,
+		dbcmd.NewCommand,
+		migratecmd.NewCommand,
 		simcmd.NewCommand,
 		nodeopscmd.NewCommand,
 	}
+}
+
+// newBenchCommand combines lightweight SEND testing and distributed scenarios.
+func newBenchCommand(deps command.Deps) *cobra.Command {
+	cmd := benchcmd.NewCommand(deps)
+	full := fullbenchcmd.NewCommand(deps.Stderr)
+	for _, child := range full.Commands() {
+		if child.Name() == "report" {
+			child.AddCommand(diagnostics.NewRedactionCommand())
+		}
+		cmd.AddCommand(child)
+	}
+	return cmd
 }

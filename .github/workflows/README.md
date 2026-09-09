@@ -274,11 +274,11 @@ rather than provenance synthesized from current `main`.
 Each run builds deterministic `.tar.gz` archives for `linux/amd64`,
 `linux/arm64`, `darwin/amd64`, and `darwin/arm64`. Windows is not advertised
 because the server currently contains Unix-only runtime and filesystem paths.
-Every archive includes the executable, English and Chinese readmes, and
+Every archive includes `wukongim` and `wkcli`, English and Chinese readmes, and
 `wukongim.toml.example`. When the tagged source contains
 `.goreleaser.packages.yaml`, the same run also uses the commit-pinned
 GoReleaser action with GoReleaser `v2.18.0` to build unsigned Linux amd64
-packages, normalized to exactly:
+packages containing both version-matched executables, normalized to exactly:
 
 - `wukongim_<version>_linux_amd64.deb`;
 - `wukongim_<version>_linux_amd64.rpm`.
@@ -782,7 +782,7 @@ formal finalizer before dispatch. These state transitions remove idle formal
 schedules without weakening transition or cleanup recovery.
 Remote `wkbench-formal.service` owns the uninterrupted 72-hour Soak, hour-24
 qualification, at-most-eight-hour aged-data capacity staircase, and 30-minute
-2,000-SEND/s recovery in one `wkbench formal-chain` process with the same
+2,000-SEND/s recovery in one `wkcli bench formal-chain` process with the same
 worker fence, generation, observer, lifecycle proof, and dataset. Activation
 seals the Lease creation/expiry instants, exact quote line items, aggregate
 committed cost, and ¥1,350/¥1,500 limits into the root-only load environment.

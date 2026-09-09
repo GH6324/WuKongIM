@@ -85,7 +85,7 @@ func ValidateStepClosureManifest(manifest StepClosureManifest) bool {
 		validRelativeArtifactPath(manifest.Inputs.Report) &&
 		manifest.Inputs.EffectiveConfig == "config/effective-wukongim.toml" &&
 		manifest.Inputs.WukongIMBinary == "bin/wukongim" &&
-		manifest.Inputs.WkbenchBinary == "bin/wkbench" &&
+		manifest.Inputs.WkbenchBinary == "bin/wkcli" &&
 		manifest.Inputs.ProductExecutable == fmt.Sprintf("reports/%06d-qps/evidence/product-executable.tsv", manifest.Settings.OfferedSendQPS) &&
 		validRelativeArtifactPath(manifest.Inputs.DiagnosticSummary) && validRelativeArtifactPath(manifest.Inputs.Lifecycle) &&
 		validRelativeArtifactPath(manifest.Inputs.PostWarmupMetrics) && validRelativeArtifactPath(manifest.Inputs.TerminalMetrics) &&

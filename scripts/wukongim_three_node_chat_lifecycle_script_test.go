@@ -16,7 +16,7 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 	for _, want := range []string{
 		"#!/usr/bin/env bash", "set -euo pipefail", "umask 077", "--run-dir", "--dry-run", "--stop-after",
 		"--send-rate", "--measure-seconds", "--warmup-seconds", "--drain-timeout", "--runtime-defaults",
-		"go build", "./cmd/wukongim", "./cmd/wkbench", "WK_CLUSTER_INITIAL_SLOT_COUNT=12",
+		"go build", "./cmd/wukongim", "./cmd/wkcli", "WK_CLUSTER_INITIAL_SLOT_COUNT=12",
 		"WK_CLUSTER_HASH_SLOT_COUNT=256", "WK_CLUSTER_SLOT_REPLICA_N=3",
 		"WK_CLUSTER_CHANNEL_REPLICA_N=3", "WK_CLUSTER_MAX_CHANNELS=50000",
 		`local -a service_environment=("WK_NODE_ID=$node")`,

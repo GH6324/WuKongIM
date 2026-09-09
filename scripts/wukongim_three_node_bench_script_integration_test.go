@@ -18,7 +18,7 @@ func TestWukongIMThreeNodeActivateScriptRebuildsStaleWkbenchBinary(t *testing.T)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	wkbenchPath := filepath.Join(binDir, "wkbench")
+	wkbenchPath := filepath.Join(binDir, "wkcli")
 	writeFakeActivateWkbench(t, wkbenchPath, callsDir)
 	old := time.Unix(946684800, 0)
 	if err := os.Chtimes(wkbenchPath, old, old); err != nil {
@@ -32,7 +32,7 @@ func TestWukongIMThreeNodeActivateScriptRebuildsStaleWkbenchBinary(t *testing.T)
 	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-10kch.sh",
 		"--no-start",
 		"--out-dir", outDir,
-		"--wkbench-bin", wkbenchPath,
+		"--wkcli-bin", wkbenchPath,
 		"--channels", "10",
 		"--users", "10",
 		"--activation-window", "1s",
@@ -49,7 +49,7 @@ func TestWukongIMThreeNodeActivateScriptRebuildsStaleWkbenchBinary(t *testing.T)
 	}
 
 	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
-	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkbench") {
+	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkcli") {
 		t.Fatalf("stale wkbench binary should be rebuilt, calls:\n%s", goCalls)
 	}
 	classify := readFile(t, filepath.Join(outDir, "metrics", "127_0_0_1_5011-classify.txt"))
@@ -64,7 +64,7 @@ func TestWukongIMThreeNodeActivateScriptCollectsServerProcessResources(t *testin
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakeActivateCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -72,7 +72,7 @@ func TestWukongIMThreeNodeActivateScriptCollectsServerProcessResources(t *testin
 	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-10kch.sh",
 		"--no-start",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--channels", "10",
 		"--users", "10",
 		"--activation-window", "1s",
@@ -124,7 +124,7 @@ func TestWukongIMThreeNodeActivateScriptClassifiesMetricsEvidence(t *testing.T) 
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakeActivateCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -132,7 +132,7 @@ func TestWukongIMThreeNodeActivateScriptClassifiesMetricsEvidence(t *testing.T) 
 	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-10kch.sh",
 		"--no-start",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--channels", "10",
 		"--users", "10",
 		"--activation-window", "1s",
@@ -182,7 +182,7 @@ func TestWukongIMThreeNodeActivateScriptFailsOnMetricsHealthGate(t *testing.T) {
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakeActivateCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -190,7 +190,7 @@ func TestWukongIMThreeNodeActivateScriptFailsOnMetricsHealthGate(t *testing.T) {
 	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-10kch.sh",
 		"--no-start",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--channels", "10",
 		"--users", "10",
 		"--activation-window", "1s",
@@ -1008,7 +1008,7 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 			binDir := t.TempDir()
 			callsDir := t.TempDir()
 			outDir := t.TempDir()
-			writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+			writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkcli"), callsDir, "fake")
 			writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
 			writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 			writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1019,7 +1019,7 @@ func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 				"--no-start",
 				"--no-worker",
 				"--out-dir", outDir,
-				"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+				"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 				"--qps", "100",
 				"--channels", "10",
 				"--users", "20",
@@ -1072,7 +1072,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkcli"), callsDir, "fake")
 	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1082,7 +1082,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--qps", "100",
 		"--channels", "10",
 		"--users", "20",
@@ -1261,7 +1261,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkcli"), callsDir, "fake")
 	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1271,7 +1271,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--qps", "100",
 		"--channels", "10",
 		"--users", "20",
@@ -1391,7 +1391,7 @@ func TestWukongIMThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *testi
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkcli"), callsDir, "fake")
 	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1401,7 +1401,7 @@ func TestWukongIMThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *testi
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--qps", "10000",
 		"--channels", "10",
 		"--users", "20",
@@ -1448,7 +1448,7 @@ func TestWukongIMThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) {
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	wkbenchPath := filepath.Join(binDir, "wkbench")
+	wkbenchPath := filepath.Join(binDir, "wkcli")
 	writeFakeThreeNode1000Wkbench(t, wkbenchPath, callsDir, "old")
 	old := time.Unix(946684800, 0)
 	if err := os.Chtimes(wkbenchPath, old, old); err != nil {
@@ -1464,7 +1464,7 @@ func TestWukongIMThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) {
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", wkbenchPath,
+		"--wkcli-bin", wkbenchPath,
 		"--qps", "100",
 		"--channels", "10",
 		"--users", "20",
@@ -1484,7 +1484,7 @@ func TestWukongIMThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) {
 	}
 
 	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
-	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkbench") {
+	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkcli") {
 		t.Fatalf("stale wkbench binary should be rebuilt, calls:\n%s", goCalls)
 	}
 	wkbenchCalls := readFile(t, filepath.Join(callsDir, "wkbench.calls"))
@@ -1510,7 +1510,7 @@ func TestWukongIMThreeNodeBenchScriptCanDisableHeartbeat(t *testing.T) {
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkcli"), callsDir, "fake")
 	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1520,7 +1520,7 @@ func TestWukongIMThreeNodeBenchScriptCanDisableHeartbeat(t *testing.T) {
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--qps", "100",
 		"--channels", "10",
 		"--users", "20",
@@ -1562,14 +1562,14 @@ func TestWukongIMDeliveryBenchScriptGeneratesGroupScenarioAndSummary(t *testing.
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakeDeliveryWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeDeliveryWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakeDeliveryCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
 	cmd := exec.Command("bash", "scripts/bench-wukongim-delivery.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--scenario", "group",
 		"--qps", "100",
 		"--channels", "20",
@@ -1657,13 +1657,13 @@ func TestWukongIMDeliveryBenchScriptDefaultOutDirUsesFinalScenario(t *testing.T)
 	})
 	_ = os.RemoveAll(outDir)
 	_ = os.RemoveAll(wrongOutDir)
-	writeFakeDeliveryWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeDeliveryWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakeDeliveryCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
 	cmd := exec.Command("bash", "scripts/bench-wukongim-delivery.sh",
 		"--no-start",
 		"--no-worker",
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--scenario", "person",
 		"--qps", "1",
 		"--channels", "1",
@@ -1715,7 +1715,7 @@ func TestWukongIMThreeNodePresenceScriptWritesExplicitTCPSourcePoolFromCLIAndEnv
 			binDir := t.TempDir()
 			callsDir := t.TempDir()
 			outDir := t.TempDir()
-			writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+			writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 			writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 			writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 			writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1725,7 +1725,7 @@ func TestWukongIMThreeNodePresenceScriptWritesExplicitTCPSourcePoolFromCLIAndEnv
 				"--no-start",
 				"--no-worker",
 				"--out-dir", outDir,
-				"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+				"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 				"--users", "10",
 				"--duration", "1s",
 				"--warmup", "0s",
@@ -1784,7 +1784,7 @@ func TestWukongIMThreeNodePresenceScriptOmitsTCPSourcePoolByDefault(t *testing.T
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1793,7 +1793,7 @@ func TestWukongIMThreeNodePresenceScriptOmitsTCPSourcePoolByDefault(t *testing.T
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -1879,7 +1879,7 @@ func TestWukongIMThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1888,7 +1888,7 @@ func TestWukongIMThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -1939,7 +1939,7 @@ func TestWukongIMThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *test
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -1948,7 +1948,7 @@ func TestWukongIMThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *test
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -1988,7 +1988,7 @@ func TestWukongIMThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	wkbenchPath := filepath.Join(binDir, "wkbench")
+	wkbenchPath := filepath.Join(binDir, "wkcli")
 	writeFakePresenceWkbench(t, wkbenchPath, callsDir)
 	old := time.Unix(946684800, 0)
 	if err := os.Chtimes(wkbenchPath, old, old); err != nil {
@@ -2003,7 +2003,7 @@ func TestWukongIMThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T)
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", wkbenchPath,
+		"--wkcli-bin", wkbenchPath,
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -2022,7 +2022,7 @@ func TestWukongIMThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T)
 	}
 
 	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
-	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkbench") {
+	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkcli") {
 		t.Fatalf("stale presence wkbench binary should be rebuilt, calls:\n%s", goCalls)
 	}
 	wkbenchCalls := readFile(t, filepath.Join(callsDir, "wkbench.calls"))
@@ -2037,7 +2037,7 @@ func TestWukongIMThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -2046,7 +2046,7 @@ func TestWukongIMThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -2190,7 +2190,7 @@ func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t *
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -2211,7 +2211,7 @@ func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t *
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -2268,7 +2268,7 @@ func TestWukongIMThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *te
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -2277,7 +2277,7 @@ func TestWukongIMThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *te
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -2308,7 +2308,7 @@ func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInval
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -2317,7 +2317,7 @@ func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInval
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -2352,7 +2352,7 @@ func TestWukongIMThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
-	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkcli"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
@@ -2361,7 +2361,7 @@ func TestWukongIMThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--wkcli-bin", filepath.Join(binDir, "wkcli"),
 		"--users", "10",
 		"--duration", "1s",
 		"--warmup", "0s",
@@ -2487,7 +2487,7 @@ func runFakeThreeNode1000Bench(t *testing.T, root string, outDir string, extraEn
 	t.Helper()
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
-	wkbenchPath := filepath.Join(binDir, "wkbench")
+	wkbenchPath := filepath.Join(binDir, "wkcli")
 	writeFakeThreeNode1000Wkbench(t, wkbenchPath, callsDir, "fake")
 	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
@@ -2499,7 +2499,7 @@ func runFakeThreeNode1000Bench(t *testing.T, root string, outDir string, extraEn
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
-		"--wkbench-bin", wkbenchPath,
+		"--wkcli-bin", wkbenchPath,
 		"--qps", "1",
 		"--channels", "1",
 		"--users", "2",
@@ -2534,6 +2534,8 @@ func writeFakeThreeNode1000Wkbench(t *testing.T, path string, callsDir string, l
 	t.Helper()
 	script := `#!/usr/bin/env bash
 set -euo pipefail
+[[ "${1:-}" == bench ]] || { echo "expected wkcli bench" >&2; exit 2; }
+shift
 mkdir -p "` + callsDir + `"
 printf '` + label + ` %s\n' "$*" >> "` + callsDir + `/wkbench.calls"
 if [[ "${1:-}" == "report" && "${2:-}" == "redact-config" ]]; then
@@ -2778,6 +2780,8 @@ mkdir -p "$(dirname "$out")"
 cat > "$out" <<'WKFAKE'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "${1:-}" == bench ]] || exit 2
+shift
 mkdir -p "` + callsDir + `"
 printf 'rebuilt %s\n' "$*" >> "` + callsDir + `/wkbench.calls"
 if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
@@ -3084,6 +3088,8 @@ func writeFakeActivateWkbench(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
 set -euo pipefail
+[[ "${1:-}" == bench ]] || { echo "expected wkcli bench" >&2; exit 2; }
+shift
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
 printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
@@ -3165,6 +3171,8 @@ mkdir -p "$(dirname "$out")"
 cat > "$out" <<'WKFAKE'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "${1:-}" == bench ]] || exit 2
+shift
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
 printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
@@ -3317,6 +3325,8 @@ func writeFakePresenceWkbench(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
 set -euo pipefail
+[[ "${1:-}" == bench ]] || { echo "expected wkcli bench" >&2; exit 2; }
+shift
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
 printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
@@ -3361,6 +3371,8 @@ func writeFakeDeliveryWkbench(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
 set -euo pipefail
+[[ "${1:-}" == bench ]] || { echo "expected wkcli bench" >&2; exit 2; }
+shift
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
 printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
@@ -3531,6 +3543,8 @@ mkdir -p "$(dirname "$out")"
 cat > "$out" <<'WKFAKE'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "${1:-}" == bench ]] || exit 2
+shift
 mkdir -p "` + callsDir + `"
 printf 'rebuilt %s\n' "$*" >> "` + callsDir + `/wkbench.calls"
 if [[ "${1:-}" == "run" ]]; then

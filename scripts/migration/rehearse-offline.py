@@ -65,7 +65,7 @@ def inputs(args):
             raise ValueError("plugin artifact escapes read-only root")
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", args.image):
         raise ValueError("runtime image must be an existing immutable image ID")
-    for name in ("wkmigrate", "wukongim"):
+    for name in ("wkcli", "wukongim"):
         expected = getattr(args, name + "_sha256")
         if not re.fullmatch(r"[0-9a-f]{64}", expected) or digest(args.bundle / name) != expected:
             raise ValueError(name + " does not match the approved package digest")
@@ -95,7 +95,7 @@ def command(args, phase, owner):
             cmd += mount(args.artifact_root, "/source-programs", True)
     if phase != "prepare":
         cmd += mount(args.output / "archive", "/archive", phase != "export")
-    cmd += ["--entrypoint", "/bundle/wkmigrate", args.image,
+    cmd += ["--entrypoint", "/bundle/wkcli", args.image, "migrate",
             "import" if phase == "retry" else phase, "--plan", "/plan.json", "--workspace", "/scratch/workspace"]
     if phase != "prepare":
         cmd += ["--archive", "/archive/source"]
@@ -186,7 +186,7 @@ def main():
     for name in ("plan", "bundle", "source-root", "output"):
         parser.add_argument("--" + name, type=lambda value: Path(value).resolve(), required=True)
     parser.add_argument("--artifact-root", type=lambda value: Path(value).resolve())
-    for name in ("image", "wkmigrate-sha256", "wukongim-sha256"):
+    for name in ("image", "wkcli-sha256", "wukongim-sha256"):
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--disk-reserve-gib", type=int, default=2)
     parser.add_argument("--phase-timeout-seconds", type=int, default=5400)
@@ -212,7 +212,7 @@ def main():
     for name in ("prepare-work", "archive", "import-work", "verify-work", "targets"):
         (args.output / name).mkdir()
     atomic(args.output / "inputs.json", {"plan_sha256": plan_hash, "image": args.image,
-        "wkmigrate_sha256": args.wkmigrate_sha256, "wukongim_sha256": args.wukongim_sha256,
+        "wkcli_sha256": args.wkcli_sha256, "wukongim_sha256": args.wukongim_sha256,
         "owner": owner, "performance_acceptance": False})
     results = {}
     def interrupted(signum, frame):
@@ -220,7 +220,7 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     try:
         for phase in phases:
-            if digest(args.output / "plan.json") != plan_hash or digest(args.bundle / "wkmigrate") != args.wkmigrate_sha256:
+            if digest(args.output / "plan.json") != plan_hash or digest(args.bundle / "wkmigrate") != args.wkcli_sha256:
                 raise RuntimeError("pinned input changed")
             atomic(args.output / "status.json", {"phase": phase, "updated_at": time.time()})
             result = phase_run(args, phase, owner + "-" + phase)

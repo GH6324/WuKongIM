@@ -171,7 +171,7 @@ func TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering(t *testing.
 		"logs/after/node1.log",
 		"artifact-identity.tsv",
 		"bin/wukongim",
-		"bin/wkbench",
+		"bin/wkcli",
 	} {
 		if !strings.Contains(manifest, "  "+required+"\n") {
 			t.Fatalf("checksum manifest missing %q:\n%s", required, manifest)
@@ -184,7 +184,7 @@ func TestSingleNodeBaselineStopsWritersBeforeSealAndDetectsTampering(t *testing.
 	if got := tsvValue(identity, "wukongim_binary"); got != "bin/wukongim" {
 		t.Fatalf("sealed wukongim identity path = %q", got)
 	}
-	if got := tsvValue(identity, "wkbench_binary"); got != "bin/wkbench" {
+	if got := tsvValue(identity, "wkbench_binary"); got != "bin/wkcli" {
 		t.Fatalf("sealed wkbench identity path = %q", got)
 	}
 	for _, key := range []string{"wukongim_binary_sha256", "wkbench_binary_sha256"} {
@@ -228,7 +228,7 @@ func TestSingleNodeBaselineExternalBinariesRemainAuditableAfterSourcesChange(t *
 		t.Fatalf("single-node diagnostic failed: %v\n%s", err, output)
 	}
 	sealedWukongIM := readFile(t, filepath.Join(runDir, "bin", "wukongim"))
-	sealedWKBench := readFile(t, filepath.Join(runDir, "bin", "wkbench"))
+	sealedWKBench := readFile(t, filepath.Join(runDir, "bin", "wkcli"))
 	if err := os.WriteFile(externalWukongIM, []byte("mutated-external-wukongim\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestSingleNodeBaselineExternalBinariesRemainAuditableAfterSourcesChange(t *
 	if got := readFile(t, filepath.Join(runDir, "bin", "wukongim")); got != sealedWukongIM {
 		t.Fatal("external wukongim mutation changed sealed binary")
 	}
-	if got := readFile(t, filepath.Join(runDir, "bin", "wkbench")); got != sealedWKBench {
+	if got := readFile(t, filepath.Join(runDir, "bin", "wkcli")); got != sealedWKBench {
 		t.Fatal("external wkbench mutation changed sealed binary")
 	}
 	if err := verifySingleNodeChecksumManifest(runDir); err != nil {
@@ -360,7 +360,7 @@ func TestSingleNodeBaselineOwnedWorkerBuildDoesNotReuseOrOverwriteExistingBinary
 	runDir := t.TempDir()
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
-	staleBinary := filepath.Join(t.TempDir(), "wkbench")
+	staleBinary := filepath.Join(t.TempDir(), "wkcli")
 	if err := os.WriteFile(staleBinary, []byte("#!/usr/bin/env bash\necho stale-worker-must-not-run >&2\nexit 99\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +382,7 @@ exec "` + realGo + `" "$@"
 	}
 
 	command := exec.Command("bash", "scripts/bench-wukongim-single-node-1000ch.sh",
-		"--no-start", "--qps", "250", "--out-dir", runDir, "--wkbench-bin", staleBinary)
+		"--no-start", "--qps", "250", "--out-dir", runDir, "--wkcli-bin", staleBinary)
 	command.Dir = root
 	command.Env = append(envWithout("WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_BENCH_MINIMUM_FREE_PERCENT", "WK_WUKONGIM_SINGLE_NODE_DATA_DIR"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -395,7 +395,7 @@ exec "` + realGo + `" "$@"
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
 		t.Fatalf("storage preflight exit = %v, want 2\n%s", err, output)
 	}
-	if calls := readFile(t, filepath.Join(callsDir, "go.calls")); !strings.Contains(calls, "build -o ") || !strings.Contains(calls, " ./cmd/wkbench") {
+	if calls := readFile(t, filepath.Join(callsDir, "go.calls")); !strings.Contains(calls, "build -o ") || !strings.Contains(calls, " ./cmd/wkcli") {
 		t.Fatalf("owned worker did not rebuild from current source:\n%s", calls)
 	}
 	if stale := readFile(t, staleBinary); !strings.Contains(stale, "stale-worker-must-not-run") {
@@ -528,6 +528,8 @@ func writeBlockingSingleNodePublishWkbench(t *testing.T, path, ready, release st
 	}
 	script := `#!/usr/bin/env bash
 set -euo pipefail
+[[ "${1:-}" == bench ]] || { echo "expected wkcli bench" >&2; exit 2; }
+shift
 if [[ "${1:-}" == report && "${2:-}" == local-single-node-publish ]]; then
   : > "` + ready + `"
   for ((attempt = 0; attempt < 2000; attempt++)); do
@@ -536,7 +538,7 @@ if [[ "${1:-}" == report && "${2:-}" == local-single-node-publish ]]; then
   done
   [[ -f "` + release + `" ]] || exit 75
 fi
-exec "` + blocked + `" "$@"
+exec "` + blocked + `" bench "$@"
 `
 	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
@@ -696,7 +698,7 @@ func prepareFakeSingleNodeSealedBaseline(t *testing.T, startCluster bool, config
 	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	wkbenchBin := filepath.Join(binDir, "wkbench")
+	wkbenchBin := filepath.Join(binDir, "wkcli")
 	writeFakeThreeNode1000Wkbench(t, wkbenchBin, callsDir, "sealed-single")
 	writeFakeSingleNodeCompletionMove(t, filepath.Join(binDir, "mv"))
 	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
@@ -710,7 +712,7 @@ func prepareFakeSingleNodeSealedBaseline(t *testing.T, startCluster bool, config
 		"scripts/bench-wukongim-single-node-1000ch.sh",
 		"--no-worker",
 		"--out-dir", runDir,
-		"--wkbench-bin", wkbenchBin,
+		"--wkcli-bin", wkbenchBin,
 		"--start-script", startScript,
 		"--qps", "100",
 		"--channels", "10",
@@ -846,7 +848,7 @@ func verifySingleNodeChecksumManifest(runDir string) error {
 	}
 	scope := tsvValue(string(identity), "seal_scope")
 	if scope == "measured" {
-		requiredPaths = append(requiredPaths, "logs/after/node1.log", "bin/wukongim", "bin/wkbench")
+		requiredPaths = append(requiredPaths, "logs/after/node1.log", "bin/wukongim", "bin/wkcli")
 	} else if scope != "preflight" {
 		return fmt.Errorf("unsupported seal scope %q", scope)
 	}

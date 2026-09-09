@@ -1277,7 +1277,7 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		"runtime_pool_pressure_summary",
 		"runtime_pool_pressure_summary.tsv",
 		`RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"`,
-		`newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" -type f -newer "$WK_BENCH_BIN" -print -quit)"`,
+		`newer_source="$(find "$ROOT_DIR/cmd/wkcli" "$ROOT_DIR/internal/bench" -type f -newer "$WK_CLI_BIN" -print -quit)"`,
 		"write_evidence_summary",
 		`ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"`,
 		`PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"`,

@@ -67,7 +67,7 @@ Save state timestamps, control revision, `blocked_reasons`, tasks, and Slot evid
 
 First record free disk, IO latency, errors, node ID, data paths, and configuration. Do not make space by deleting data files or unknown logs.
 
-`wkdb` can inspect only a stopped node, filesystem snapshot, or copied data directory. Start with read-only `query`, `diff`, or `export`. `import` writes data, must target an explicitly offline store, and does not replace Manager backup and restore.
+`wkcli db` can inspect only a stopped node, filesystem snapshot, or copied data directory. Start with read-only `query`, `diff`, or `export`. `import` writes data, must target an explicitly offline store, and does not replace Manager backup and restore.
 
 ### Backup, restore, or upgrade failed
 
@@ -80,7 +80,7 @@ Save Manager tasks and audits, archive inventory, verification for all 256 physi
 3. Use Top or `wkcli top` for one node's current resources and short history.
 4. Use [Diagnostics](/en/server/tools/diagnostics) only after the problem is narrowed to an exact node, Slot, Channel, or task.
 5. Time-box and target pprof, then disable Debug access when finished.
-6. `wkbench` creates real traffic and data. Reproduce only in an isolated test cluster; never run an unbounded load against production.
+6. `wkcli bench` creates real traffic and data. Reproduce only in an isolated test cluster; never run an unbounded load against production.
 
 Stop increasing diagnostic cost when an earlier step already explains the problem.
 

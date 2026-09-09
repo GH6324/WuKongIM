@@ -7,7 +7,7 @@ summary: Defines shared wkbench configuration, deterministic plans, reports, rat
 
 ## Responsibility
 
-This package owns the lightweight schemas shared by `cmd/wkbench` and the
+This package owns the lightweight schemas shared by `cmd/wkcli` and the
 benchmark-only target surface in `cmd/wukongim`.
 It does not execute benchmarks, manage workers, or depend on server runtimes.
 

@@ -39,7 +39,7 @@ An integration should define separate tests for sent, delivered, read, and busin
 - Ordering is scoped to a channel, so unrelated channels do not share one global ordering bottleneck.
 - Connections, message processing, and delivery use bounded queues and backpressure. Overload becomes visible as backlog or rejection instead of unbounded memory growth.
 - Large groups, hot channels, and reconnect spikes need separate workload models; average QPS does not describe worst-case latency or recovery.
-- Capacity results should record throughput, P99, error rate, queues, CPU, memory, disk, and network together. See [`wkbench`](/en/server/tools/wkbench) for the measurement workflow.
+- Capacity results should record throughput, P99, error rate, queues, CPU, memory, disk, and network together. See [`wkcli bench`](/en/server/tools/wkbench) for the measurement workflow.
 
 ## What the application must provide
 

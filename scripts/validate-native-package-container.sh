@@ -66,6 +66,13 @@ docker run --rm \
     fi
     $install_command
     test -x /usr/bin/wukongim
+    test -x /usr/bin/wkcli
+    /usr/bin/wkcli version --output json > /tmp/wkcli-version.json
+    /usr/bin/wukongim version --output json > /tmp/wukongim-version.json
+    test \"\$(cat /tmp/wkcli-version.json)\" = \"\$(cat /tmp/wukongim-version.json)\"
+    /usr/bin/wkcli bench --help
+    /usr/bin/wkcli db --help
+    /usr/bin/wkcli migrate --help
     test -f /usr/lib/systemd/system/wukongim.service
     getent passwd wukongim
     systemd-analyze verify /usr/lib/systemd/system/wukongim.service

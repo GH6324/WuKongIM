@@ -118,7 +118,7 @@ func installBundle(options installOptions) (deploy.Manifest, error) {
 	if strings.HasPrefix(options.role, "node-") {
 		binaries = append(binaries, "wukongim")
 	} else {
-		binaries = append(binaries, "wkbench", "wkanalysis", "prometheus")
+		binaries = append(binaries, "wkcli", "wkanalysis", "prometheus")
 		if options.publicObservation {
 			binaries = append(binaries, "wkcloudview")
 		}

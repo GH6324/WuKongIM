@@ -3,7 +3,7 @@ title: Tools
 description: Choose the correct repository tool for observation, offline storage inspection, workload validation, and bounded diagnostics.
 ---
 
-WuKongIM separates tools by target and risk: `wkcli` uses live cluster APIs, `wkdb` reads one node's offline data, `wkbench` generates real traffic in an isolated target, and diagnostic surfaces answer one bounded question. Tool output is evidence, not permission to bypass Manager approval or cluster safety gates.
+WuKongIM provides one operator binary, `wkcli`, with command families for each target: `wkcli` uses live cluster APIs, `wkcli db` reads one node's offline data, `wkcli bench` generates real traffic in an isolated target, and diagnostic surfaces answer one bounded question. Tool output is evidence, not permission to bypass Manager approval or cluster safety gates.
 
 <Callout type="warn" title="Confirm the target boundary first">
   Every deployment is a cluster, including a single-node cluster, and the physical hash-slot count remains 256. A node-local snapshot, database directory, or Top result does not automatically represent the cluster.
@@ -14,8 +14,8 @@ WuKongIM separates tools by target and risk: `wkcli` uses live cluster APIs, `wk
 | Objective | Use | Read or write | Not for |
 | --- | --- | --- | --- |
 | Inspect live nodes, Top, or dynamic-node state | [wkcli](/en/server/tools/wkcli) | Most inspection is read-only; node-lifecycle subcommands call controlled Manager write APIs | Direct Controller/Slot editing or process management |
-| Query, export, or compare node-local storage | [wkdb](/en/server/tools/wkdb) | Offline and read-mostly; only `import` writes the target store | Online cluster queries, global snapshots, or automatic migration |
-| Validate protocol traffic, a capacity hypothesis, or a regression gate | [wkbench](/en/server/tools/wkbench) | Generates real connections, channels, users, and messages | Unbounded production load or universal capacity numbers |
+| Query, export, or compare node-local storage | [wkcli db](/en/server/tools/wkdb) | Offline and read-mostly; only `import` writes the target store | Online cluster queries, global snapshots, or automatic migration |
+| Validate protocol traffic, a capacity hypothesis, or a regression gate | [wkcli bench](/en/server/tools/wkbench) | Generates real connections, channels, users, and messages | Unbounded production load or universal capacity numbers |
 | Correlate logs, metrics, Top, diagnostics, and pprof | [Diagnostics](/en/server/tools/diagnostics) | Read-only by default; pprof is a bounded active observation | Automatic repair, arbitrary commands, or arbitrary queries |
 
 ## Common workflow
@@ -33,8 +33,6 @@ Build the required binary from a reviewed repository revision:
 
 ```bash
 go build -o ./bin/wkcli ./cmd/wkcli
-go build -o ./bin/wkdb ./cmd/wkdb
-go build -o ./bin/wkbench ./cmd/wkbench
 ```
 
 Record a traceable version for both tool and target server. Do not use a development-branch tool against production or assume offline formats, Manager APIs, or benchmark protocols are compatible across unknown versions.

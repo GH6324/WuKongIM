@@ -62,6 +62,6 @@ After that boundary, do not blindly install the old version. Keep traffic closed
 
 ## Moving from v2 to v3
 
-`wkmigrate` converts complete stopped backups of original v2 into a new, empty v3 cluster offline. It does not require modifying or upgrading old v2. It is not an in-place upgrade, and v3 must never open the old data directories directly.
+`wkcli migrate` converts complete stopped backups of original v2 into a new, empty v3 cluster offline. It does not require modifying or upgrading old v2. It is not an in-place upgrade, and v3 must never open the old data directories directly.
 
 Follow [v2 → v3 Offline Migration](/en/server/operations/v2-to-v3-migration) to fix versions and the plan, run `prepare`, `export`, `import`, and independent `verify`, then complete runtime, client, and external integration acceptance. Renumbering requires handling client caches and cursors; after new production writes begin, a direct switch back to old v2 is unsafe.

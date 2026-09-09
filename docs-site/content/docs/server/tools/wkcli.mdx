@@ -1,14 +1,17 @@
 ---
 title: wkcli
-description: 使用命名上下文、Top、受控节点操作和轻量流量工具观察在线集群。
+description: 使用一个运维工具完成在线操作、压测、离线数据库传输与 v2 到 v3 迁移。
 ---
 
-`wkcli` 是 WuKongIM 的在线运维命令行。它通过公开 HTTP、Manager、Benchmark 和 WKProto 入口工作，不导入服务端内部包。它既有只读命令，也有产生流量或调用 Manager 写 API 的命令，使用前必须区分风险。
+`wkcli` 是 WuKongIM 的统一运维工具。在线操作通过 HTTP 和 WKProto 入口执行，`db` 和 `migrate` 处理离线数据。包含统一 CLI 的官方二进制归档和原生安装包会同时提供同版本的 `wkcli` 与 `wukongim`，可用 `wkcli version --output json` 核对构建身份。
 
 ## 命令边界
 
 | 命令 | 作用 | 风险类别 |
 | --- | --- | --- |
+| `bench` | [分布式负载、worker、容量测试与报告](/zh/server/tools/wkbench) | 产生真实流量 |
+| `db` | [离线查询、REPL、导入、导出与比较](/zh/server/tools/wkdb) | import 写入目标存储 |
+| `migrate` | [原版 v2 到 v3 迁移](/zh/server/operations/v2-to-v3-migration) | 创建全新离线 v3 数据 |
 | `context` | 保存和选择一组 WuKongIM HTTP API 地址 | 只写本机用户配置目录 |
 | `top` | 读取并聚合一个或多个节点的 `/top/v1/snapshot` | 在线只读 |
 | `node ls` / `node diagnose` | 读取动态节点与有界根因证据 | Manager 只读 |
@@ -17,6 +20,8 @@ description: 使用命名上下文、Top、受控节点操作和轻量流量工�
 | `sim` | 准备测试元数据并持续产生真实群消息流量 | 受控模拟环境专用 |
 
 `wkcli node` 不启动或停止服务进程，也不直接写 Controller 或 Slot 状态。Manager 的权限、审计和安全门槛仍然生效。
+
+旧调用 `wkbench …`、`wkdb …`、`wkmigrate …` 分别改为 `wkcli bench …`、`wkcli db …`、`wkcli migrate …`。旧独立入口已移除；各命令的参数、输出格式和退出码约定保持不变。数据库全局参数仍须放在具体操作之前。
 
 ## 配置命名上下文
 
@@ -81,7 +86,7 @@ go run ./cmd/wkcli bench send \
   --size 128B
 ```
 
-`bench send` 用于快速检查 WKProto SEND 吞吐与 SENDACK 延迟，不替代完整 `wkbench` 场景。它会创建真实会话和消息；先限制客户端、消息、频道和运行时间，并使用专用测试身份与频道。
+`bench send` 用于快速检查 WKProto SEND 吞吐与 SENDACK 延迟，不替代完整 `wkcli bench` 场景。它会创建真实会话和消息；先限制客户端、消息、频道和运行时间，并使用专用测试身份与频道。
 
 ## 长期模拟
 
@@ -97,7 +102,7 @@ go run ./cmd/wkcli sim \
   --max-runtime 30s
 ```
 
-`--rate` 是每个群的发送率，总提供速率随群数增加。仅在隔离的开发或压测集群运行，结束后关闭 Benchmark API 并清理生成数据。需要完整验证、容量搜索和报告时使用 [wkbench](/zh/server/tools/wkbench)。
+`--rate` 是每个群的发送率，总提供速率随群数增加。仅在隔离的开发或压测集群运行，结束后关闭 Benchmark API 并清理生成数据。需要完整验证、容量搜索和报告时使用 [wkcli bench](/zh/server/tools/wkbench)。
 
 ## 安全停止
 

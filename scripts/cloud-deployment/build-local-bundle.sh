@@ -58,7 +58,7 @@ test -s "$source_tree/internal/access/manager/webui/dist/index.html"
 test -s "$source_tree/internal/access/api/demoui/dist/index.html"
 
 install -d -m 0755 "$bundle/bin" "$bundle/assets/manager" "$bundle/assets/demo" "$bundle/config"
-for target in wukongim:./cmd/wukongim wkbench:./cmd/wkbench wkanalysis:./cmd/wkanalysis \
+for target in wukongim:./cmd/wukongim wkcli:./cmd/wkcli wkanalysis:./cmd/wkanalysis \
   wkcloudbundle:./cmd/wkcloudbundle wkcloudgate:./cmd/wkcloudgate wkcloudhost:./cmd/wkcloudhost; do
   name="${target%%:*}"
   package="${target#*:}"

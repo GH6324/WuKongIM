@@ -25,6 +25,27 @@ builds:
       - v1
     mod_timestamp: "{{ .CommitTimestamp }}"
 
+  - id: wkcli-linux-amd64
+    main: ./cmd/wkcli
+    binary: wkcli
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - >-
+        -s -w -buildid=
+        -X main.buildVersion={{ .Version }}
+        -X main.buildCommit={{ .Commit }}
+        -X main.buildSource=release
+    goos:
+      - linux
+    goarch:
+      - amd64
+    goamd64:
+      - v1
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
 archives:
   - id: wukongim-raw-binary
     ids:
@@ -36,6 +57,7 @@ nfpms:
   - id: wukongim-linux-packages
     ids:
       - wukongim-linux-amd64
+      - wkcli-linux-amd64
     package_name: wukongim
     formats:
       - deb

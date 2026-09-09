@@ -1,9 +1,9 @@
 ---
-title: wkdb
+title: wkcli db
 description: Query, export, import, and compare one node's local WKDB data while offline.
 ---
 
-`wkdb` is a local offline tool for one WuKongIM node data directory. It never connects to cluster nodes and does not read global Controller, Raft, or runtime state. Begin with read-only inspection; only `import` writes WKDB storage.
+`wkcli db` is a local offline tool for one WuKongIM node data directory. It never connects to cluster nodes and does not read global Controller, Raft, or runtime state. Begin with read-only inspection; only `import` writes WKDB storage.
 
 <Callout type="error" title="Do not operate on a live data directory">
   Exact inspection should use a stopped node, filesystem snapshot, or copied data directory. Live files continue changing and cannot provide consistent evidence. `import` needs an explicitly offline target, a dry run, and a backup before writing.
@@ -23,8 +23,8 @@ Global flags must precede the command; command-specific flags follow it.
 ## Locate storage
 
 ```bash
-wkdb --data-dir ./node-1 --hash-slot-count 256 query "show tables"
-wkdb --config ./wukongim.toml query "select * from meta.user limit 20"
+wkcli db --data-dir ./node-1 --hash-slot-count 256 query "show tables"
+wkcli db --config ./wukongim.toml query "select * from meta.user limit 20"
 ```
 
 - `--data-dir` derives `slotmeta` and `messages` from the current node layout.
@@ -37,20 +37,20 @@ Record node ID, cluster ID, copy/snapshot time, server version, and directory ch
 ## Read-only queries
 
 ```bash
-wkdb --data-dir ./node-1 --hash-slot-count 256 \
+wkcli db --data-dir ./node-1 --hash-slot-count 256 \
   query "select * from meta.user where uid='u1'"
 
-wkdb --data-dir ./node-1 \
+wkcli db --data-dir ./node-1 \
   query "select * from message.channels limit 20"
 
-wkdb --data-dir ./node-1 \
+wkcli db --data-dir ./node-1 \
   query "select * from message.message where channel_key='g1:2' limit 50"
 ```
 
 With a partition key such as `uid` or `channel_id`, the tool derives its hash slot. Without a partition key it performs a bounded scan over this node's files. `limit` is the total result size, not a per-slot limit. Continue a large result with the returned cursor; `offset` is unsupported:
 
 ```bash
-wkdb --data-dir ./node-1 --hash-slot-count 256 \
+wkcli db --data-dir ./node-1 --hash-slot-count 256 \
   query "select * from meta.user limit 100 cursor '<next_cursor>'"
 ```
 
@@ -59,7 +59,7 @@ Select `--format table|json|jsonl`. JSONL emits data rows followed by a final st
 ## Export a bundle
 
 ```bash
-wkdb --data-dir ./node-1 --hash-slot-count 256 \
+wkcli db --data-dir ./node-1 --hash-slot-count 256 \
   export --output ./wkdb-dump
 ```
 
@@ -72,14 +72,14 @@ It does not aggregate other nodes, create an online-consistent snapshot, export 
 First validate without opening a writable target:
 
 ```bash
-wkdb --data-dir ./node-new --hash-slot-count 256 \
+wkcli db --data-dir ./node-new --hash-slot-count 256 \
   import --input ./wkdb-dump --dry-run
 ```
 
 After validation, use a new or deliberately empty offline target:
 
 ```bash
-wkdb --data-dir ./node-new --hash-slot-count 256 \
+wkcli db --data-dir ./node-new --hash-slot-count 256 \
   import --input ./wkdb-dump --require-empty
 ```
 
@@ -88,11 +88,11 @@ wkdb --data-dir ./node-new --hash-slot-count 256 \
 ## Compare two offline directories
 
 ```bash
-wkdb --hash-slot-count 256 diff \
+wkcli db --hash-slot-count 256 diff \
   --source-data-dir ./node-old \
   --target-data-dir ./node-new
 
-wkdb --hash-slot-count 256 diff \
+wkcli db --hash-slot-count 256 diff \
   --source-data-dir ./node-old \
   --target-data-dir ./node-new \
   --mode full
@@ -102,4 +102,4 @@ The default `summary` mode compares rows and payload checksums; `full` also hash
 
 ## Cluster-restore boundary
 
-A `wkdb` bundle is for node-local offline inspection and controlled transfer; it does not replace [Manager Backup & Restore](/en/server/operations/backup-and-restore). Cluster restore must also verify cluster identity, archives, tasks, and all 256 physical hash slots, then use the maintenance-mode atomic switch or rollback procedure.
+A `wkcli db` bundle is for node-local offline inspection and controlled transfer; it does not replace [Manager Backup & Restore](/en/server/operations/backup-and-restore). Cluster restore must also verify cluster identity, archives, tasks, and all 256 physical hash slots, then use the maintenance-mode atomic switch or rollback procedure.

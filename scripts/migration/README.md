@@ -1,6 +1,6 @@
 # Rehearse a delivered migration package
 
-`rehearse-offline.py` runs the delivered Linux amd64 `wkmigrate`, without a
+`rehearse-offline.py` runs the delivered Linux amd64 `wkcli migrate`, without a
 source checkout or rebuild, through `prepare → export → import → retry → verify`.
 It requires Python 3.9+, Docker, an already available Linux amd64 runtime image,
 and an operator-approved immutable plan. Docker Desktop on arm64 can emulate
@@ -38,7 +38,7 @@ resolve a compatibility failure.
 
 Create the output directory's parent beforehand, but leave the output itself
 absent. The script mounts scratch **parents**;
-`wkmigrate` creates `/scratch/workspace` itself. An existing empty workspace has
+`wkcli migrate` creates `/scratch/workspace` itself. An existing empty workspace has
 no identity seal and is correctly refused. It similarly leaves every target
 data directory absent until import creates it.
 
@@ -49,7 +49,7 @@ python3 scripts/migration/rehearse-offline.py \
   --source-root /srv/frozen-v2 \
   --output /srv/rehearsals/new-run \
   --image sha256:REPLACE_WITH_EXISTING_RUNTIME_IMAGE_ID \
-  --wkmigrate-sha256 REPLACE_WITH_APPROVED_BINARY_SHA256 \
+  --wkcli-sha256 REPLACE_WITH_APPROVED_BINARY_SHA256 \
   --wukongim-sha256 REPLACE_WITH_APPROVED_BINARY_SHA256 \
   --dry-run
 ```

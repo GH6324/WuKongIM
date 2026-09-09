@@ -119,7 +119,7 @@ func DefaultIntent(sourceSHA, controlSHA string) Intent {
 			{Path: "/etc/wukongim/secrets/analysis-key.pem", Owner: "root", Mode: 0o600},
 		},
 		RequiredBaseTools: []string{"awk", "bash", "blkid", "cat", "chmod", "chown", "curl", "date", "df", "dirname", "findmnt", "getconf", "grep", "head", "id", "install", "lsblk", "mkdir", "mkfs.ext4", "mount", "mv", "rm", "scp", "sed", "sha256sum", "sleep", "ssh", "stat", "sudo", "systemctl", "tail", "tar", "timedatectl", "timeout", "uname", "useradd"},
-		OfflineBinaries:   []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkcloudbundle", "wkcloudgate", "wkcloudhost", "wukongim"},
+		OfflineBinaries:   []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkcli", "wkcloudbundle", "wkcloudgate", "wkcloudhost", "wukongim"},
 	}
 }
 
