@@ -4,6 +4,17 @@
 
 - Durable Channel replication excludes learners from quorum votes and recovery voting. Authority installation copies its quorum-proved committed frontier to non-ISR replicas through the fixed repair workers, one bounded page per turn; the repair ledger allows the configured voter count plus one replacement replica and fences cursors to exact work generations. Migration probes refresh loaded follower frontiers from consistent exact storage because quorum exchanges bypass follower reactor state. A replica-replacement target below `CutoverLEO` remains runnable; invalid runtime proofs still block promotion.
 
+- A migration spool path must be absent on first creation; an existing empty
+  directory has no identity and is refused. Container rehearsal mounts the
+  scratch parent and lets the tool create its child. Import/retry and independent
+  verification use separate consumer mounts without source or producer scratch
+  access; see `scripts/migration/README.md`. Emulated amd64 execution on arm64
+  establishes functional package compatibility only, never performance acceptance.
+  Selection includes the plugin artifact report's plan/location envelope, so its
+  digest can change when paths move even while the complete source capture and
+  sequence-map bytes remain equal. Compare the explicit envelope differences and
+  unchanged business reports; never rewrite a capture-bound recovery proof.
+
 - Chat Demo existing-token login must not call `/user/token`. Its per-tab session
   persists connection credentials only; account changes and resynchronization
   rebuild the SDK singleton. Prepending history requires stable message keys
