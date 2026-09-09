@@ -201,6 +201,9 @@ credentials or publishing an image, the Workflow validates that the tagged
 exact tag. It never derives release notes from commits or GitHub-generated
 notes.
 
+Hosted release builds use the official Go module proxy for both the product
+and embedded Prometheus; the Dockerfile default remains available for local builds.
+
 GHCR is the canonical build target. The Workflow builds
 `linux/amd64,linux/arm64` security candidates and blocks publication when
 Trivy reports any Critical or High vulnerability. A recovery run applies the

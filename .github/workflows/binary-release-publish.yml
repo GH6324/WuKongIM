@@ -374,6 +374,7 @@ jobs:
               "$archive_root/"
               "$archive_root/README.md"
               "$archive_root/README_CN.md"
+              "$archive_root/wkcli"
               "$archive_root/wukongim"
               "$archive_root/wukongim.toml.example"
             )

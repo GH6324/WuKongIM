@@ -31,12 +31,24 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 			TimeoutMinutes int    `yaml:"timeout-minutes"`
 			Environment    string `yaml:"environment"`
 			Steps          []struct {
-				Name string `yaml:"name"`
-				Run  string `yaml:"run"`
+				Name string            `yaml:"name"`
+				Run  string            `yaml:"run"`
+				Uses string            `yaml:"uses"`
+				With map[string]string `yaml:"with"`
 			} `yaml:"steps"`
 		} `yaml:"jobs"`
 	}
 	require.NoError(t, yaml.Unmarshal(raw, &workflow))
+	buildSteps := 0
+	for _, job := range workflow.Jobs {
+		for _, step := range job.Steps {
+			if strings.HasPrefix(step.Uses, "docker/build-push-action@") {
+				buildSteps++
+				require.Equal(t, "GOPROXY=https://proxy.golang.org,direct", strings.TrimSpace(step.With["build-args"]), step.Name)
+			}
+		}
+	}
+	require.Equal(t, 3, buildSteps)
 	require.Equal(t, []string{"v*"}, workflow.On.Push.Tags)
 	versionInput, ok := workflow.On.WorkflowDispatch.Inputs["version"]
 	require.True(t, ok)
