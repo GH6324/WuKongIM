@@ -96,7 +96,10 @@ _openapi:
           SendMessageHeaderRequest
 
           Compatibility flags for the message fixed header; same-named top-level
-          fields are ORed with these values.
+          no_persist and sync_once fields are ORed with the header values.
+
+          red_dot `integer` default: `0` Non-zero preserves the message red-dot
+          flag; omitted means 0. There is no top-level red_dot alias.
 
           no_persist `integer` default: `0` A non-zero value makes the message
           non-durable.

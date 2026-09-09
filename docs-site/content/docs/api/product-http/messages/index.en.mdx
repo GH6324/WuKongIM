@@ -7,6 +7,7 @@ description: Message recovery, events, and command-message compatibility.
 
 <Cards>
 <Card href="/en/api/product-http/messages/appendMessageEvent" title="Append a message event" description="Validates and applies one message-scoped event projection; non-null headers are unsupported." />
+<Card href="/en/api/product-http/messages/syncMessageEvents" title="Synchronize current message event projections" description="Reads current durable event projections after a sequence cursor, with filtering after a bounded read; not a replayable event log." />
 <Card href="/en/api/product-http/messages/syncCommandMessages" title="Synchronize command messages" description="Returns the latest durable CMD generation; message_seq is accepted but ignored." />
 <Card href="/en/api/product-http/messages/ackCommandMessages" title="Acknowledge the latest command sync" description="Requires a positive last_message_seq but acknowledges the server's latest recorded generation, not that supplied value." />
 <Card href="/en/api/product-http/messages/bindCommandChannel" title="Bind command-channel discovery" description="Starts durable offline discovery after the current command-channel tail." />

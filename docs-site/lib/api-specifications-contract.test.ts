@@ -74,7 +74,7 @@ describe('API specification pages', () => {
       expect(artifact).toBeTrue();
     }
 
-    expect(operationCount(productHTTP)).toBe(41);
+    expect(operationCount(productHTTP)).toBe(42);
     expect(operationCount(operations)).toBe(4);
     expect(Object.keys(webhooks.webhooks)).toEqual([
       'msg.notify',
@@ -87,7 +87,7 @@ describe('API specification pages', () => {
     expect(operationCount(management)).toBe(16);
 
     for (const content of [zh, en]) {
-      for (const count of ['41', '3', '1', '16']) expect(content).toContain(count);
+      for (const count of ['42', '3', '1', '16']) expect(content).toContain(count);
       expect(content).toContain('OpenAPI 3.1');
       expect(content).toContain('webhooks');
       expect(content).toContain('/metrics');

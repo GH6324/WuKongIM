@@ -177,12 +177,12 @@ function jsonFieldsForStruct(file: string, typeName: string, seen = new Set<stri
 }
 
 describe('complete Product HTTP OpenAPI contract', () => {
-  test('matches all and only the 41 runtime Product HTTP registrations', async () => {
+  test('matches all and only the 42 runtime Product HTTP registrations', async () => {
     const registered = await registeredProductOperations();
     const contracted = operationKeys().sort();
 
-    expect(registered).toHaveLength(41);
-    expect(contracted).toHaveLength(41);
+    expect(registered).toHaveLength(42);
+    expect(contracted).toHaveLength(42);
     expect(contracted).toEqual(registered);
   });
 
@@ -386,6 +386,21 @@ describe('complete Product HTTP OpenAPI contract', () => {
     expect(send.additionalProperties).toBe(true);
   });
 
+  test('preserves event-sync parser bounds and header-only red-dot flags', () => {
+    const query = { channel_id: 'g1', channel_type: 2, client_msg_no: 'c1' };
+    for (const limit of [0, 200, 2001]) {
+      expect(validateSchema('MessageEventSyncRequest', { ...query, limit }).valid).toBe(true);
+    }
+    for (const invalid of [{ limit: -1 }, { from_msg_event_seq: -1 }, { include_private: 256 }, { channel_type: 0 }, { client_msg_no: ' ' }]) {
+      expect(validateSchema('MessageEventSyncRequest', { ...query, ...invalid }).valid).toBe(false);
+    }
+    for (const red_dot of [0, 1, -1, 2]) {
+      expect(validateSchema('SendMessageHeaderRequest', { red_dot }).valid).toBe(true);
+    }
+    expect(schema('SendMessageRequest').properties).not.toHaveProperty('red_dot');
+    expect(document.paths['/message/eventsync'].post.security).toEqual([]);
+  });
+
   test('matches every documented JSON request field to the runtime request DTO', async () => {
     const dtoContracts = [
       ['UpdateTokenRequest', 'user_token.go', 'updateTokenRequest'],
@@ -404,6 +419,7 @@ describe('complete Product HTTP OpenAPI contract', () => {
       ['ChannelKeyRequest', 'channel_management.go', 'channelKeyRequest'],
       ['SendMessageHeaderRequest', 'message_send.go', 'sendMessageHeaderRequest'],
       ['SendMessageRequest', 'message_send.go', 'sendMessageRequest'],
+      ['MessageEventSyncRequest', 'message_event_sync.go', 'syncMessageEventRequest'],
       ['AppendMessageEventRequest', 'message_event.go', 'appendMessageEventRequest'],
       ['MessageSyncRequest', 'message_sync.go', 'messageSyncRequest'],
       ['MessageSyncAckRequest', 'message_sync.go', 'messageSyncAckRequest'],
@@ -517,6 +533,9 @@ describe('complete Product HTTP OpenAPI contract', () => {
       'SendMessageResponse',
       'SendError',
       'RetryRequiredError',
+      'SyncedMessageEvent',
+      'MessageEventSyncData',
+      'MessageEventSyncResponse',
       'AppendMessageEventData',
       'AppendMessageEventResponse',
       'LegacyMessageHeader',

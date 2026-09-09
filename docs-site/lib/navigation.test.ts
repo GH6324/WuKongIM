@@ -485,6 +485,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/operations/scaling`,
         `/${locale}/server/operations/backup-and-restore`,
         `/${locale}/server/operations/upgrade-and-migration`,
+        `/${locale}/server/operations/v2-to-v3-migration`,
         `/${locale}/server/operations/troubleshooting`,
         `/${locale}/server/tools`,
         `/${locale}/server/tools/wkcli`,

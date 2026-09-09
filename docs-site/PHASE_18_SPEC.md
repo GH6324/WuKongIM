@@ -9,6 +9,10 @@ does not change runtime routes, authentication, wire behavior, or storage.
 
 ## Superseding current state
 
+The current complete Product HTTP contract now covers 42 registrations, including
+`POST /message/eventsync`, and documents the native `header.red_dot` send flag.
+The 41-operation counts below describe the original Phase 18 snapshot.
+
 The unsupported JSON-RPC statements below describe the Phase 18 source
 revision. A later server implementation added a bounded EasySDK core path:
 CONNECT-first authentication, request correlation, Ping, online SEND/SENDACK,

@@ -37,7 +37,7 @@ _openapi:
           event_id `string` minLength: 1; pattern: `\S` Non-blank unique identifier of this event.
           event_type `string` minLength: 1; pattern: `^\s*[sS][tT][rR][eE][aA][mM]\.(?:[oO][pP][eE][nN]|[dD][eE][lL][tT][aA]|[cC][lL][oO][sS][eE]|[eE][rR][rR][oO][rR]|[cC][aA][nN][cC][eE][lL]|[sS][nN][aA][pP][sS][hH][oO][tT]|[fF][iI][nN][iI][sS][hH])\s*$`; examples: `"stream.open"`, `"stream.delta"`, `"stream.close"`, `"stream.error"`, `"stream.cancel"`, `"stream.snapshot"`, `"stream.finish"` Event type; surrounding whitespace is removed and the value is lowercased.
           event_key `string` — Event lane key; empty selects the default lane and stream.finish forces the finish lane.
-          visibility `string` — Caller-supplied event metadata stored after trimming; current Product HTTP message synchronization does not use it as an access-control filter.
+          visibility `string` — Caller-supplied event metadata stored after trimming; ordinary message synchronization does not use it as an access-control filter. eventsync filters by include_private without checking caller permissions.
           occurred_at `integer:int64` — Caller-supplied integer event time; the entry does not interpret its unit.
           payload `unknown` — Arbitrary JSON event payload passed to event storage as raw JSON bytes.
           headers `null` — Reserved field; it must be omitted or null, and every non-null JSON value is rejected.
@@ -72,7 +72,7 @@ _openapi:
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
-- **Scope**: visibility is stored as event metadata; current Product HTTP message synchronization does not use it as an access-control filter.
+- **Scope**: visibility is stored as event metadata; ordinary message synchronization does not use it as an access-control filter; eventsync filters by include_private without checking caller permissions.
 
 </Callout>
 

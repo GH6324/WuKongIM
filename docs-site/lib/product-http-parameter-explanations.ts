@@ -123,6 +123,7 @@ export const productHTTPParameterExplanations = {
     ChannelAllowlistMembers: explanation('要添加或移除的允许列表成员。', 'Allowlist members to add or remove.'),
     ChannelKey: explanation('要清空派生成员列表的 Channel Key。', 'Channel key whose derived member list is cleared.'),
     SendMessage: explanation('受信后端要提交的消息及其投递选项。', 'Message and delivery options submitted by the trusted backend.'),
+    MessageEventSync: explanation('要读取的消息事件身份、序号游标和筛选条件。', 'Message event identity, sequence cursor, and filters to read.'),
     AppendMessageEvent: explanation('要投影到一条消息上的事件。', 'Event to project onto one message.'),
     MessageSync: explanation('命令消息同步的用户与分页上限。', 'User and page limit for command-message synchronization.'),
     MessageSyncAck: explanation('要确认最新命令消息 generation 的用户。', 'User acknowledging the latest command-message generation.'),
@@ -256,8 +257,9 @@ export const productHTTPParameterExplanations = {
       properties: { channel_id: channelID, channel_type: channelType },
     },
     SendMessageHeaderRequest: {
-      description: explanation('消息固定 Header 的兼容标志；同名顶层字段会与这些值执行逻辑或。', 'Compatibility flags for the message fixed header; same-named top-level fields are ORed with these values.'),
+      description: explanation('消息固定 Header 的兼容标志；no_persist 和 sync_once 的同名顶层字段会与 Header 值执行逻辑或。', 'Compatibility flags for the message fixed header; same-named top-level no_persist and sync_once fields are ORed with the header values.'),
       properties: {
+        red_dot: explanation('非 0 保留消息红点标志，省略时为 0；没有顶层 red_dot 别名。', 'Non-zero preserves the message red-dot flag; omitted means 0. There is no top-level red_dot alias.'),
         no_persist: explanation('非 0 表示不持久化该消息。', 'A non-zero value makes the message non-durable.'),
         sync_once: explanation('非 0 表示按一次性命令消息处理。', 'A non-zero value treats the message as a one-shot command message.'),
       },
@@ -281,6 +283,49 @@ export const productHTTPParameterExplanations = {
         sync_once: explanation('顶层兼容标志；非 0 表示一次性命令消息，并与 header.sync_once 执行逻辑或。', 'Top-level compatibility flag; non-zero means a one-shot command message and is ORed with header.sync_once.'),
       },
     },
+    MessageEventSyncRequest: {
+      description: explanation("消息事件当前持久化投影读取参数；不验证成员身份。", "Read parameters for current durable message event projections; membership is not checked."),
+      properties: {
+        channel_id: explanation("非空白 Channel ID；个人频道且 from_uid 非空白时，按双方 UID 归一化。", "Non-blank Channel ID; a person channel with non-blank from_uid is normalized using both UIDs."),
+        channel_type: explanation("Channel 类型，范围 1–255。", "Channel type in the range 1\u2013255."),
+        from_uid: explanation("可选发送者 UID，仅用于个人频道身份归一化，不是已认证身份。", "Optional sender UID used only for person-channel normalization, not an authenticated identity."),
+        client_msg_no: explanation("关联主消息的非空白客户端消息编号。", "Non-blank client message number of the parent message."),
+        event_key: explanation("可选事件 lane 筛选；空字符串读取所有 lane。", "Optional event-lane filter; empty reads all lanes."),
+        from_msg_event_seq: explanation("排除边界；只读取序号大于此值的当前投影，默认为 0。", "Exclusive sequence boundary; read only current projections after this value, default 0."),
+        limit: explanation("可省略或填 0，默认取 200；负数拒绝，大于 2000 截断为 2000。", "Omit or use 0 for 200; negative values are rejected and values above 2000 are capped at 2000."),
+        include_private: explanation("仅 1 包含 private/restricted 投影；其他 uint8 值过滤它们。此开关不是授权检查。", "Exactly 1 includes private/restricted projections; other uint8 values filter them. This switch is not an authorization check."),
+      },
+    },
+    SyncedMessageEvent: {
+      description: explanation("一条事件 lane 的当前投影，不是每次历史事件。", "Current projection of one event lane, not every historical event."),
+      properties: {
+        msg_event_seq: explanation("该投影最新事件序号。", "Latest event sequence of the projection."),
+        event_id: explanation("最新事件 ID。", "Latest event ID."),
+        event_key: explanation("事件 lane Key。", "Event lane key."),
+        event_type: explanation("最新事件类型；原值为空白时返回 stream.snapshot。", "Latest event type; a blank original value returns stream.snapshot."),
+        visibility: explanation("投影保存的可见性字符串。", "Visibility string stored with the projection."),
+        occurred_at: explanation("投影保存的原事件时间值。", "Original event time value stored with the projection."),
+        payload: explanation("快照 JSON 值；非 JSON 字节转为字符串，无快照时使用 status/end_reason 及可选 error 对象。", "Snapshot JSON value; non-JSON bytes become a string, and a missing snapshot uses an object with status/end_reason and optional error."),
+      },
+    },
+    MessageEventSyncData: {
+      description: explanation("投影读取结果与后续游标。", "Projection read result and continuation cursor."),
+      properties: {
+        client_msg_no: explanation("请求的客户端消息编号。", "Requested client message number."),
+        from_msg_event_seq: explanation("回显请求起始游标。", "Echoed request starting cursor."),
+        next_msg_event_seq: explanation("最后返回投影的序号；无返回项时保持输入游标。", "Sequence of the last returned projection; unchanged from the input cursor when no items are returned."),
+        more: explanation("有界原始页中还有可返回项时为 1；过滤可能使它为 0，即使更远处仍有可见投影。", "1 when another returnable item exists in the bounded raw page; filtering can make it 0 even when visible projections exist farther ahead."),
+        events: explanation("按事件序号排列的当前投影，最多 2000 条。", "Current projections ordered by event sequence, at most 2000 items."),
+        filtered_by_event_key: explanation("回显请求的 event_key，空字符串表示未按 lane 筛选。", "Echoed event_key; empty means no lane filter."),
+      },
+    },
+    MessageEventSyncResponse: {
+      description: explanation("消息事件读取成功响应。", "Successful message-event read response."),
+      properties: {
+        status: explanation("固定为 200 的应用层状态。", "Application status fixed at 200."),
+        data: explanation("当前投影与游标。", "Current projections and cursors."),
+      },
+    },
     AppendMessageEventRequest: {
       description: explanation('消息事件投影参数。', 'Message-event projection parameters.'),
       properties: {
@@ -292,7 +337,7 @@ export const productHTTPParameterExplanations = {
         event_id: explanation('该事件的非空白唯一标识。', 'Non-blank unique identifier of this event.'),
         event_type: explanation('事件类型；会去除首尾空白并转为小写。', 'Event type; surrounding whitespace is removed and the value is lowercased.'),
         event_key: explanation('事件 lane Key；空值使用默认 lane，stream.finish 强制使用 finish lane。', 'Event lane key; empty selects the default lane and stream.finish forces the finish lane.'),
-        visibility: explanation('调用方提供并去除首尾空白后保存的事件元数据；当前 Product HTTP 消息同步不会用它做访问控制过滤。', 'Caller-supplied event metadata stored after trimming; current Product HTTP message synchronization does not use it as an access-control filter.'),
+        visibility: explanation('调用方提供并去除首尾空白后保存的事件元数据；普通消息同步不会用它做访问控制过滤；eventsync 会根据 include_private 筛选，但不验证调用方权限。', 'Caller-supplied event metadata stored after trimming; ordinary message synchronization does not use it as an access-control filter. eventsync filters by include_private without checking caller permissions.'),
         occurred_at: explanation('调用方提供的事件发生时间整数；入口不解释时间单位。', 'Caller-supplied integer event time; the entry does not interpret its unit.'),
         payload: explanation('任意 JSON 事件 Payload；服务端按原始 JSON 字节传给事件存储。', 'Arbitrary JSON event payload passed to event storage as raw JSON bytes.'),
         headers: explanation('预留字段；只能省略或传 null，任何非 null JSON 值都会被拒绝。', 'Reserved field; it must be omitted or null, and every non-null JSON value is rejected.'),

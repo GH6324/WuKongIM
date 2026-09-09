@@ -3,11 +3,11 @@
   "info": {
     "title": "WuKongIM Product HTTP Runtime API",
     "version": "3.0.0-beta-snapshot",
-    "description": "Complete source-aligned contract for the 41 Product HTTP operations registered by the current runtime. These routes have no built-in authentication.",
+    "description": "Complete source-aligned contract for the 42 Product HTTP operations registered by the current runtime. These routes have no built-in authentication.",
     "x-i18n": {
       "zh": {
         "title": "WuKongIM Product HTTP 运行时 API",
-        "description": "与当前运行时注册的 41 个 Product HTTP 操作对齐的完整合同；这些路由没有内建鉴权。"
+        "description": "与当前运行时注册的 42 个 Product HTTP 操作对齐的完整合同；这些路由没有内建鉴权。"
       }
     }
   },
@@ -563,6 +563,38 @@
         }
       }
     },
+    "/message/eventsync": {
+      "post": {
+        "operationId": "syncMessageEvents",
+        "summary": "Synchronize current message event projections",
+        "description": "Reads current durable event projections after a sequence cursor, with filtering after a bounded read; not a replayable event log.",
+        "x-i18n": {
+          "zh": {
+            "summary": "同步消息事件当前投影",
+            "description": "按序号游标读取当前持久化事件投影，不重放完整事件日志。在有界读取后过滤私有事件。调用方身份与 include_private 没有鉴权，必须由受信后端保护。"
+          }
+        },
+        "tags": [
+          "Messages"
+        ],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/MessageEventSync"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/MessageEventSyncOK"
+          },
+          "400": {
+            "$ref": "#/components/responses/CompatibilityBadRequest"
+          },
+          "503": {
+            "$ref": "#/components/responses/MaintenanceUnavailable"
+          }
+        }
+      }
+    },
     "/message/sync": {
       "post": {
         "operationId": "syncCommandMessages",
@@ -862,6 +894,16 @@
       "ChannelAllowlistMembers": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelAllowlistMutationRequest" } } } },
       "ChannelKey": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelKeyRequest" } } } },
       "SendMessage": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendMessageRequest" } } } },
+      "MessageEventSync": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MessageEventSyncRequest"
+            }
+          }
+        }
+      },
       "AppendMessageEvent": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppendMessageEventRequest" } } } },
       "MessageSync": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessageSyncRequest" } } } },
       "MessageSyncAck": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessageSyncAckRequest" } } } },
@@ -889,6 +931,16 @@
       "SendTimedOut": { "description": "Request cancelled or timed out", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendError" } } } },
       "SendInternalError": { "description": "Unmapped send failure", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendError" } } } },
       "SendUnavailable": { "description": "Retry-required routing failure or restore maintenance", "content": { "application/json": { "schema": { "oneOf": [ { "$ref": "#/components/schemas/RetryRequiredError" }, { "$ref": "#/components/schemas/MaintenanceError" } ] } } } },
+      "MessageEventSyncOK": {
+        "description": "Current durable event projections",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MessageEventSyncResponse"
+            }
+          }
+        }
+      },
       "MessageEventOK": { "description": "Applied event projection", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppendMessageEventResponse" } } } },
       "LegacyMessageListOK": { "description": "Bare legacy message array", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LegacyMessage" } } } } },
       "ChannelMessageSyncOK": { "description": "One committed-message page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelMessageSyncResponse" } } } },
@@ -1139,6 +1191,7 @@
         "type": "object",
         "additionalProperties": true,
         "properties": {
+          "red_dot": { "type": "integer", "default": 0, "description": "Any non-zero value preserves the unread-badge flag; no top-level red_dot alias exists." },
           "no_persist": { "type": "integer", "default": 0, "description": "Any non-zero value means true." },
           "sync_once": { "type": "integer", "default": 0, "description": "Any non-zero value means true." }
         }
@@ -1201,6 +1254,152 @@
         "additionalProperties": false,
         "required": ["error"],
         "properties": { "error": { "type": "string", "const": "retry required" } }
+      },
+      "MessageEventSyncRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "channel_id",
+          "channel_type",
+          "client_msg_no"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "channel_type": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 1,
+            "maximum": 255
+          },
+          "from_uid": {
+            "type": "string"
+          },
+          "client_msg_no": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "event_key": {
+            "type": "string"
+          },
+          "from_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0,
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "include_private": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255,
+            "default": 0
+          }
+        }
+      },
+      "SyncedMessageEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "msg_event_seq",
+          "event_id",
+          "event_key",
+          "event_type",
+          "visibility",
+          "occurred_at"
+        ],
+        "properties": {
+          "msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "event_key": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payload": {}
+        }
+      },
+      "MessageEventSyncData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "client_msg_no",
+          "from_msg_event_seq",
+          "next_msg_event_seq",
+          "more",
+          "events",
+          "filtered_by_event_key"
+        ],
+        "properties": {
+          "client_msg_no": {
+            "type": "string"
+          },
+          "from_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "next_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "more": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          },
+          "events": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/SyncedMessageEvent"
+            }
+          },
+          "filtered_by_event_key": {
+            "type": "string"
+          }
+        }
+      },
+      "MessageEventSyncResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "data"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "const": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/MessageEventSyncData"
+          }
+        }
       },
       "AppendMessageEventRequest": {
         "type": "object",

@@ -921,6 +921,8 @@
 
 ### Offline migration diagnostics
 
+- Public operator instructions live in the bilingual `docs-site/content/docs/server/operations/v2-to-v3-migration{,.en}.mdx` pages. Keep original-v2 offline preparation, explicit exclusions, independent verification, client sequence reset, and post-write rollback boundaries there; capture-specific decisions and historical acceptance evidence remain in the engineering runbook and reports.
+
 - Dedupe report v5 uses `:dedupe-v5` workspace identity. Its per-node protocol
   impact counts unsupported fields after candidate CMD/stream/duplicate omissions,
   separates omitted fields, and retains at most three payload-free examples per
@@ -1222,3 +1224,5 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 
 - Channel recovery must preserve a surviving acknowledged suffix when another durable supporter is unavailable. A read quorum must prove every responding tail is a prefix of the same longest chain before bounded append-only convergence; immutable entry identities and the selected committed frontier are retained, then a fresh quorum proof and current-authority barrier gate readiness. Divergent or unstable evidence never authorizes branch selection or truncation. Migration execution uses bounded active-index cursors per owned hash slot and attempts every task in each page independently.
 - Manager production builds canonicalize JavaScript module-preload dependency order through Vite while preserving stylesheet positions and cascade order. Both HTML preload lists and dynamic-import preload maps must rebuild byte-identically; the browser workflow retains its full tracked-tree mutation check.
+
+- The complete Product HTTP OpenAPI publishes all 42 registered operations, including `/message/eventsync`. Event sync exposes current durable lane projections, filters private/restricted entries after a bounded raw read, and does not authenticate caller identity or membership; `more=0` after filtering is not proof that no visible projection exists farther ahead. Native send `header.red_dot` treats any nonzero integer as true and has no top-level alias. Keep these facts in the contract and bilingual overlays without broadening narrow-profile acceptance claims.

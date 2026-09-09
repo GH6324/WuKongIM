@@ -79,7 +79,9 @@ _openapi:
 
           SendMessageHeaderRequest
 
-          消息固定 Header 的兼容标志；同名顶层字段会与这些值执行逻辑或。
+          消息固定 Header 的兼容标志；no_persist 和 sync_once 的同名顶层字段会与 Header 值执行逻辑或。
+
+          red_dot `integer` default: `0` 非 0 保留消息红点标志，省略时为 0；没有顶层 red_dot 别名。
 
           no_persist `integer` default: `0` 非 0 表示不持久化该消息。
 

@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Align the complete Product HTTP reference with all 42 runtime routes, including event projection sync and the native send `header.red_dot` flag. / 将完整 Product HTTP 文档对齐全部 42 个运行时接口，补齐事件投影同步和发送请求的原生 `header.red_dot` 字段。
+
+- Add a bilingual v2 → v3 offline migration guide covering plans, data policies, independent verification, client cutover, and rollback boundaries. / 新增中英文 v2 → v3 离线迁移指南，覆盖迁移计划、数据处理、独立校验、客户端切换与回退边界。
+
 - Add an isolated Docker rehearsal for a delivered v2 migration package, with fresh targets, archive-only import/verification, exact import retry and bounded resource guards. / 增加迁移交付包的隔离 Docker 演练脚本，覆盖空目标、仅依赖归档的导入与校验、重复导入和资源保护。
 
 - Restructure all eight EasySDK quickstarts and examples in Chinese and English around first-message integration, move historical validation into engineering reference, and pin Web installation to 2.0.5. / 重整八个平台的中英文 EasySDK 入门与示例，统一首次收发流程，将历史验证移入工程文档，并将 Web 安装版本更新为 2.0.5。

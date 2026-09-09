@@ -501,8 +501,8 @@ function publishedProductHTTPGroup(): NavigationGroup {
     'product-http',
     'Product HTTP API',
     'Product HTTP API',
-    '浏览当前源码注册的全部 41 条 Product HTTP 操作。',
-    'Browse all 41 Product HTTP operations registered by the current source.',
+    '浏览当前源码注册的全部 42 条 Product HTTP 操作。',
+    'Browse all 42 Product HTTP operations registered by the current source.',
     [
       ...productHTTPOpenAPIReferenceGroups.map((group) =>
         publishedGroup(
@@ -890,6 +890,13 @@ export const domains: DocumentationDomain[] = [
             'Upgrade & Migration',
             '根据发布说明选择滚动升级或停机升级。',
             'Use release notes to choose a rolling or stopped upgrade.',
+          ),
+          publishedPage(
+            'v2-to-v3-migration',
+            'v2 → v3 离线迁移',
+            'v2 → v3 Offline Migration',
+            '从原版 v2 冷备迁入全新 v3 集群，校验数据并完成切换。',
+            'Migrate original v2 cold backups into a new v3 cluster, verify data, and complete cutover.',
           ),
           publishedPage(
             'troubleshooting',
