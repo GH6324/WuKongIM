@@ -326,6 +326,8 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          build-args: |
+            GOPROXY=https://proxy.golang.org,direct
           platforms: linux/amd64
           load: true
           pull: true
@@ -340,6 +342,8 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          build-args: |
+            GOPROXY=https://proxy.golang.org,direct
           platforms: linux/arm64
           load: true
           pull: true
@@ -414,6 +418,8 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          build-args: |
+            GOPROXY=https://proxy.golang.org,direct
           platforms: linux/amd64,linux/arm64
           push: true
           pull: true

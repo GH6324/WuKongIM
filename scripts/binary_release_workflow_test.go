@@ -197,6 +197,8 @@ func TestBinaryReleaseWorkflowContract(t *testing.T) {
 			packageBuildStep.With = step.With
 		}
 	}
+	require.Contains(t, stepRuns["Validate binary identities and archive contents"], `"$archive_root/wkcli"`)
+
 	require.Equal(t, "steps.build.outputs.native_packages == 'true'", packageBuildStep.If)
 	require.Equal(t, "goreleaser/goreleaser-action@4c6ab561adb47e50c45ef534e2155934e91c40c1", packageBuildStep.Uses)
 	require.Equal(t, map[string]string{
